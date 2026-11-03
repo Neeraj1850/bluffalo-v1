@@ -1,26 +1,251 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ------------------------------------------------------------------ */
+/* Semantic tokens. Dark is the default; light is opt-in.              */
+/* ------------------------------------------------------------------ */
+
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0a0a0a;
+  --surface: #101010;
+  --elev: #161616;
+  --fg: #f2f2f2;
+  --muted: #8c8c8c;
+  --dim: #555555; /* decoration only — fails contrast for text */
+  --border: #404040;
+  --hair: #242424;
+  --track: #2a2a2a;
+  --sel: #f2f2f2;
+  --onsel: #0a0a0a;
+  --focus: #ffffff;
+  --face: #f4f4f1;
+  --ink: #0a0a0a;
+  --back: #141414;
+  --backline: #2e2e2e;
+  --card-shadow: 0 18px 40px rgb(0 0 0 / 0.55);
+  --scrim: rgb(0 0 0 / 0.6);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f7f7f7;
+  --surface: #ffffff;
+  --elev: #ffffff;
+  --fg: #0a0a0a;
+  --muted: #5c5c5c;
+  --dim: #9a9a9a;
+  --border: #c8c8c8;
+  --hair: #e3e3e3;
+  --track: #e0e0e0;
+  --sel: #0a0a0a;
+  --onsel: #ffffff;
+  --focus: #0a0a0a;
+  --face: #ffffff;
+  --ink: #0a0a0a;
+  --back: #0a0a0a;
+  --backline: #2a2a2a;
+  --card-shadow: 0 14px 30px rgb(0 0 0 / 0.14);
+  --scrim: rgb(0 0 0 / 0.4);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-elev: var(--elev);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-dim: var(--dim);
+  --color-border: var(--border);
+  --color-hair: var(--hair);
+  --color-track: var(--track);
+  --color-sel: var(--sel);
+  --color-onsel: var(--onsel);
+  --color-focus: var(--focus);
+  --color-face: var(--face);
+  --color-ink: var(--ink);
+  --color-scrim: var(--scrim);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  --font-display: var(--font-grotesk), system-ui, sans-serif;
+  --font-mono: var(--font-space-mono), ui-monospace, monospace;
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+
+  --shadow-card: var(--card-shadow);
+
+  --radius-chip: 8px;
+  --radius-btn: 12px;
+  --radius-card: 14px;
+
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-press: cubic-bezier(0.3, 0.7, 0.4, 1);
+
+  --animate-dot: dot 1200ms ease-in-out infinite;
+
+  @keyframes dot {
+    0%,
+    100% {
+      opacity: 0.25;
+    }
+    40% {
+      opacity: 1;
+    }
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ------------------------------------------------------------------ */
+/* Base                                                               */
+/* ------------------------------------------------------------------ */
+
+@layer base {
+  html {
+    background: var(--bg);
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    min-height: 100dvh;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 3px;
+  }
+
+  button,
+  a {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  summary {
+    list-style: none;
+  }
+  summary::-webkit-details-marker {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Utilities                                                          */
+/* ------------------------------------------------------------------ */
+
+/* Tiny tracked mono label */
+@utility label-mono {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  line-height: 1.4;
+}
+
+/* Oversized display headline */
+@utility display {
+  font-family: var(--font-display);
+  font-weight: 700;
+  line-height: 0.82;
+  letter-spacing: -0.065em;
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Face-down card: 45° stripes */
+@utility card-back {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--back) 0 6px,
+    var(--backline) 6px 7px
+  );
+}
+
+/* Dotted felt texture for practice tables */
+@utility felt {
+  background:
+    radial-gradient(circle at 1px 1px, var(--hair) 1px, transparent 1.2px) 0 0 / 10px 10px,
+    var(--surface);
+}
+
+/* Game stage: soft oval of surface over a dot grid */
+@utility stage {
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 52%, var(--surface) 0 70%, transparent 71%),
+    radial-gradient(circle at 1px 1px, var(--hair) 1px, transparent 1.2px) 0 0 / 12px 12px;
+}
+
+@utility safe-bottom {
+  padding-bottom: max(20px, env(safe-area-inset-bottom));
+}
+
+/* ------------------------------------------------------------------ */
+/* Range input (StrategySlider)                                       */
+/* ------------------------------------------------------------------ */
+
+.np-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 44px;
+  background: transparent;
+  margin: 0;
+  cursor: pointer;
+  touch-action: pan-y;
+}
+.np-range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background:
+    linear-gradient(var(--fg), var(--fg)) 0 / var(--p, 50%) 100% no-repeat,
+    var(--track);
+}
+.np-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  margin-top: -9px;
+  border-radius: 6px;
+  background: var(--fg);
+  border: 4px solid var(--surface);
+  box-shadow: 0 0 0 1px var(--fg);
+  transition: transform 120ms var(--ease-press);
+}
+.np-range:active::-webkit-slider-thumb {
+  transform: scale(1.18) rotate(8deg);
+}
+.np-range::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--track);
+}
+.np-range::-moz-range-progress {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--fg);
+}
+.np-range::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 6px;
+  background: var(--fg);
+  border: 4px solid var(--surface);
+  box-shadow: 0 0 0 1px var(--fg);
+}
+
+/* ------------------------------------------------------------------ */
+/* Reduced motion: CSS side (Framer Motion handles its own)           */
+/* ------------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
 }
