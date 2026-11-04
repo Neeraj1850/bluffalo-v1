@@ -4,7 +4,6 @@ import Link from "next/link";
 import { motion, type Variants } from "framer-motion";
 import { PlayingCard } from "@/components/cards/PlayingCard";
 import { parseCard } from "@/lib/cards";
-import { cn } from "@/lib/cn";
 import { blindsLabel, buyInLabel, type PokerTable } from "@/lib/data/tables";
 import { spring } from "@/lib/motion";
 import { ExperiencePips } from "./ExperiencePips";
