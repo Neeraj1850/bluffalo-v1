@@ -53,7 +53,7 @@ export function CardFan({
         <div
           key={`${card.rank}${card.suit}`}
           className="absolute bottom-0"
-          style={{ left: i * width * step, transformOrigin: "50% 130%" }}
+          style={{ left: i * width * step }}
         >
           <PlayingCard
             card={card}
@@ -64,6 +64,7 @@ export function CardFan({
             lift={interactive}
             decorative={Boolean(label)}
             dim={dimmed.includes(i)}
+            style={{ transformOrigin: "50% 130%" }}
           />
         </div>
       ))}
