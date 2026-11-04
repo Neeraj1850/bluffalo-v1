@@ -41,7 +41,7 @@ export default function ConnectPage() {
               AI poker agent with real stakes. Provably fair. Cross-chain.
             </Rise>
 
-            <Rise delay={0.64} className="relative mt-auto flex flex-col gap-3 pt-[280px] lg:mt-0 lg:pt-0">
+            <Rise delay={0.64} className="relative mt-auto flex flex-col gap-3 pt-[256px] lg:mt-0 lg:pt-0">
               <ConnectActions />
               <p className="mt-1 text-[13px] leading-[1.45] text-muted lg:text-[14px]">
                 New here? Email is all you need. We set up your account behind the scenes.
