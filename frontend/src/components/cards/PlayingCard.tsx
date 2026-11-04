@@ -111,7 +111,8 @@ export function PlayingCard({
       style={{
         width: w,
         aspectRatio: "5 / 7",
-        borderRadius: "11cqw",
+        // % radii follow the card itself (cq units would follow the parent).
+        borderRadius: "11% / 7.86%",
         transformPerspective: flipIn ? 600 : undefined,
         ...style,
       }}
