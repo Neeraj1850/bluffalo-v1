@@ -79,9 +79,9 @@ export function TableCard({ table: t, onSelect, href = "/strategy" }: TableCardP
         {...common}
         className="relative flex flex-col gap-3.5 overflow-hidden rounded-card bg-sel px-5 py-6 text-onsel"
       >
-        <div className="flex justify-between font-mono text-[11px] uppercase tracking-[0.14em]">
+        <div className="flex justify-between gap-3 font-mono text-[11px] uppercase tracking-[0.1em]">
           <span>{"★"} Most played · real money</span>
-          <span>{seatsLabel(t)}</span>
+          <span className="whitespace-nowrap">{seatsLabel(t)}</span>
         </div>
         <span className="max-w-[230px] font-display text-[56px] font-bold leading-[0.84] tracking-[-0.06em]">
           {t.name}
