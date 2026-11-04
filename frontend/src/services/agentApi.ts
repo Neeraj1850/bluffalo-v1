@@ -1,0 +1,139 @@
+import type { Limits, PresetKey, StrategyParams } from "@/lib/data/strategy";
+
+/**
+ * The frontend talks to the agent backend only through this interface.
+ * `mockAgentApi` stands in until the real service exists — swap the export
+ * at the bottom of this file. Each step that moves money has its own call
+ * and its own state, so the UI can never show "confirmed" for a quote.
+ */
+
+export type DeployRequest = {
+  tableId: string;
+  buyIn: number;
+  preset: PresetKey;
+  params: StrategyParams;
+  limits: Limits;
+};
+
+export type FeeQuote = { fee: number; currency: "NEAR"; expiresAt: number };
+
+export type DeployResult = {
+  /** The agent's own account that now holds the buy-in. */
+  agentAccount: string;
+  confirmedAt: number;
+};
+
+export type Verification = "verified" | "pending" | "unavailable";
+
+export type Chain = "NEAR" | "Ethereum" | "Solana" | "Base";
+
+export type CashoutQuote = {
+  id: string;
+  chain: Chain;
+  send: number;
+  fee: number;
+  receive: number;
+  receiveAsset: string;
+  expiresAt: number;
+};
+
+export type CashoutStatus = "submitted" | "confirmed" | "failed";
+
+export interface AgentApi {
+  getFeeQuote(req: DeployRequest): Promise<FeeQuote>;
+  deployAgent(req: DeployRequest): Promise<DeployResult>;
+  getVerification(handId: string): Promise<Verification>;
+  getCashoutQuote(chain: Chain, amount: number): Promise<CashoutQuote>;
+  submitCashout(quoteId: string): Promise<{ id: string }>;
+  getCashoutStatus(id: string): Promise<CashoutStatus>;
+}
+
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    /** Whether any funds moved. The UI must say so either way. */
+    readonly fundsMoved: boolean,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Mock implementation — demo only. Add ?fail=deploy, ?fail=quote,
+// ?fail=cashout or ?verify=pending|unavailable to the URL to try other paths.
+// ---------------------------------------------------------------------------
+
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+function flag(name: string): string | null {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get(name);
+}
+
+/** Demo-only conversion rates; a real quote comes from the cross-chain router. */
+const MOCK_RATES: Record<Chain, { asset: string; rate: number; fee: number }> = {
+  NEAR: { asset: "NEAR", rate: 1, fee: 0.001 },
+  Ethereum: { asset: "ETH", rate: 0.0011, fee: 0.0004 },
+  Solana: { asset: "SOL", rate: 0.021, fee: 0.0001 },
+  Base: { asset: "USDC", rate: 3.1, fee: 0.05 },
+};
+
+const cashouts = new Map<string, number>();
+
+export const mockAgentApi: AgentApi = {
+  async getFeeQuote() {
+    await wait(900);
+    if (flag("fail") === "quote") throw new ApiError("Fee quote unavailable", false);
+    return { fee: 0.0025, currency: "NEAR", expiresAt: Date.now() + 60_000 };
+  },
+
+  async deployAgent() {
+    await wait(1800);
+    if (flag("fail") === "deploy") {
+      throw new ApiError("The network didn’t accept the request.", false);
+    }
+    return { agentAccount: "agent-7f3a.poker.near", confirmedAt: Date.now() };
+  },
+
+  async getVerification() {
+    await wait(1200);
+    const v = flag("verify");
+    if (v === "pending" || v === "unavailable") return v;
+    return "verified";
+  },
+
+  async getCashoutQuote(chain, amount) {
+    await wait(800);
+    const r = MOCK_RATES[chain];
+    const receive = Math.max(0, amount * r.rate - r.fee);
+    return {
+      id: `q_${Date.now()}`,
+      chain,
+      send: amount,
+      fee: r.fee,
+      receive,
+      receiveAsset: r.asset,
+      expiresAt: Date.now() + 30_000,
+    };
+  },
+
+  async submitCashout() {
+    await wait(1200);
+    if (flag("fail") === "cashout") {
+      throw new ApiError("The transfer couldn’t be submitted.", false);
+    }
+    const id = `co_${Date.now()}`;
+    cashouts.set(id, Date.now());
+    return { id };
+  },
+
+  async getCashoutStatus(id) {
+    await wait(600);
+    const started = cashouts.get(id);
+    if (!started) return "failed";
+    return Date.now() - started > 1800 ? "confirmed" : "submitted";
+  },
+};
+
+export const agentApi: AgentApi = mockAgentApi;
