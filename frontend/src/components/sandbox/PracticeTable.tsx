@@ -17,7 +17,7 @@ export function PracticeTable({ board, shown, hole, thinking }: PracticeTablePro
   return (
     <section
       aria-label="Practice table"
-      className="felt relative h-[330px] overflow-hidden rounded-[160px_160px_28px_28px] border border-border"
+      className="felt relative h-[352px] overflow-hidden rounded-[160px_160px_28px_28px] border border-border"
     >
       <div
         aria-hidden="true"
@@ -32,7 +32,7 @@ export function PracticeTable({ board, shown, hole, thinking }: PracticeTablePro
         <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">Practice bot</span>
       </div>
 
-      <div role="group" aria-label="Community cards" className="absolute inset-x-0 top-[140px] flex justify-center gap-1.5">
+      <div role="group" aria-label="Community cards" className="absolute inset-x-0 top-[132px] flex justify-center gap-1.5">
         {board.map((c, i) =>
           i < shown ? (
             <PlayingCard
