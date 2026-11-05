@@ -1,0 +1,120 @@
+"use client";
+
+import Link from "next/link";
+import { ButtonHint, ButtonLink } from "@/components/ui/Button";
+import { MonoLabel } from "@/components/ui/MonoLabel";
+import { Rise } from "@/components/ui/Rise";
+import { LIMITS, PARAMS } from "@/lib/data/strategy";
+import { getTable } from "@/lib/data/tables";
+import { useSetup } from "@/lib/store/setup";
+import { PresetPicker } from "./PresetPicker";
+import { RiskLimitRow } from "./RiskLimitRow";
+import { StrategySlider } from "./StrategySlider";
+
+export function StrategyView() {
+  const { tableId, preset, params, limits, choosePreset, setParam, setLimit } = useSetup();
+  const table = getTable(tableId);
+  const isPractice = table.mode === "practice";
+
+  return (
+    <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-5 pt-6 lg:px-10 lg:pt-10">
+      <header className="flex flex-col gap-3">
+        <div className="flex items-center justify-between font-mono text-[11px] uppercase tracking-[0.2em] text-muted">
+          <Link href="/lobby" className="inline-flex min-h-11 items-center hover:text-fg">
+            {"←"} {table.name}
+          </Link>
+          <span>03 · Tune your agent</span>
+        </div>
+        <Rise
+          as="h1"
+          feel="spring"
+          className="display text-[88px] leading-[0.8] tracking-[-0.07em] lg:text-[140px]"
+        >
+          strategy
+        </Rise>
+        <p className="max-w-md text-[15px] leading-normal text-muted">
+          Pick a personality. Your agent plays every hand with it. You can fine-tune later.
+        </p>
+      </header>
+
+      <div className="grid gap-6 lg:grid-cols-2 lg:items-start lg:gap-10">
+        <div className="flex flex-col gap-6 lg:sticky lg:top-10">
+          <PresetPicker value={preset} onChange={choosePreset} />
+        </div>
+
+        <div className="flex flex-col gap-6">
+          <section
+            aria-labelledby="fine-tune"
+            className="flex flex-col rounded-card border border-border bg-surface px-5 pb-3 pt-1"
+          >
+            <div className="flex items-baseline justify-between pb-1 pt-4">
+              <MonoLabel as="h2" id="fine-tune">
+                Fine-tune · optional
+              </MonoLabel>
+              <span className="font-mono text-[11px] text-muted">moving any = custom</span>
+            </div>
+            {PARAMS.map((p) => (
+              <StrategySlider
+                key={p.key}
+                label={p.label}
+                value={params[p.key]}
+                lo={p.lo}
+                hi={p.hi}
+                hint={p.hint(params[p.key])}
+                onChange={(v) => setParam(p.key, v)}
+              />
+            ))}
+          </section>
+
+          <section aria-labelledby="limits" className="flex flex-col gap-1">
+            <div className="flex items-baseline justify-between pb-2">
+              <h2 id="limits" className="font-display text-[28px] font-medium tracking-[-0.03em]">
+                safety limits
+              </h2>
+              <MonoLabel>Agent stops itself</MonoLabel>
+            </div>
+            <div className="rounded-card border border-border bg-surface">
+              {LIMITS.map((l) => (
+                <RiskLimitRow
+                  key={l.key}
+                  label={l.label}
+                  hint={l.hint(limits[l.key])}
+                  value={limits[l.key]}
+                  step={l.step}
+                  min={l.min}
+                  max={l.max}
+                  decLabel={l.decLabel}
+                  incLabel={l.incLabel}
+                  onChange={(v) => setLimit(l.key, v)}
+                />
+              ))}
+            </div>
+          </section>
+
+          <div className="flex flex-col gap-3">
+            <ButtonLink href="/sandbox" trailing={<ButtonHint>Free {"→"}</ButtonHint>}>
+              Test in practice
+            </ButtonLink>
+            {isPractice ? (
+              <ButtonLink
+                href="/lobby"
+                variant="secondary"
+                trailing={<ButtonHint muted>Pick a table</ButtonHint>}
+              >
+                Play for real money
+              </ButtonLink>
+            ) : (
+              <ButtonLink
+                href="/deploy"
+                variant="secondary"
+                trailing={<ButtonHint muted>Real money · review first</ButtonHint>}
+              >
+                Start playing
+              </ButtonLink>
+            )}
+          </div>
+        </div>
+      </div>
+    </main>
+  );
+}
