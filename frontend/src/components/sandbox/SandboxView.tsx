@@ -81,7 +81,7 @@ export function SandboxView() {
               type="button"
               onClick={sim.togglePaused}
               aria-pressed={sim.paused}
-              className="inline-flex h-8 items-center rounded-chip border border-border px-2.5 font-mono text-[11px] uppercase"
+              className="inline-flex h-8 shrink-0 items-center whitespace-nowrap rounded-chip border border-border px-2.5 font-mono text-[11px] uppercase"
             >
               {sim.paused ? "▶ Resume" : "❚❚ Pause"}
             </button>
