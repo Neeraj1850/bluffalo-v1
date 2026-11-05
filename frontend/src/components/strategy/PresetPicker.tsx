@@ -68,7 +68,7 @@ export function PresetPicker({ value, onChange }: PresetPickerProps) {
 
       <section
         aria-live="polite"
-        className="relative flex min-h-[260px] flex-col justify-end gap-2 overflow-hidden rounded-card border border-border p-5"
+        className="relative flex min-h-[300px] flex-col justify-end gap-2 overflow-hidden rounded-card border border-border p-5"
       >
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
@@ -82,7 +82,7 @@ export function PresetPicker({ value, onChange }: PresetPickerProps) {
             <PresetGlyph preset={preset.key} />
           </motion.div>
         </AnimatePresence>
-        <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted">{preset.tag}</span>
+        <span className="relative font-mono text-[11px] uppercase tracking-[0.16em] text-muted">{preset.tag}</span>
         <span className="font-display text-[56px] font-bold leading-[0.85] tracking-[-0.06em]">
           {preset.label.toLowerCase()}
         </span>
