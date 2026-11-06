@@ -54,19 +54,20 @@ export function GameView() {
   return (
     <div className="flex h-dvh flex-col overflow-hidden lg:h-auto lg:min-h-dvh lg:flex-row lg:flex-wrap">
       <main className="flex min-h-0 flex-1 flex-col lg:min-w-0 lg:flex-[999_1_560px]">
-        <header className="flex flex-wrap items-center justify-between gap-4 border-b border-hair px-5 pb-3 pt-4 lg:px-8 lg:py-5">
-          <div className="flex flex-col gap-1.5 lg:flex-row lg:items-center lg:gap-4">
+        <header className="flex items-center justify-between gap-3 border-b border-hair px-5 pb-3 pt-4 lg:flex-wrap lg:gap-4 lg:px-8 lg:py-5">
+          <div className="flex min-w-0 flex-col gap-1.5 lg:flex-row lg:items-center lg:gap-4">
             <StatusBadge kind={live ? "live" : "practice"} size="sm" className="self-start lg:h-7 lg:self-auto">
               {live ? "Live · real money" : "Practice · simulated"}
             </StatusBadge>
             <span className="hidden font-display text-[28px] font-bold tracking-[-0.04em] lg:inline">
               {table.name}
             </span>
-            <MonoLabel className="tracking-[0.14em] lg:text-[12px]">
-              Blinds {blindsLabel(table)} · Hand {hand.id}
+            <MonoLabel className="truncate tracking-[0.14em] lg:text-[12px]">
+              Blinds {blindsLabel(table)} · <span className="hidden sm:inline">Hand </span>
+              {hand.id}
             </MonoLabel>
           </div>
-          <div className="flex flex-col items-end lg:flex-row lg:items-baseline lg:gap-2.5">
+          <div className="flex shrink-0 flex-col items-end lg:flex-row lg:items-baseline lg:gap-2.5">
             <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted lg:text-[11px]">Pot</span>
             <motion.span
               key={s.pot}
