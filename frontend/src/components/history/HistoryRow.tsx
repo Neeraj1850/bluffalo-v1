@@ -40,8 +40,8 @@ export function HistoryRow({ hand, expanded, onToggle, index = 0 }: HistoryRowPr
       >
         <span className="font-mono text-[11px] text-muted">{hand.id}</span>
         <span className="flex gap-[3px]" aria-label={hand.hole.map(cardName).join(", ")}>
-          <PlayingCard card={hand.hole[0]} size="xs" tilt={-4} decorative className="shadow-none" />
-          <PlayingCard card={hand.hole[1]} size="xs" tilt={4} decorative className="shadow-none" />
+          <PlayingCard card={hand.hole[0]} size="xs" tilt={-4} decorative className="shadow-none ring-1 ring-border" />
+          <PlayingCard card={hand.hole[1]} size="xs" tilt={4} decorative className="shadow-none ring-1 ring-border" />
         </span>
         <span className="text-[14px] leading-[1.35]">{hand.description}</span>
         <span className="flex flex-col items-end gap-0.5">
