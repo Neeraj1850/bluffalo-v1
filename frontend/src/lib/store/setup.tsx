@@ -59,7 +59,7 @@ type SetupContextValue = SetupState & {
   setParam: (key: ParamKey, value: number) => void;
   setLimit: (key: LimitKey, value: number) => void;
   markDeployed: (account: string) => void;
-  stopAgent: () => void;
+  stopAgent: (returnedStack?: number) => void;
 };
 
 const SetupContext = createContext<SetupContextValue | null>(null);
@@ -124,7 +124,16 @@ export function SetupProvider({ children }: { children: ReactNode }) {
       })),
     [],
   );
-  const stopAgent = useCallback(() => setState((s) => ({ ...s, agent: { status: "idle" } })), []);
+  /** Agent leaves the table; whatever stack it has left returns to the playing balance. */
+  const stopAgent = useCallback(
+    (returnedStack = 0) =>
+      setState((s) =>
+        s.agent.status === "deployed"
+          ? { ...s, balance: s.balance + returnedStack, agent: { status: "idle" } }
+          : s,
+      ),
+    [],
+  );
 
   const value = useMemo<SetupContextValue>(
     () => ({
