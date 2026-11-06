@@ -45,7 +45,7 @@ export function HistoryView() {
         <Rise
           as="h1"
           feel="spring"
-          className="display text-[96px] leading-[0.8] tracking-[-0.07em] lg:text-[140px]"
+          className="display pb-[0.1em] text-[96px] leading-[0.8] tracking-[-0.07em] lg:text-[140px]"
         >
           history
         </Rise>
