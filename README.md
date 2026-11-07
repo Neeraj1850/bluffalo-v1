@@ -123,7 +123,7 @@ Agent decisions use [Groq](https://console.groq.com) (free tier). Put `GROQ_API_
 
 ## Contributing
 
-- Every feature and every bug fix ships with a test (`frontend/src/**/*.test.ts`, vitest).
+- Every feature and every bug fix ships with a test (`frontend/src/tests/`, mirroring `src/` paths, vitest).
 - `make check` (lint + typecheck + tests) must pass before every commit. Enable the hook once:
   `git config core.hooksPath .githooks` — it runs `make check` and blocks the commit on failure.
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { amount, near, percent, signed } from "./format";
+import { amount, near, percent, signed } from "@/lib/format";
 
 describe("format", () => {
   it("signs every amount without relying on color", () => {

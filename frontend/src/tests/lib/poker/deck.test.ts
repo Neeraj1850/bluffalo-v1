@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { freshDeck, rng, shuffle } from "./deck";
+import { freshDeck, rng, shuffle } from "@/lib/poker/deck";
 
 const SEED = "00112233445566778899aabbccddeeff";
 const key = (c: { rank: string; suit: string }) => c.rank + c.suit;
