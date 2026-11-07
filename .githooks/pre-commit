@@ -1,0 +1,3 @@
+#!/bin/sh
+# Block the commit unless lint, typecheck and tests pass.
+exec make check
