@@ -1,2 +1,6 @@
 # Local reference notes (design brief, specs, workflow) — never committed
 notes/
+
+# Local markdown docs (CLAUDE.md, specs, skills) — never committed; READMEs stay tracked
+*.md
+!README.md
