@@ -60,6 +60,8 @@ type SetupContextValue = SetupState & {
   setLimit: (key: LimitKey, value: number) => void;
   markDeployed: (account: string) => void;
   stopAgent: (returnedStack?: number) => void;
+  /** Funds confirmed as sent out of the app: agent stack first, then balance. */
+  withdraw: (source: "agent" | "balance", amount: number) => void;
 };
 
 const SetupContext = createContext<SetupContextValue | null>(null);
@@ -135,6 +137,16 @@ export function SetupProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const withdraw = useCallback(
+    (source: "agent" | "balance", amount: number) =>
+      setState((s) =>
+        source === "agent"
+          ? { ...s, agent: { status: "idle" } }
+          : { ...s, balance: Math.max(0, s.balance - amount) },
+      ),
+    [],
+  );
+
   const value = useMemo<SetupContextValue>(
     () => ({
       ...state,
@@ -147,8 +159,9 @@ export function SetupProvider({ children }: { children: ReactNode }) {
       setLimit,
       markDeployed,
       stopAgent,
+      withdraw,
     }),
-    [state, hydrated, buyIn, connect, selectTable, choosePreset, setParam, setLimit, markDeployed, stopAgent],
+    [state, hydrated, buyIn, connect, selectTable, choosePreset, setParam, setLimit, markDeployed, stopAgent, withdraw],
   );
 
   return <SetupContext.Provider value={value}>{children}</SetupContext.Provider>;
