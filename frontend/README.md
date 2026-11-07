@@ -1,36 +1,86 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Near Poker Agent — frontend
 
-## Getting Started
+Next.js 15 (App Router) · TypeScript · Tailwind CSS v4 · Framer Motion 12.
 
-First, run the development server:
+Built from the design canvas: https://claude.ai/artifact/4dmA5jxvT5stVhPWBMjG5L
+
+## Run it
+
+Requires Node.js 20 or newer.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cd frontend
+npm install
+npm run dev        # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Other scripts:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run build      # production build
+npm start          # serve the production build
+npm run lint
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## The flow
 
-## Learn More
+| Route | Screen |
+| --- | --- |
+| `/` | Connect — email or wallet (mocked until Privy is wired) |
+| `/lobby` | Pick a table |
+| `/strategy` | Personality presets, fine-tune sliders, safety limits |
+| `/sandbox` | Practice mode — simulated hands, free chips |
+| `/deploy` | Confirm real-money deployment |
+| `/game` | Watch the agent play (live or practice) |
+| `/history` | Hand archive with replays |
+| `/results` | Hand result, fair-play verification, cash out |
 
-To learn more about Next.js, take a look at the following resources:
+Choices (table, strategy, limits, agent status, balance) carry across screens via
+`SetupProvider` and survive a refresh (sessionStorage).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Theme: dark by default; toggle on the connect screen footer, the history header, or
+the desktop rail. Respects `prefers-reduced-motion`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Structure
 
-## Deploy on Vercel
+```
+src/
+  app/                    routes; (app)/ shares the nav shell
+  components/
+    cards/                PlayingCard, CardFan
+    connect/ lobby/ strategy/ sandbox/ deploy/ game/ history/ results/
+    nav/                  BottomNav (mobile), NavRail (≥1024px), AppShell
+    ui/                   Button, StatusBadge, StatBox, Sheet, Disclosure, …
+  lib/
+    data/                 tables, strategy presets, demo hands
+    store/setup.tsx       cross-screen state
+    motion.ts             springs, timings, variants
+    cards.ts format.ts theme.ts
+  services/agentApi.ts    the only door to the backend
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Backend: mock today, real later
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Everything that touches money or verification goes through `src/services/agentApi.ts`:
+`getFeeQuote`, `deployAgent`, `getVerification`, `getCashoutQuote`, `submitCashout`,
+`getCashoutStatus`. Right now `agentApi = mockAgentApi` — realistic delays, demo values.
+Implement the `AgentApi` interface against your service and swap that one export.
+
+Game hands are scripted demo data in `src/lib/data/hands.ts` until the live hand feed exists.
+
+Try the unhappy paths with the mock by adding a query string:
+
+| URL | Shows |
+| --- | --- |
+| `/deploy?fail=quote` | fee quote unavailable — confirm stays locked |
+| `/deploy?fail=deploy` | deploy rejected — settings kept, "no funds moved" |
+| `/results?verify=pending` | verification still running |
+| `/results?verify=unavailable` | verification couldn't be checked |
+| `/results?fail=cashout` | cash-out submission fails |
+
+## Design rules worth keeping
+
+- Monochrome only. Meaning comes from shape: dashed = practice/provisional, solid = live/committed.
+- Win/loss always signed (`+6.0` / `−3.0`) and labelled, never color alone.
+- Quote ≠ submitted ≠ confirmed. Never show success before the service resolves.
+- Plain language: "Connect account", "Your agent is thinking", "Fair-play verified".
