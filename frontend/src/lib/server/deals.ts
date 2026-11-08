@@ -7,7 +7,11 @@ import { commitment, newSeed } from "@/lib/poker/fairness";
 
 // ponytail: in-memory, per server process — lost on restart and not shared across
 // serverless instances. Moves on-chain with the poker contract (commit stored there).
-const pending = new Map<string, { seed: string; commitment: string; at: number }>();
+// Kept on globalThis: route handlers can be bundled with separate copies of this module.
+const store = globalThis as typeof globalThis & {
+  __npDeals?: Map<string, { seed: string; commitment: string; at: number }>;
+};
+const pending = (store.__npDeals ??= new Map());
 
 const TTL_MS = 10 * 60_000;
 

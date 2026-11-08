@@ -19,6 +19,13 @@ describe("deal store", () => {
     expect(takeSeed(handId)).toBeNull();
   });
 
+  it("shares deals across separate copies of the module", async () => {
+    vi.resetModules();
+    const other = await import("@/lib/server/deals");
+    const { handId } = await createDeal();
+    expect(other.takeSeed(handId)).not.toBeNull();
+  });
+
   it("returns null for unknown hands", () => {
     expect(takeSeed("nope")).toBeNull();
   });
