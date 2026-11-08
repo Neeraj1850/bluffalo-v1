@@ -129,7 +129,3 @@ export function toHistory(h: LiveHand): HistoryHand {
   };
 }
 
-/** Newest first, capped so session storage stays small. */
-export function pushHand(list: LiveHand[], hand: LiveHand, cap = 50): LiveHand[] {
-  return [hand, ...list.filter((h) => h.id !== hand.id)].slice(0, cap);
-}

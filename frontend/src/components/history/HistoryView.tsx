@@ -11,7 +11,7 @@ import { HISTORY, type HistoryHand } from "@/lib/data/hands";
 import { signed } from "@/lib/format";
 import { spring } from "@/lib/motion";
 import { toHistory } from "@/lib/poker/record";
-import { useSetup } from "@/lib/store/setup";
+import { useHands } from "@/lib/store/useHands";
 import { HistoryRow } from "./HistoryRow";
 
 type Filter = "session" | "week" | "all";
@@ -27,11 +27,13 @@ function inScope(scope: HistoryHand["scope"], filter: Filter) {
 }
 
 export function HistoryView() {
-  const { hands: played } = useSetup();
+  const played = useHands();
   // Real hands once the agent has played; the demo archive until then.
-  const archive = played.length ? played.map(toHistory) : HISTORY;
+  const archive = played?.length ? played.map(toHistory) : HISTORY;
   const [filter, setFilter] = useState<Filter>("session");
-  const [open, setOpen] = useState<string | null>(archive[0]?.id ?? null);
+  const [chosen, setOpen] = useState<string | null | undefined>(undefined);
+  // Open the newest hand until the player picks one (hands load after first render).
+  const open = chosen === undefined ? (archive[0]?.id ?? null) : chosen;
 
   const hands = archive.filter((h) => inScope(h.scope, filter));
   const net = hands.reduce((a, h) => a + h.net, 0);

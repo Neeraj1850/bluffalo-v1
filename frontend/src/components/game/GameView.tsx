@@ -89,7 +89,6 @@ function Sitting() {
       dealing={loop.loading}
       onStop={live ? () => setStopRequested(true) : undefined}
       onDone={(hand) => {
-        if (live) setup.recordHand(hand);
         const reason = loop.finish(hand);
         const leaving = reason || stopRequested;
         if (live && leaving) setup.stopAgent(hand.stackAfter);

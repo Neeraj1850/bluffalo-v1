@@ -12,16 +12,20 @@ import { DEMO_HAND } from "@/lib/data/hands";
 import { getTable } from "@/lib/data/tables";
 import { signed } from "@/lib/format";
 import { useSetup } from "@/lib/store/setup";
+import { useHands } from "@/lib/store/useHands";
 import { CashoutSheet } from "./CashoutSheet";
 import { VerificationCard } from "./VerificationCard";
 
 export function ResultsView() {
   const setup = useSetup();
+  const hands = useHands();
   // The agent's latest real hand; the demo hand until it has played one.
-  const live = setup.hands[0];
+  const live = hands?.[0];
   const hand = live ?? DEMO_HAND;
   const won = hand.net > 0;
   const [sheetOpen, setSheetOpen] = useState(false);
+  // Don't flash the demo hand (and its win animation) while real hands load.
+  if (!hands) return null;
   const agent = setup.agent.status === "deployed" ? setup.agent : null;
   const buyIn = agent?.buyIn ?? setup.buyIn;
   const table = getTable(agent?.tableId ?? setup.tableId);
