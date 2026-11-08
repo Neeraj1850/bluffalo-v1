@@ -7,9 +7,11 @@ import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 import { MonoLabel } from "@/components/ui/MonoLabel";
 import { Rise } from "@/components/ui/Rise";
 import { cn } from "@/lib/cn";
-import { HISTORY } from "@/lib/data/hands";
+import { HISTORY, type HistoryHand } from "@/lib/data/hands";
 import { signed } from "@/lib/format";
 import { spring } from "@/lib/motion";
+import { toHistory } from "@/lib/poker/record";
+import { useSetup } from "@/lib/store/setup";
 import { HistoryRow } from "./HistoryRow";
 
 type Filter = "session" | "week" | "all";
@@ -24,13 +26,14 @@ function inScope(scope: HistoryHand["scope"], filter: Filter) {
   return filter === "all" || scope === "session" || (filter === "week" && scope === "week");
 }
 
-type HistoryHand = (typeof HISTORY)[number];
-
 export function HistoryView() {
+  const { hands: played } = useSetup();
+  // Real hands once the agent has played; the demo archive until then.
+  const archive = played.length ? played.map(toHistory) : HISTORY;
   const [filter, setFilter] = useState<Filter>("session");
-  const [open, setOpen] = useState<string | null>(HISTORY[0]?.id ?? null);
+  const [open, setOpen] = useState<string | null>(archive[0]?.id ?? null);
 
-  const hands = HISTORY.filter((h) => inScope(h.scope, filter));
+  const hands = archive.filter((h) => inScope(h.scope, filter));
   const net = hands.reduce((a, h) => a + h.net, 0);
   const won = hands.filter((h) => h.net > 0).reduce((a, h) => a + h.net, 0);
   const lost = hands.filter((h) => h.net < 0).reduce((a, h) => a + h.net, 0);
