@@ -8,10 +8,10 @@ import { MonoLabel } from "@/components/ui/MonoLabel";
 import { StatBox, StatGroup } from "@/components/ui/StatBox";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
-import { DEMO_HAND } from "@/lib/data/hands";
 import { getPreset } from "@/lib/data/strategy";
 import { getTable, PRACTICE_TABLE_ID } from "@/lib/data/tables";
 import { percent, signed } from "@/lib/format";
+import { STOP_COPY } from "@/lib/poker/session";
 import { useSetup } from "@/lib/store/setup";
 import { PracticeTable } from "./PracticeTable";
 import { usePracticeSim } from "./usePracticeSim";
@@ -53,9 +53,9 @@ export function SandboxView() {
       <div className="grid gap-5 lg:grid-cols-[1.1fr_1fr] lg:gap-10">
         <div className="flex flex-col gap-5">
           <PracticeTable
-            board={DEMO_HAND.board}
+            board={sim.hand?.board ?? []}
             shown={sim.boardShown}
-            hole={DEMO_HAND.hole}
+            hole={sim.hand?.hole ?? []}
             thinking={sim.thinking}
           />
 
@@ -86,6 +86,16 @@ export function SandboxView() {
               {sim.paused ? "▶ Resume" : "❚❚ Pause"}
             </button>
           </div>
+          {(sim.error || sim.stopped) && (
+            <p className="flex items-center justify-between gap-3 border-b border-hair py-3 text-[13px] text-muted">
+              {sim.error ?? STOP_COPY[sim.stopped!]}
+              {sim.error && (
+                <button type="button" onClick={sim.retry} className="h-9 shrink-0 rounded-chip border border-border px-3">
+                  Try again
+                </button>
+              )}
+            </p>
+          )}
           <ol aria-live="polite" className="flex flex-col">
             <AnimatePresence initial={false}>
               {sim.thinking && <DecisionFeedRow key="thinking" thinking street="SIM" />}

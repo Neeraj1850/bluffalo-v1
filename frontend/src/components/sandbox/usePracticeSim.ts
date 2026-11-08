@@ -1,16 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { PRACTICE_STEPS } from "@/lib/data/hands";
+import { useEffect, useRef, useState } from "react";
+import { useLiveHands } from "@/components/game/useLiveHands";
+import { getTable, PRACTICE_STACK, PRACTICE_TABLE_ID } from "@/lib/data/tables";
+import { useSetup } from "@/lib/store/setup";
 
-/** How each simulated hand ends, cycled so results aren't a fake 100% win rate. */
-const OUTCOMES = [
-  { net: 6.5, action: "WON 6.5", reason: "Bot called with a pair of nines. Queens hold. (Practice chips.)" },
-  { net: -2, action: "LOST 2", reason: "Bot had the king. Agent checked the river and gave up a small pot. (Practice chips.)" },
-  { net: 3, action: "WON 3", reason: "Bot folded to the river bet. Small pot taken. (Practice chips.)" },
-];
-
-const TICK_MS = 1100;
+const TICK_MS = 1400;
 
 export type PracticeFeedItem = {
   index: string;
@@ -21,60 +16,61 @@ export type PracticeFeedItem = {
 };
 
 /**
- * Plays the practice script on a loop: think → decide → think → decide…
- * Stats only ever count hands that this simulation actually completed.
+ * Real practice hands against the practice bot, revealed one decision per
+ * tick. Stats only ever count hands that actually finished.
  */
 export function usePracticeSim() {
-  const [step, setStep] = useState(0);
-  const [thinking, setThinking] = useState(true);
+  const { params, limits } = useSetup();
+  const table = getTable(PRACTICE_TABLE_ID);
+  const loop = useLiveHands({
+    tableId: table.id,
+    params,
+    startStack: PRACTICE_STACK,
+    limits,
+    bigBlind: table.blinds.big,
+  });
   const [paused, setPaused] = useState(false);
-  const [hand, setHand] = useState(0);
-  const [stats, setStats] = useState({ hands: 0, wins: 0, net: 0 });
+  const [pos, setPos] = useState({ id: "", step: 0 });
+  const [wins, setWins] = useState(0);
+  const settled = useRef("");
+
+  const hand = loop.hand;
+  const step = hand && pos.id === hand.id ? pos.step : 0;
+  const last = hand ? hand.steps.length - 1 : 0;
+  const done = Boolean(hand) && step === last;
+  const { finish, next, stopped, loading } = loop;
 
   useEffect(() => {
-    if (paused) return;
-    const id = setInterval(() => {
-      if (!thinking) {
-        setThinking(true);
-        return;
+    if (!hand || paused || loading) return;
+    const id = setTimeout(() => {
+      if (step < last) return setPos({ id: hand.id, step: step + 1 });
+      if (settled.current !== hand.id) {
+        settled.current = hand.id;
+        if (hand.net > 0) setWins((w) => w + 1);
+        if (finish(hand)) return;
       }
-      setThinking(false);
-      const last = PRACTICE_STEPS.length - 1;
-      if (step < last) {
-        const next = step + 1;
-        setStep(next);
-        if (next === last) {
-          const o = OUTCOMES[hand % OUTCOMES.length];
-          setStats((s) => ({ hands: s.hands + 1, wins: s.wins + (o.net > 0 ? 1 : 0), net: s.net + o.net }));
-        }
-      } else {
-        setStep(0);
-        setHand((h) => h + 1);
-      }
+      if (!stopped) next();
     }, TICK_MS);
-    return () => clearInterval(id);
-  }, [paused, thinking, step, hand]);
+    return () => clearTimeout(id);
+  }, [hand, step, last, paused, loading, stopped, finish, next]);
 
-  const outcome = OUTCOMES[hand % OUTCOMES.length];
-  const feed: PracticeFeedItem[] = PRACTICE_STEPS.slice(0, step + 1)
-    .map((s, i) => {
-      const isEnd = s.street === "END";
-      return {
-        index: `#${i + 1}`,
-        action: isEnd ? outcome.action : s.action,
-        reason: isEnd ? outcome.reason : s.reason,
-        street: s.street,
-        latest: i === step,
-      };
-    })
-    .reverse();
+  const feed: PracticeFeedItem[] = hand
+    ? hand.steps
+        .slice(0, step + 1)
+        .map((s, i) => ({ index: `#${i + 1}`, action: s.action, reason: s.reason, street: s.street, latest: i === step }))
+        .reverse()
+    : [];
 
   return {
+    hand,
     feed,
-    thinking: thinking && !paused,
+    thinking: !paused && !stopped && (loading || !hand || done),
     paused,
     togglePaused: () => setPaused((p) => !p),
-    boardShown: PRACTICE_STEPS[step].board,
-    stats,
+    boardShown: hand ? hand.steps[step].boardCount : 0,
+    stats: { hands: loop.session.hands, wins, net: loop.session.net },
+    stopped,
+    error: loop.error,
+    retry: next,
   };
 }
