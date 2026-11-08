@@ -1,0 +1,119 @@
+import { cardShort } from "@/lib/cards";
+import type { HandStep, HistoryHand, ScriptedHand } from "@/lib/data/hands";
+import type { DealProof } from "./fairness";
+import { settle, type HandState, type LogEntry } from "./game";
+
+/** A played hand: what the screens render, plus what anyone needs to verify the deal. */
+export type LiveHand = ScriptedHand & { proof: DealProof };
+
+const BOARD: Record<LogEntry["street"], HandStep["boardCount"]> = {
+  "PRE-FLOP": 0,
+  FLOP: 3,
+  TURN: 4,
+  RIVER: 5,
+  SHOWDOWN: 5,
+};
+
+const lower = (s: string) => s[0].toLowerCase() + s.slice(1);
+
+/** Opening a street with chips is a bet; anything after (or pre-flop) is a raise. */
+function isBet(log: LogEntry[], i: number) {
+  const e = log[i];
+  return e.street !== "PRE-FLOP" && !log.slice(0, i).some((p) => p.street === e.street && p.action === "raise");
+}
+
+/** "BET 2", "RAISE TO 6", "CALL 1", "CHECK", "FOLD". */
+function label(log: LogEntry[], i: number) {
+  const e = log[i];
+  if (e.action === "raise") return isBet(log, i) ? `BET ${e.total}` : `RAISE TO ${e.total}`;
+  if (e.action === "call") return `CALL ${e.amount}`;
+  return e.action.toUpperCase();
+}
+
+/** The house's move in plain words: "called 2", "raised to 6". */
+function past(log: LogEntry[], i: number) {
+  const e = log[i];
+  if (e.action === "raise") return isBet(log, i) ? `bet ${e.total}` : `raised to ${e.total}`;
+  if (e.action === "call") return `called ${e.amount}`;
+  return e.action === "check" ? "checked" : "folded";
+}
+
+/**
+ * Turn a finished hand into a record. One step per agent decision (with the
+ * house's reply), then a final step with the result. `reasons` are the
+ * agent's, in the order it acted.
+ */
+export function toRecord(
+  s: HandState,
+  { id, table, reasons, proof }: { id: string; table: string; reasons: string[]; proof: DealProof },
+): LiveHand {
+  const r = settle(s);
+  const steps: HandStep[] = [];
+  let k = 0;
+  s.log.forEach((e, i) => {
+    if (e.seat !== 0) return;
+    const reply = s.log.findIndex((n, j) => j > i && n.seat === 1);
+    steps.push({
+      street: e.street,
+      pot: e.pot,
+      action: label(s.log, i),
+      reason: reasons[k++] ?? "",
+      opponent: reply === -1 ? "—" : past(s.log, reply),
+      boardCount: BOARD[e.street],
+    });
+  });
+
+  const net = Math.round((r.payouts[0] - s.committed[0]) * 100) / 100;
+  const [mine, theirs] = r.hands ?? [null, null];
+  let outcome: string;
+  if (s.folded === 1) outcome = "The house agent folded. Your agent takes the pot.";
+  else if (s.folded === 0) outcome = "Your agent folded — it only loses what it had already bet.";
+  else if (r.winner === "split") outcome = `Both had ${lower(mine!.description)} — the pot is split.`;
+  else if (r.winner === 0) outcome = `${mine!.description} beat the house agent’s ${lower(theirs!.description)}.`;
+  else outcome = `The house agent’s ${lower(theirs!.description)} beat ${lower(mine!.description)}.`;
+
+  const shown = r.hands ? (r.winner === 1 ? theirs! : mine!) : null;
+  const result = r.winner === "split" ? `SPLIT ${r.payouts[0]}` : net >= 0 ? `WON ${r.pot}` : `LOST ${-net}`;
+  steps.push({
+    street: "SHOWDOWN",
+    pot: r.pot,
+    action: result,
+    reason: outcome,
+    opponent: s.folded === 1 ? "folded" : s.folded === 0 ? "won uncontested" : `showed ${s.hole[1].map(cardShort).join(" ")}`,
+    boardCount: s.boardCount,
+  });
+
+  return {
+    id: `#${id}`,
+    table,
+    hole: s.hole[0],
+    opponentHole: s.hole[1],
+    board: s.board,
+    steps,
+    potWon: r.payouts[0],
+    net,
+    stackAfter: Math.round((s.stacks[0] + r.payouts[0]) * 100) / 100,
+    outcome,
+    winningFive: shown?.cards ?? [],
+    kickerIndex: shown?.kickerIndex ?? -1,
+    proof,
+  };
+}
+
+/** The archive row for a played hand. */
+export function toHistory(h: LiveHand): HistoryHand {
+  return {
+    id: h.id,
+    hole: h.hole,
+    description: h.outcome,
+    net: h.net,
+    scope: "session",
+    steps: h.steps
+      .filter((st) => st.street !== "SHOWDOWN")
+      .map((st) => ({
+        street: st.street === "PRE-FLOP" ? "PRE" : st.street,
+        board: st.boardCount ? h.board.slice(0, st.boardCount).map(cardShort).join(" ") : "—",
+        action: `${st.action.charAt(0)}${st.action.slice(1).toLowerCase()}${st.opponent !== "—" ? `, ${st.opponent}` : ""}`,
+      })),
+  };
+}
