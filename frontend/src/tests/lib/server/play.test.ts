@@ -1,16 +1,28 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { GET as hands } from "@/app/api/hands/route";
 import { POST } from "@/app/api/play/route";
 import { getPreset } from "@/lib/data/strategy";
 import { commitment, verifyDeal } from "@/lib/poker/fairness";
 import { createDeal } from "@/lib/server/deals";
 import { parsePlayRequest, playHand } from "@/lib/server/play";
+import { SESSION_COOKIE } from "@/lib/server/sessions";
+import { useTestDb } from "@/tests/helpers/db";
 
 const params = getPreset("shark").params!;
 const valid = { handId: "0123abcd", tableId: "back-room", params, stack: 50, button: 0 as const };
-const post = (body: unknown) => POST(new Request("http://x/api/play", { method: "POST", body: JSON.stringify(body) }));
+const ME = "00000000-0000-4000-8000-00000000000a";
+const OTHER = "00000000-0000-4000-8000-00000000000b";
+const headers = (id = ME) => ({ cookie: `${SESSION_COOKIE}=${id}` });
+const post = (body: unknown, id = ME) =>
+  POST(new Request("http://x/api/play", { method: "POST", headers: headers(id), body: JSON.stringify(body) }));
+const archive = async (id = ME) => (await (await hands(new Request("http://x/api/hands", { headers: headers(id) }))).json()).hands;
 
 // No key: every decision comes from the heuristic, so tests never hit the network.
-beforeEach(() => vi.stubEnv("GROQ_API_KEY", ""));
+beforeEach(async () => {
+  vi.stubEnv("GROQ_API_KEY", "");
+  const pg = await useTestDb();
+  await pg.query("insert into sessions (id) values ($1), ($2)", [ME, OTHER]);
+});
 afterEach(() => vi.unstubAllEnvs());
 
 describe("parsePlayRequest", () => {
@@ -62,7 +74,7 @@ describe("playHand", () => {
 
 describe("POST /api/play", () => {
   it("plays a committed hand and reveals its seed", async () => {
-    const deal = await createDeal();
+    const deal = await createDeal(ME);
     const res = await post({ ...valid, handId: deal.handId });
     expect(res.status).toBe(200);
     const hand = await res.json();
@@ -70,8 +82,26 @@ describe("POST /api/play", () => {
     expect(await verifyDeal(hand.proof)).toEqual({ ok: true });
   });
 
+  it("refuses another session's hand", async () => {
+    const deal = await createDeal(ME);
+    expect((await post({ ...valid, handId: deal.handId }, OTHER)).status).toBe(404);
+  });
+
+  it("records real-money hands for this session only", async () => {
+    const deal = await createDeal(ME);
+    const hand = await (await post({ ...valid, handId: deal.handId })).json();
+    expect((await archive()).map((h: { id: string }) => h.id)).toEqual([hand.id]);
+    expect(await archive(OTHER)).toEqual([]);
+  });
+
+  it("doesn't archive practice hands", async () => {
+    const deal = await createDeal(ME);
+    await post({ ...valid, tableId: "kitchen", handId: deal.handId });
+    expect(await archive()).toEqual([]);
+  });
+
   it("refuses to play a hand twice", async () => {
-    const deal = await createDeal();
+    const deal = await createDeal(ME);
     await post({ ...valid, handId: deal.handId });
     expect((await post({ ...valid, handId: deal.handId })).status).toBe(404);
   });
