@@ -52,7 +52,12 @@ export function toRecord(
   let k = 0;
   s.log.forEach((e, i) => {
     if (e.seat !== 0) return;
-    const reply = s.log.findIndex((n, j) => j > i && n.seat === 1);
+    // The house's answer on this street, else what it did earlier on this street.
+    // A move on a later street isn't about this decision.
+    const house = (j: number) => s.log[j].seat === 1 && s.log[j].street === e.street;
+    const after = s.log.findIndex((_, j) => j > i && house(j));
+    const before = s.log.findLastIndex((_, j) => j < i && house(j));
+    const reply = after !== -1 ? after : before;
     steps.push({
       street: e.street,
       pot: e.pot,

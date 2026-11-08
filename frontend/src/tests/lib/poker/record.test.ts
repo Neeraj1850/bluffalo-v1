@@ -41,6 +41,12 @@ describe("toRecord", () => {
     expect(rec.kickerIndex).toBe(4);
   });
 
+  it("never shows a later street's move as the reply", () => {
+    // Agent (button) limps, house raises to 3, agent calls; the house's next move is on the flop.
+    const r = toRecord(play(call, raise(3), call, check, check, check, check, check, check), meta([]));
+    expect(r.steps[1]).toMatchObject({ street: "PRE-FLOP", action: "CALL 2", opponent: "raised to 3" });
+  });
+
   it("labels raises after a bet as RAISE TO", () => {
     const r = toRecord(play(raise(3), raise(9), call, check, check, check, check, check, check), meta([]));
     expect(r.steps[0].action).toBe("RAISE TO 3");
