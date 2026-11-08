@@ -45,7 +45,13 @@ function past(log: LogEntry[], i: number) {
  */
 export function toRecord(
   s: HandState,
-  { id, table, reasons, proof }: { id: string; table: string; reasons: string[]; proof: DealProof },
+  {
+    id,
+    table,
+    reasons,
+    proof,
+    opponent = "house agent",
+  }: { id: string; table: string; reasons: string[]; proof: DealProof; opponent?: string },
 ): LiveHand {
   const r = settle(s);
   const steps: HandStep[] = [];
@@ -71,11 +77,11 @@ export function toRecord(
   const net = Math.round((r.payouts[0] - s.committed[0]) * 100) / 100;
   const [mine, theirs] = r.hands ?? [null, null];
   let outcome: string;
-  if (s.folded === 1) outcome = "The house agent folded. Your agent takes the pot.";
+  if (s.folded === 1) outcome = `The ${opponent} folded. Your agent takes the pot.`;
   else if (s.folded === 0) outcome = "Your agent folded — it only loses what it had already bet.";
   else if (r.winner === "split") outcome = `Both had ${lower(mine!.description)} — the pot is split.`;
-  else if (r.winner === 0) outcome = `${mine!.description} beat the house agent’s ${lower(theirs!.description)}.`;
-  else outcome = `The house agent’s ${lower(theirs!.description)} beat ${lower(mine!.description)}.`;
+  else if (r.winner === 0) outcome = `${mine!.description} beat the ${opponent}’s ${lower(theirs!.description)}.`;
+  else outcome = `The ${opponent}’s ${lower(theirs!.description)} beat ${lower(mine!.description)}.`;
 
   const shown = r.hands ? (r.winner === 1 ? theirs! : mine!) : null;
   const result = r.winner === "split" ? `SPLIT ${r.payouts[0]}` : net >= 0 ? `WON ${r.pot}` : `LOST ${-net}`;

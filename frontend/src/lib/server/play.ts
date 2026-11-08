@@ -63,6 +63,7 @@ export async function playHand(
     id: req.handId,
     table: table.name,
     reasons,
+    opponent: practice ? "practice bot" : "house agent",
     proof: { seed: deal.seed, commitment: deal.commitment, hole: s.hole, board: s.board },
   });
 }

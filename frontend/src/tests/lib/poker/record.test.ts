@@ -60,6 +60,11 @@ describe("toRecord", () => {
     expect(r.winningFive).toEqual([]);
   });
 
+  it("names the opponent it was given", () => {
+    const r = toRecord(play(raise(3), { type: "fold" }), { ...meta([]), opponent: "practice bot" });
+    expect(r.outcome).toBe("The practice bot folded. Your agent takes the pot.");
+  });
+
   it("handles the agent folding", () => {
     const r = toRecord(play({ type: "fold" }), meta(["junk"]));
     expect(r.steps.at(-1)).toMatchObject({ action: "LOST 0.5", opponent: "won uncontested" });

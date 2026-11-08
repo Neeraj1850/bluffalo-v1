@@ -52,6 +52,12 @@ describe("playHand", () => {
     const models = f.mock.calls.map(([, init]) => JSON.parse(init.body).model);
     expect(models.every((m) => m === "openai/gpt-oss-120b")).toBe(true);
   });
+
+  it("calls the opponent the practice bot on practice tables", async () => {
+    const deal = { seed: "00112233445566778899aabbccddeeff", commitment: "c" };
+    const hand = await playHand({ ...valid, tableId: "kitchen" }, deal, { rand: () => 0.5 });
+    expect(hand.outcome).not.toMatch(/house agent/);
+  });
 });
 
 describe("POST /api/play", () => {
