@@ -14,8 +14,6 @@ export type PlayRequest = {
   button: Seat;
 };
 
-/** Practice tables play with paper chips; this is the stack they start with. */
-export const PRACTICE_STACK = 50;
 const MAX_STACK = 10_000;
 
 /** Validate untrusted input. Returns the request, or an error message. */

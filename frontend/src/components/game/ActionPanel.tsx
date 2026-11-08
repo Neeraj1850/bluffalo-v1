@@ -16,6 +16,8 @@ type ActionPanelProps = {
   onReplay: () => void;
   onStop?: () => void;
   stopRequested?: boolean;
+  /** When set, a finished hand offers the next one instead of a replay. */
+  onNextHand?: () => void;
   size?: "mobile" | "desktop";
   className?: string;
 };
@@ -32,6 +34,7 @@ export function ActionPanel({
   onReplay,
   onStop,
   stopRequested = false,
+  onNextHand,
   size = "mobile",
   className,
 }: ActionPanelProps) {
@@ -91,11 +94,11 @@ export function ActionPanel({
             </motion.div>
             <motion.button
               type="button"
-              onClick={onReplay}
+              onClick={onNextHand ?? onReplay}
               className="h-11 rounded-btn border border-current px-3.5 font-mono text-[12px] uppercase lg:h-12 lg:px-4"
               {...pressable}
             >
-              Replay
+              {onNextHand ? "Next hand" : "Replay"}
             </motion.button>
           </>
         ) : (

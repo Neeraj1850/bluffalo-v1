@@ -1,54 +1,165 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PlayingCard } from "@/components/cards/PlayingCard";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
+import { ButtonLink } from "@/components/ui/Button";
 import { MonoLabel } from "@/components/ui/MonoLabel";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { DEMO_HAND } from "@/lib/data/hands";
+import { ThinkingDots } from "@/components/ui/ThinkingDots";
 import { getPreset } from "@/lib/data/strategy";
-import { blindsLabel, getTable } from "@/lib/data/tables";
+import { blindsLabel, getTable, PRACTICE_STACK, PRACTICE_TABLE_ID } from "@/lib/data/tables";
 import { signed } from "@/lib/format";
 import { spring } from "@/lib/motion";
+import type { LiveHand } from "@/lib/poker/record";
+import { STOP_COPY } from "@/lib/poker/session";
 import { useSetup } from "@/lib/store/setup";
 import { ActionPanel } from "./ActionPanel";
 import { Board } from "./Board";
 import { ChipBurst } from "./ChipBurst";
 import { OpponentSeat } from "./OpponentSeat";
 import { useHandPlayback } from "./useHandPlayback";
+import { useLiveHands } from "./useLiveHands";
 
-const hand = DEMO_HAND;
+/** Pause on a finished hand before dealing the next. */
+const NEXT_HAND_MS = 4500;
 
 export function GameView() {
   const setup = useSetup();
-  const play = useHandPlayback(hand);
+  // Fixed for this sitting: stopping the agent mustn't turn a live hand into practice.
+  // Without a deployed agent this screen watches practice hands.
+  const [agent] = useState(() => (setup.agent.status === "deployed" ? setup.agent : null));
+  const table = getTable(agent?.tableId ?? PRACTICE_TABLE_ID);
+  const live = Boolean(agent);
+  const loop = useLiveHands({
+    tableId: table.id,
+    params: setup.params,
+    startStack: agent?.buyIn ?? PRACTICE_STACK,
+    limits: setup.limits,
+    bigBlind: table.blinds.big,
+  });
   const [stopRequested, setStopRequested] = useState(false);
-  const agent = setup.agent.status === "deployed" ? setup.agent : null;
-  // Stays live for the rest of this hand even after a requested stop lands.
-  const live = Boolean(agent) || stopRequested;
-  const table = getTable(agent?.tableId ?? setup.tableId);
-  const preset = getPreset(setup.preset);
-  const startStack = agent?.buyIn ?? setup.buyIn;
 
-  // A requested stop takes effect once the hand in progress has finished.
-  const { stopAgent } = setup;
+  if (!loop.hand) {
+    return (
+      <main className="flex h-dvh flex-col items-center justify-center gap-4 px-5 text-center">
+        <StatusBadge kind={live ? "live" : "practice"} size="sm">
+          {live ? "Live · real money" : "Practice · simulated"}
+        </StatusBadge>
+        {loop.error ? (
+          <>
+            <p className="max-w-sm text-[15px] text-muted">{loop.error}</p>
+            <button type="button" onClick={loop.next} className="h-11 rounded-btn border border-border px-4">
+              Try again
+            </button>
+          </>
+        ) : (
+          <>
+            <ThinkingDots />
+            <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted">
+              Committing the deal · shuffling
+            </p>
+          </>
+        )}
+      </main>
+    );
+  }
+
+  return (
+    <GameTable
+      key={loop.hand.id}
+      hand={loop.hand}
+      live={live}
+      tableName={table.name}
+      blinds={blindsLabel(table)}
+      presetLabel={getPreset(setup.preset).label}
+      session={loop.session}
+      maxHands={setup.limits.maxHands}
+      stopLoss={setup.limits.stopLoss}
+      stopRequested={stopRequested}
+      stopped={loop.stopped ? STOP_COPY[loop.stopped] : null}
+      dealing={loop.loading}
+      onStop={live ? () => setStopRequested(true) : undefined}
+      onDone={(hand) => {
+        if (live) setup.recordHand(hand);
+        const reason = loop.finish(hand);
+        const leaving = reason || stopRequested;
+        if (live && leaving) setup.stopAgent(hand.stackAfter);
+        return !leaving;
+      }}
+      onNextHand={loop.next}
+    />
+  );
+}
+
+type GameTableProps = {
+  hand: LiveHand;
+  live: boolean;
+  tableName: string;
+  blinds: string;
+  presetLabel: string;
+  session: { hands: number; net: number; stack: number };
+  maxHands: number;
+  stopLoss: number;
+  stopRequested: boolean;
+  stopped: string | null;
+  dealing: boolean;
+  onStop?: () => void;
+  /** Called once when playback ends; return true to keep playing. */
+  onDone: (hand: LiveHand) => boolean;
+  onNextHand: () => void;
+};
+
+function GameTable({
+  hand,
+  live,
+  tableName,
+  blinds,
+  presetLabel,
+  session,
+  maxHands,
+  stopLoss,
+  stopRequested,
+  stopped,
+  dealing,
+  onStop,
+  onDone,
+  onNextHand,
+}: GameTableProps) {
+  const play = useHandPlayback(hand);
+  const [keepPlaying, setKeepPlaying] = useState<boolean | null>(null);
+
+  // Settle the hand exactly once when playback reaches the result.
+  const done = useRef(false);
+  const settle = useRef(onDone);
+  settle.current = onDone;
   useEffect(() => {
-    if (stopRequested && play.done) stopAgent(hand.stackAfter);
-  }, [stopRequested, play.done, stopAgent]);
+    if (!play.done || done.current) return;
+    done.current = true;
+    setKeepPlaying(settle.current(hand));
+  }, [play.done, hand]);
+
+  useEffect(() => {
+    if (!keepPlaying) return;
+    const id = setTimeout(onNextHand, NEXT_HAND_MS);
+    return () => clearTimeout(id);
+  }, [keepPlaying, onNextHand]);
 
   const s = play.current;
+  const stack = play.done ? hand.stackAfter : session.stack;
   const panel = {
     street: s.street,
     stepLabel: `${play.step + 1} / ${hand.steps.length}`,
     stepKey: play.step,
     action: s.action,
-    reason: s.reason,
+    reason: stopped && play.done ? `${s.reason} ${stopped}` : s.reason,
     done: play.done,
     onNext: play.next,
     onReplay: play.replay,
-    onStop: live ? () => setStopRequested(true) : undefined,
+    onStop,
     stopRequested,
+    onNextHand: keepPlaying && !dealing ? onNextHand : undefined,
   };
 
   return (
@@ -60,10 +171,10 @@ export function GameView() {
               {live ? "Live · real money" : "Practice · simulated"}
             </StatusBadge>
             <span className="hidden font-display text-[28px] font-bold tracking-[-0.04em] lg:inline">
-              {table.name}
+              {tableName}
             </span>
             <MonoLabel className="truncate tracking-[0.14em] lg:text-[12px]">
-              Blinds {blindsLabel(table)} · <span className="hidden sm:inline">Hand </span>
+              Blinds {blinds} · <span className="hidden sm:inline">Hand </span>
               {hand.id}
             </MonoLabel>
           </div>
@@ -88,11 +199,11 @@ export function GameView() {
           className="stage relative flex min-h-0 flex-1 flex-col items-center gap-3.5 px-4 pt-[18px] lg:min-h-[640px] lg:justify-between lg:gap-8 lg:px-6 lg:py-8"
         >
           <OpponentSeat
-            name="house agent"
+            name={live ? "house agent" : "practice bot"}
             status={s.opponent}
             thinking={s.opponent === "thinking"}
             cards={hand.opponentHole}
-            revealed={s.street === "SHOWDOWN"}
+            revealed={s.street === "SHOWDOWN" && s.opponent.startsWith("showed")}
             className="self-stretch lg:self-auto"
           />
 
@@ -115,7 +226,7 @@ export function GameView() {
               />
             </div>
             <MonoLabel tracking="normal" className="text-[10px] tracking-[0.18em] lg:text-[11px]">
-              Your agent · {preset.label} · {live ? `Stack ${(play.done ? startStack + hand.net : startStack).toFixed(1)}` : "Practice chips"}
+              Your agent · {presetLabel} · {live ? `Stack ${stack.toFixed(1)}` : "Practice chips"}
             </MonoLabel>
           </div>
         </section>
@@ -135,9 +246,9 @@ export function GameView() {
           </MonoLabel>
           <ol>
             <AnimatePresence initial={false}>
-              {play.log.map((d) => (
+              {play.log.map((d, i) => (
                 <motion.li
-                  key={d.street + d.action}
+                  key={i}
                   layout
                   initial={{ opacity: 0, x: -14 }}
                   animate={{ opacity: 1, x: 0 }}
@@ -147,7 +258,9 @@ export function GameView() {
                   <span className="pt-[3px] font-mono text-[11px] text-muted">{d.street}</span>
                   <span className="flex flex-col gap-[3px]">
                     <span className="font-display text-[17px] font-bold">{d.action}</span>
-                    <span className="text-[13px] leading-[1.45] text-muted">house agent {d.opponent}</span>
+                    <span className="text-[13px] leading-[1.45] text-muted">
+                      {d.opponent !== "—" && `${live ? "house agent" : "practice bot"} ${d.opponent}`}
+                    </span>
                   </span>
                 </motion.li>
               ))}
@@ -157,26 +270,33 @@ export function GameView() {
 
         <div className="grid grid-cols-3 gap-3 border-t border-hair px-6 py-5">
           <div className="flex flex-col gap-1">
-            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">This hand</span>
-            <span className="font-display text-[22px] font-medium">{play.done ? signed(hand.net) : "in play"}</span>
+            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">Session</span>
+            <span className="font-display text-[22px] font-medium">{signed(session.net)}</span>
           </div>
           <div className="flex flex-col gap-1">
             <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">Stop loss</span>
-            <span className="font-display text-[22px] font-medium">{"−"}{setup.limits.stopLoss}</span>
+            <span className="font-display text-[22px] font-medium">{"−"}{stopLoss}</span>
           </div>
           <div className="flex flex-col gap-1">
             <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">Hands</span>
-            <span className="font-display text-[22px] font-medium">1 / {setup.limits.maxHands}</span>
+            <span className="font-display text-[22px] font-medium">
+              {session.hands + (play.done ? 0 : 1)} / {maxHands}
+            </span>
           </div>
-          {live && (
+          {live && onStop && (
             <button
               type="button"
-              onClick={() => setStopRequested(true)}
+              onClick={onStop}
               disabled={stopRequested}
               className="col-span-full h-12 rounded-btn border border-border text-[15px] disabled:opacity-60"
             >
               {stopRequested ? "Stopping after this hand…" : "Stop agent after this hand"}
             </button>
+          )}
+          {stopped && (
+            <ButtonLink href="/results" size="md" className="col-span-full">
+              See the result
+            </ButtonLink>
           )}
         </div>
       </aside>

@@ -75,6 +75,8 @@ export const TABLES: PokerTable[] = [
 
 export const DEFAULT_TABLE_ID = "back-room";
 export const PRACTICE_TABLE_ID = "kitchen";
+/** Paper chips each practice sitting starts with. */
+export const PRACTICE_STACK = 50;
 
 export function getTable(id: string | null | undefined): PokerTable {
   return TABLES.find((t) => t.id === id) ?? TABLES.find((t) => t.id === DEFAULT_TABLE_ID)!;
