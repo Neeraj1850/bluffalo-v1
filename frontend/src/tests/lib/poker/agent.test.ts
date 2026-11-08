@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { cards } from "@/lib/cards";
 import { getPreset } from "@/lib/data/strategy";
-import { heuristic, holeLabel, seatView, strength } from "@/lib/poker/agent";
+import { buildPrompt, heuristic, holeLabel, parseDecision, persona, seatView, strength } from "@/lib/poker/agent";
 import { shuffle } from "@/lib/poker/deck";
-import { apply, isOver, newHand, type HandState } from "@/lib/poker/game";
+import { apply, isOver, legal, newHand, type HandState } from "@/lib/poker/game";
 
 const DECK = cards("Qs", "9h", "Qd", "8s", "9c", "4h", "2s", "Kd", "4c");
 const start = () => newHand({ deck: DECK, stacks: [50, 50], blinds: { small: 0.5, big: 1 }, button: 0 });
@@ -81,5 +81,57 @@ describe("heuristic", () => {
         expect(() => (s = apply(s, d.action))).not.toThrow();
       }
     }
+  });
+});
+
+describe("buildPrompt", () => {
+  it("encodes the sliders and the legal moves", () => {
+    const [system, user] = buildPrompt(seatView(start(), 0), shark);
+    expect(system.content).toContain("Aggression 65/100");
+    expect(system.content).toContain('"action":"fold|check|call|raise"');
+    expect(user.content).toContain("Your cards: Qs Qd");
+    expect(user.content).toContain("call (0.5)");
+    expect(user.content).toContain("raise (amount = your total bet this street, 2 to 50)");
+  });
+
+  it("gives the house its own persona", () => {
+    expect(persona(null)).toMatch(/house/);
+  });
+});
+
+describe("parseDecision", () => {
+  const facing = legal(start()); // owes 0.5, can raise 2–50
+  const free = legal(apply(start(), { type: "call" })); // big blind can check
+
+  it("accepts legal replies", () => {
+    expect(parseDecision({ action: "call", reason: "Cheap." }, facing)).toEqual({
+      action: { type: "call" },
+      reason: "Cheap.",
+    });
+    expect(parseDecision({ action: "raise", amount: 4, reason: "x" }, facing)?.action).toEqual({ type: "raise", to: 4 });
+  });
+
+  it("clamps raise sizes into range", () => {
+    expect(parseDecision({ action: "raise", amount: 1 }, facing)?.action).toEqual({ type: "raise", to: 2 });
+    expect(parseDecision({ action: "raise", amount: 999 }, facing)?.action).toEqual({ type: "raise", to: 50 });
+  });
+
+  it("turns free folds and free calls into checks", () => {
+    expect(parseDecision({ action: "fold" }, free)?.action.type).toBe("check");
+    expect(parseDecision({ action: "call" }, free)?.action.type).toBe("check");
+  });
+
+  it.each([
+    ["a check facing a bet", { action: "check" }, facing],
+    ["an unknown action", { action: "all-in" }, facing],
+    ["a raise without an amount", { action: "raise" }, facing],
+    ["a non-object", "raise", facing],
+  ])("rejects %s", (_, raw, l) => {
+    expect(parseDecision(raw, l)).toBeNull();
+  });
+
+  it("caps long reasons and fills missing ones", () => {
+    expect(parseDecision({ action: "fold", reason: "x".repeat(500) }, facing)?.reason).toHaveLength(140);
+    expect(parseDecision({ action: "fold" }, facing)?.reason).toBe("No reason given.");
   });
 });
