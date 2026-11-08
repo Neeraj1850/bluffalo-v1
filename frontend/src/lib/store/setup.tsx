@@ -20,6 +20,7 @@ import {
   type StrategyParams,
 } from "@/lib/data/strategy";
 import { defaultBuyIn, DEFAULT_TABLE_ID, getTable } from "@/lib/data/tables";
+import { pushHand, type LiveHand } from "@/lib/poker/record";
 
 /**
  * What the player has chosen so far. Carried from lobby → strategy →
@@ -36,6 +37,8 @@ export type SetupState = {
   agent:
     | { status: "idle" }
     | { status: "deployed"; account: string; buyIn: number; tableId: string; at: number };
+  /** Real-money hands the agent has played, newest first, with their deal proofs. */
+  hands: LiveHand[];
 };
 
 const STORAGE_KEY = "np-setup-v1";
@@ -48,6 +51,7 @@ const initialState: SetupState = {
   params: { ...getPreset(DEFAULT_PRESET).params! },
   limits: { ...DEFAULT_LIMITS },
   agent: { status: "idle" },
+  hands: [],
 };
 
 type SetupContextValue = SetupState & {
@@ -62,6 +66,7 @@ type SetupContextValue = SetupState & {
   stopAgent: (returnedStack?: number) => void;
   /** Funds confirmed as sent out of the app: agent stack first, then balance. */
   withdraw: (source: "agent" | "balance", amount: number) => void;
+  recordHand: (hand: LiveHand) => void;
 };
 
 const SetupContext = createContext<SetupContextValue | null>(null);
@@ -147,6 +152,11 @@ export function SetupProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const recordHand = useCallback(
+    (hand: LiveHand) => setState((s) => ({ ...s, hands: pushHand(s.hands, hand) })),
+    [],
+  );
+
   const value = useMemo<SetupContextValue>(
     () => ({
       ...state,
@@ -160,8 +170,9 @@ export function SetupProvider({ children }: { children: ReactNode }) {
       markDeployed,
       stopAgent,
       withdraw,
+      recordHand,
     }),
-    [state, hydrated, buyIn, connect, selectTable, choosePreset, setParam, setLimit, markDeployed, stopAgent, withdraw],
+    [state, hydrated, buyIn, connect, selectTable, choosePreset, setParam, setLimit, markDeployed, stopAgent, withdraw, recordHand],
   );
 
   return <SetupContext.Provider value={value}>{children}</SetupContext.Provider>;

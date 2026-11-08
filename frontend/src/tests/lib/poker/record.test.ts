@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { cards } from "@/lib/cards";
 import { apply, newHand, type Action } from "@/lib/poker/game";
-import { toHistory, toRecord } from "@/lib/poker/record";
+import { pushHand, toHistory, toRecord } from "@/lib/poker/record";
 
 // Agent Qs Qd · house 9h 8s · board 9c 4h 2s Kd 4c; agent on the button.
 const DECK = cards("Qs", "9h", "Qd", "8s", "9c", "4h", "2s", "Kd", "4c");
@@ -75,5 +75,22 @@ describe("toHistory", () => {
     expect(h).toMatchObject({ id: "#ab12", net: 7, scope: "session" });
     expect(h.steps[0]).toEqual({ street: "PRE", board: "—", action: "Call 0.5, checked" });
     expect(h.steps[1]).toEqual({ street: "FLOP", board: "9♣ 4♡ 2♠", action: "Bet 2, called 2" });
+  });
+});
+
+describe("pushHand", () => {
+  const rec = (id: string) => toRecord(play({ type: "fold" }), { ...meta([]), id });
+
+  it("adds newest first and drops duplicates", () => {
+    const list = pushHand(pushHand([], rec("a")), rec("b"));
+    expect(list.map((h) => h.id)).toEqual(["#b", "#a"]);
+    expect(pushHand(list, rec("a")).map((h) => h.id)).toEqual(["#a", "#b"]);
+  });
+
+  it("keeps at most the cap", () => {
+    let list = pushHand([], rec("a"), 2);
+    list = pushHand(list, rec("b"), 2);
+    list = pushHand(list, rec("c"), 2);
+    expect(list.map((h) => h.id)).toEqual(["#c", "#b"]);
   });
 });
