@@ -43,6 +43,9 @@ const NAME: Record<number, [string, string]> = {
   13: ["king", "kings"],
   14: ["ace", "aces"],
 };
+/** "queen" / "queens". */
+export const rankName = (r: Rank, plural = false) => NAME[value(r)][plural ? 1 : 0];
+
 const one = (v: number) => NAME[v][0];
 const many = (v: number) => NAME[v][1];
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
