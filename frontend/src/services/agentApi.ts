@@ -1,4 +1,5 @@
 import type { Limits, PresetKey, StrategyParams } from "@/lib/data/strategy";
+import type { LiveHand } from "@/lib/poker/record";
 
 /**
  * The frontend talks to the agent backend only through this interface.
@@ -57,6 +58,37 @@ export class ApiError extends Error {
     super(message);
     this.name = "ApiError";
   }
+}
+
+// ---------------------------------------------------------------------------
+// Live hands — real today: the deal is committed first, then the server
+// plays the hand and reveals the seed.
+// ---------------------------------------------------------------------------
+
+export type HandRequest = {
+  tableId: string;
+  params: StrategyParams;
+  stack: number;
+  button: 0 | 1;
+};
+
+async function post<T>(f: typeof fetch, url: string, body?: unknown): Promise<T> {
+  const res = await f(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`);
+  return data as T;
+}
+
+export async function fetchLiveHand(req: HandRequest, f: typeof fetch = fetch): Promise<LiveHand> {
+  const deal = await post<{ handId: string; commitment: string }>(f, "/api/deal");
+  const hand = await post<LiveHand>(f, "/api/play", { ...req, handId: deal.handId });
+  // The server must reveal the seed it committed to before the deal.
+  if (hand.proof?.commitment !== deal.commitment) throw new Error("Hand doesn’t match its commitment");
+  return hand;
 }
 
 // ---------------------------------------------------------------------------
