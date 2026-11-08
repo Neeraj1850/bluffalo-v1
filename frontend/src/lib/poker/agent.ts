@@ -16,6 +16,7 @@ export type SeatView = {
   bet: number;
   opponentBet: number;
   inPosition: boolean;
+  bigBlind: number;
   legal: Legal;
   /** This hand so far, e.g. "PRE-FLOP: you raise 3, opponent call". */
   history: string[];
@@ -35,6 +36,7 @@ export function seatView(s: HandState, seat: Seat): SeatView {
     bet: s.bets[seat],
     opponentBet: s.bets[opp],
     inPosition: s.button === seat,
+    bigBlind: s.bigBlind,
     legal: legal(s),
     history: s.log.map(
       (e) => `${e.street}: ${e.seat === seat ? "you" : "opponent"} ${e.action}${e.amount ? ` ${e.amount}` : ""}`,
@@ -134,7 +136,10 @@ Reply with JSON only: {"action":"fold|check|call|raise","amount":number,"reason"
       content: `Street: ${view.street}
 Your cards: ${show(view.hole)}
 Board: ${show(view.board)}
-Pot: ${view.pot}. Your stack: ${view.stack}. Opponent stack: ${view.opponentStack}.
+Blinds: ${view.bigBlind / 2} / ${view.bigBlind}. Blinds are forced bets posted before the cards — not raises.
+Pot: ${view.pot}. Your stack: ${view.stack}. Opponent stack: ${view.opponentStack}.${
+        l.canCheck ? "" : `\nTo call: ${l.toCall} to win a pot of ${view.pot} (you need to win ${Math.round((l.toCall / (view.pot + l.toCall)) * 100)}% of the time).`
+      }
 This street — you put in ${view.bet}, opponent ${view.opponentBet}. You act ${view.inPosition ? "last" : "first"} after the flop.
 So far: ${view.history.join("; ") || "nothing"}
 Legal moves: ${moves.join(", ")}.`,

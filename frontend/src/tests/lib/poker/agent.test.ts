@@ -91,6 +91,8 @@ describe("buildPrompt", () => {
     expect(system.content).toContain('"action":"fold|check|call|raise"');
     expect(user.content).toContain("Your cards: Qs Qd");
     expect(user.content).toContain("call (0.5)");
+    expect(user.content).toContain("Blinds are forced bets posted before the cards — not raises.");
+    expect(user.content).toContain("To call: 0.5 to win a pot of 1.5 (you need to win 25% of the time).");
     expect(user.content).toContain("raise (amount = your total bet this street, 2 to 50)");
   });
 
