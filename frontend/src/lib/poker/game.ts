@@ -13,7 +13,8 @@ export type Street = "PRE-FLOP" | "FLOP" | "TURN" | "RIVER" | "SHOWDOWN";
 /** `raise.to` is the seat's total bet this street (a bet when nothing is owed). */
 export type Action = { type: "fold" } | { type: "check" } | { type: "call" } | { type: "raise"; to: number };
 
-export type LogEntry = { seat: Seat; street: Street; action: Action["type"]; amount: number; pot: number };
+/** `amount` is chips added; `total` the seat's bet this street afterwards. */
+export type LogEntry = { seat: Seat; street: Street; action: Action["type"]; amount: number; total: number; pot: number };
 
 export type HandState = {
   hole: [Card[], Card[]];
@@ -157,7 +158,7 @@ export function apply(state: HandState, action: Action): HandState {
   }
 
   s.acted[me] = true;
-  s.log.push({ seat: me, street: s.street, action: action.type, amount, pot: pot(s) });
+  s.log.push({ seat: me, street: s.street, action: action.type, amount, total: s.bets[me], pot: pot(s) });
 
   if (s.folded !== null) s.street = "SHOWDOWN";
   else if (streetDone(s)) advance(s);

@@ -85,9 +85,9 @@ describe("apply", () => {
 
   it("logs each action with the pot after it", () => {
     const s = play(start(), raise(3), call);
-    expect(s.log.map((e) => [e.seat, e.action, e.amount, e.pot])).toEqual([
-      [0, "raise", 2.5, 4],
-      [1, "call", 2, 6],
+    expect(s.log.map((e) => [e.seat, e.action, e.amount, e.total, e.pot])).toEqual([
+      [0, "raise", 2.5, 3, 4],
+      [1, "call", 2, 3, 6],
     ]);
   });
 
