@@ -202,12 +202,12 @@ export function DeployView() {
       <Disclosure
         hint="How?"
         className="border-t border-hair pt-1.5"
-        summary={<span className="text-[13px] text-muted">Your agent runs in a sealed, tamper-proof environment.</span>}
+        summary={<span className="text-[13px] text-muted">Every deal is locked in before the cards come out.</span>}
       >
         <p className="text-[13px] leading-[1.55] text-muted">
-          It runs inside a Trusted Execution Environment (TEE): hardware that keeps the agent&rsquo;s code and cards
-          private, even from us. After each hand you can view a fair-play attestation — a signed record that the hand
-          ran as stated.
+          Before each hand we publish a fingerprint of the shuffle. After the hand we reveal the shuffle itself, and
+          your browser checks that it matches the fingerprint and deals exactly the cards that were played — so no
+          one, including us, can change the cards mid-hand.
         </p>
       </Disclosure>
     </main>
