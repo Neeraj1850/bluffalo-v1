@@ -115,6 +115,9 @@ Requires Node.js 20+.
 git clone https://github.com/Neeraj1850/near-poker-agent.git
 cd near-poker-agent/frontend
 npm install
+cp .env.example .env.local   # add GROQ_API_KEY
+createdb near_poker          # local Postgres (sessions, deals, hands)
+npm run db:setup
 npm run dev   # http://localhost:3000
 ```
 
