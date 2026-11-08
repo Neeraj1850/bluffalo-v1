@@ -33,11 +33,11 @@ export function PracticeTable({ board, shown, hole, thinking }: PracticeTablePro
       </div>
 
       <div role="group" aria-label="Community cards" className="absolute inset-x-0 top-[132px] flex justify-center gap-1.5">
-        {board.map((c, i) =>
-          i < shown ? (
+        {[0, 1, 2, 3, 4].map((i) =>
+          i < shown && board[i] ? (
             <PlayingCard
-              key={`up-${i}`}
-              card={c}
+              key={`up-${i}-${board[i].rank}${board[i].suit}`}
+              card={board[i]}
               width={52}
               deal="deal"
               delay={i < 3 ? i * timing.dealStagger : 0}
@@ -50,8 +50,17 @@ export function PracticeTable({ board, shown, hole, thinking }: PracticeTablePro
 
       <div className="absolute inset-x-0 bottom-6 flex flex-col items-center gap-2.5">
         <div className="flex gap-1.5">
-          <PlayingCard card={hole[0]} width={50} tilt={-7} />
-          <PlayingCard card={hole[1]} width={50} tilt={6} />
+          {hole.length === 2 ? (
+            <>
+              <PlayingCard key={`h0-${hole[0].rank}${hole[0].suit}`} card={hole[0]} width={50} tilt={-7} deal="deal" />
+              <PlayingCard key={`h1-${hole[1].rank}${hole[1].suit}`} card={hole[1]} width={50} tilt={6} deal="deal" delay={0.08} />
+            </>
+          ) : (
+            <>
+              <PlayingCard face="down" width={50} tilt={-7} decorative />
+              <PlayingCard face="down" width={50} tilt={6} decorative />
+            </>
+          )}
         </div>
         <span className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.14em]">
           Your agent
