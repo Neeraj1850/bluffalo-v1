@@ -27,6 +27,13 @@ const NEXT_HAND_MS = 4500;
 
 export function GameView() {
   const setup = useSetup();
+  // Wait for saved state: whether an agent is deployed decides the table.
+  if (!setup.hydrated) return null;
+  return <Sitting />;
+}
+
+function Sitting() {
+  const setup = useSetup();
   // Fixed for this sitting: stopping the agent mustn't turn a live hand into practice.
   // Without a deployed agent this screen watches practice hands.
   const [agent] = useState(() => (setup.agent.status === "deployed" ? setup.agent : null));
