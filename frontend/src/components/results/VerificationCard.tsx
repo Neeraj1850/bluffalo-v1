@@ -3,31 +3,34 @@
 import { useEffect, useState } from "react";
 import { Disclosure } from "@/components/ui/Disclosure";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { verifyDeal, type DealProof } from "@/lib/poker/fairness";
 import { agentApi, type Verification } from "@/services/agentApi";
 
 const COPY: Record<Verification, string> = {
   verified:
-    "The hand ran inside sealed, tamper-proof hardware, and its signed record checks out. No one — including us — could see or change the cards.",
-  pending:
-    "Checking the signed record for this hand. This usually takes a few seconds. Winnings are shown, but not yet verified.",
+    "Before this hand was dealt, the shuffle was locked in with a fingerprint. That fingerprint matches the revealed shuffle, and the shuffle deals exactly these cards — no one could change them mid-hand.",
+  pending: "Checking this hand’s shuffle against the fingerprint published before the deal…",
   unavailable:
-    "We couldn’t check this hand’s signed record yet. Your balance is unaffected; we’ll retry automatically.",
+    "This hand’s shuffle doesn’t check out against the fingerprint published before the deal. Treat the result as unverified.",
 };
 
-/** Shows "verified" only when the service has actually verified the hand. */
-export function VerificationCard({ handId }: { handId: string }) {
+/**
+ * Shows "verified" only when the check actually passed. With a proof the
+ * browser checks the deal itself (commit-reveal); without one it asks the service.
+ */
+export function VerificationCard({ handId, proof }: { handId: string; proof?: DealProof }) {
   const [state, setState] = useState<Verification | "loading">("loading");
 
   useEffect(() => {
     let cancelled = false;
-    agentApi
-      .getVerification(handId)
-      .then((v) => !cancelled && setState(v))
-      .catch(() => !cancelled && setState("unavailable"));
+    const check = proof
+      ? verifyDeal(proof).then((r): Verification => (r.ok ? "verified" : "unavailable"))
+      : agentApi.getVerification(handId);
+    check.then((v) => !cancelled && setState(v)).catch(() => !cancelled && setState("unavailable"));
     return () => {
       cancelled = true;
     };
-  }, [handId]);
+  }, [handId, proof]);
 
   const shown: Verification = state === "loading" ? "pending" : state;
 
@@ -41,21 +44,23 @@ export function VerificationCard({ handId }: { handId: string }) {
         <StatusBadge
           kind={shown === "verified" ? "verified" : shown === "pending" ? "verifying" : "unverified"}
         />
-        <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted">TEE attestation</span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted">Fair deal</span>
       </div>
       <p className="text-[13px] leading-normal text-muted">{COPY[shown]}</p>
-      {shown === "verified" && (
+      {shown === "verified" && proof && (
         <Disclosure
           hint="Details"
-          summary={<span className="font-mono text-[11px] uppercase tracking-[0.12em]">View attestation details</span>}
+          summary={<span className="font-mono text-[11px] uppercase tracking-[0.12em]">Check it yourself</span>}
         >
           <dl className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-1.5 pb-1 font-mono text-[11px]">
             <dt className="text-muted">HAND</dt>
             <dd>{handId}</dd>
-            <dt className="text-muted">ENVIRONMENT</dt>
-            <dd>Trusted Execution Environment</dd>
-            <dt className="text-muted">RECORD</dt>
-            <dd className="break-all">Signed by the enclave; shown here once your backend returns it.</dd>
+            <dt className="text-muted">FINGERPRINT</dt>
+            <dd className="break-all">{proof.commitment}</dd>
+            <dt className="text-muted">SHUFFLE SEED</dt>
+            <dd className="break-all">{proof.seed}</dd>
+            <dt className="text-muted">HOW</dt>
+            <dd>SHA-256 of the seed equals the fingerprint; the seed re-deals these exact cards.</dd>
           </dl>
         </Disclosure>
       )}
