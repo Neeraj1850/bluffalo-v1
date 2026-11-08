@@ -15,10 +15,12 @@ import { useSetup } from "@/lib/store/setup";
 import { CashoutSheet } from "./CashoutSheet";
 import { VerificationCard } from "./VerificationCard";
 
-const hand = DEMO_HAND;
-
 export function ResultsView() {
   const setup = useSetup();
+  // The agent's latest real hand; the demo hand until it has played one.
+  const live = setup.hands[0];
+  const hand = live ?? DEMO_HAND;
+  const won = hand.net > 0;
   const [sheetOpen, setSheetOpen] = useState(false);
   const agent = setup.agent.status === "deployed" ? setup.agent : null;
   const buyIn = agent?.buyIn ?? setup.buyIn;
@@ -49,10 +51,11 @@ export function ResultsView() {
       </div>
 
       <header className="flex flex-col gap-1.5">
-        <MonoLabel>Your agent won the pot</MonoLabel>
+        <MonoLabel>{won ? "Your agent won the pot" : hand.net < 0 ? "Your agent lost this hand" : "Your agent broke even"}</MonoLabel>
         <div className="flex items-baseline gap-2">
           <AnimatedNumber
-            value={hand.potWon}
+            value={won ? hand.potWon : hand.net}
+            format={won ? undefined : (n) => signed(n)}
             from={0}
             duration={0.8}
             delay={0.25}
@@ -61,23 +64,25 @@ export function ResultsView() {
           <span className="font-display text-[22px] font-medium">NEAR</span>
         </div>
         <p className="mt-2 text-[15px] leading-normal text-muted">
-          {hand.outcome} After its own bets, your agent is up{" "}
+          {hand.outcome} After its own bets, your agent is {hand.net < 0 ? "down" : "up"}{" "}
           <strong className="text-fg">{signed(hand.net)} NEAR</strong> this hand.
         </p>
       </header>
 
-      <div className="flex justify-center sm:justify-start">
-        <CardFan
-          cards={hand.winningFive}
-          dimmed={[hand.kickerIndex]}
-          delay={0.3}
-          step={0.74}
-          spread={33}
-          label={`Winning hand: ${hand.winningFive.map(cardName).join(", ")}`}
-        />
-      </div>
+      {hand.winningFive.length > 0 && (
+        <div className="flex justify-center sm:justify-start">
+          <CardFan
+            cards={hand.winningFive}
+            dimmed={[hand.kickerIndex]}
+            delay={0.3}
+            step={0.74}
+            spread={33}
+            label={`Winning hand: ${hand.winningFive.map(cardName).join(", ")}`}
+          />
+        </div>
+      )}
 
-      <VerificationCard handId={hand.id} />
+      <VerificationCard handId={hand.id} proof={live?.proof} />
 
       <motion.div
         initial="hidden"
