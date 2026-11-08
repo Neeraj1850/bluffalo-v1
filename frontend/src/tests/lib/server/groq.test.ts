@@ -51,7 +51,7 @@ describe("chatJson", () => {
 
   it("rejects invalid JSON from the model", async () => {
     const f = vi.fn().mockResolvedValue(ok("not json"));
-    await expect(chatJson({ ...base, fetch: f })).rejects.toThrow("invalid JSON");
+    await expect(chatJson({ ...base, fetch: f })).rejects.toMatchObject({ message: "Model returned invalid JSON", status: 422 });
   });
 
   it("fails fast without a key", async () => {

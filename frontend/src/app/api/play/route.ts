@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getTable } from "@/lib/data/tables";
 import { takeSeed } from "@/lib/server/deals";
+import { ServiceDownError } from "@/lib/server/decide";
 import { recordHand } from "@/lib/server/hands";
 import { parsePlayRequest, playHand } from "@/lib/server/play";
 import { sessionFrom, withSession } from "@/lib/server/sessions";
@@ -16,7 +17,14 @@ export async function POST(request: Request) {
   const deal = await takeSeed(req.handId, session.id);
   if (!deal) return reply({ error: "Unknown, expired or already played hand" }, 404);
 
-  const hand = await playHand(req, deal);
+  let hand;
+  try {
+    hand = await playHand(req, deal);
+  } catch (e) {
+    // The model is unavailable: stop the hand and say so — never play it with a stand-in.
+    if (e instanceof ServiceDownError) return reply({ error: e.message, code: "service_down" }, 503);
+    throw e;
+  }
   // Real-money hands go in the archive; practice hands don't.
   if (getTable(req.tableId).mode === "real") await recordHand(session.id, hand);
   return reply(hand);

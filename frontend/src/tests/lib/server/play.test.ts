@@ -7,6 +7,7 @@ import { createDeal } from "@/lib/server/deals";
 import { parsePlayRequest, playHand } from "@/lib/server/play";
 import { SESSION_COOKIE } from "@/lib/server/sessions";
 import { useTestDb } from "@/tests/helpers/db";
+import { fakeGroq } from "@/tests/helpers/groq";
 
 const params = getPreset("shark").params!;
 const valid = { handId: "0123abcd", tableId: "back-room", params, stack: 50, button: 0 as const };
@@ -17,13 +18,17 @@ const post = (body: unknown, id = ME) =>
   POST(new Request("http://x/api/play", { method: "POST", headers: headers(id), body: JSON.stringify(body) }));
 const archive = async (id = ME) => (await (await hands(new Request("http://x/api/hands", { headers: headers(id) }))).json()).hands;
 
-// No key: every decision comes from the heuristic, so tests never hit the network.
+// Groq is faked: every model answers "call" (a check when nothing is owed), so hands reach showdown.
 beforeEach(async () => {
-  vi.stubEnv("GROQ_API_KEY", "");
+  vi.stubEnv("GROQ_API_KEY", "test-key");
+  vi.stubGlobal("fetch", fakeGroq({ action: "call", reason: "Keep it simple." }));
   const pg = await useTestDb();
   await pg.query("insert into sessions (id) values ($1), ($2)", [ME, OTHER]);
 });
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+});
 
 describe("parsePlayRequest", () => {
   it("accepts a valid request", () => {
@@ -55,13 +60,10 @@ describe("playHand", () => {
   });
 
   it("never calls the model for the practice bot", async () => {
-    vi.stubEnv("GROQ_API_KEY", "test-key");
-    const f = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ choices: [{ message: { content: '{"action":"fold"}' } }] }), { status: 200 }),
-    );
+    const f = fakeGroq({ action: "call" });
     const deal = { seed: "00112233445566778899aabbccddeeff", commitment: "c" };
     await playHand({ ...valid, tableId: "kitchen" }, deal, { fetch: f });
-    const models = f.mock.calls.map(([, init]) => JSON.parse(init.body).model);
+    const models = f.mock.calls.map(([, init]) => JSON.parse(String(init?.body)).model);
     expect(models.every((m) => m === "openai/gpt-oss-120b")).toBe(true);
   });
 
@@ -97,6 +99,15 @@ describe("POST /api/play", () => {
   it("doesn't archive practice hands", async () => {
     const deal = await createDeal(ME);
     await post({ ...valid, tableId: "kitchen", handId: deal.handId });
+    expect(await archive()).toEqual([]);
+  });
+
+  it("answers 503 service_down when Groq is unavailable, and records nothing", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 429 })));
+    const deal = await createDeal(ME);
+    const res = await post({ ...valid, handId: deal.handId });
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ code: "service_down", error: "The agent service is down right now. Try again in a minute." });
     expect(await archive()).toEqual([]);
   });
 

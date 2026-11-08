@@ -69,7 +69,7 @@ export async function chatJson<T = unknown>({
       try {
         return JSON.parse(content) as T;
       } catch {
-        throw new GroqError("Model returned invalid JSON", 502);
+        throw new GroqError("Model returned invalid JSON", 422);
       }
     }
 
