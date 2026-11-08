@@ -91,6 +91,13 @@ export async function fetchLiveHand(req: HandRequest, f: typeof fetch = fetch): 
   return hand;
 }
 
+/** This player's real-money hands, newest first (recorded by the server). */
+export async function fetchHands(f: typeof fetch = fetch): Promise<LiveHand[]> {
+  const res = await f("/api/hands");
+  if (!res.ok) throw new Error(`Request failed (${res.status})`);
+  return (await res.json()).hands;
+}
+
 // ---------------------------------------------------------------------------
 // Mock implementation — demo only. Add ?fail=deploy, ?fail=quote,
 // ?fail=cashout or ?verify=pending|unavailable to the URL to try other paths.
