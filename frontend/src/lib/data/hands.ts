@@ -97,18 +97,6 @@ export const DEMO_HAND: ScriptedHand = {
   kickerIndex: 4,
 };
 
-/** Practice-mode script: a shorter feed with reasons, against a practice bot. */
-export const PRACTICE_STEPS = [
-  { street: "PRE", action: "CALL 1", reason: "Pair of queens — strong start, no need to scare anyone yet.", board: 0 },
-  { street: "FLOP", action: "BET 2", reason: "Board is 9♣ 4♡ 2♠. Queens are likely best — charge them to see more.", board: 3 },
-  { street: "FLOP", action: "CALL 2", reason: "Bot raised. Could be a bluff; folding queens here is too timid.", board: 3 },
-  { street: "TURN", action: "CHECK", reason: "A king arrived. If the bot has one, betting loses more. Wait and see.", board: 4 },
-  { street: "RIVER", action: "BET 4", reason: "Another 4 — nothing scary. Bet for value; weaker pairs will call.", board: 5 },
-  { street: "END", action: "WON 6.5", reason: "Bot called with a pair of nines. Queens hold. (Practice chips.)", board: 5 },
-] as const;
-
-export const PRACTICE_WIN = 6.5;
-
 export type HistoryHand = {
   id: string;
   hole: Card[];
