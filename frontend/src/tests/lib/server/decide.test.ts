@@ -43,6 +43,12 @@ describe("decide", () => {
     expect((await decide(state, shark, { fetch: f })).source).toBe("heuristic");
   });
 
+  it("skips the model when asked to play offline", async () => {
+    const f = vi.fn();
+    expect((await decide(state, null, { fetch: f, offline: true })).source).toBe("heuristic");
+    expect(f).not.toHaveBeenCalled();
+  });
+
   it("skips the network entirely without a key", async () => {
     vi.stubEnv("GROQ_API_KEY", "");
     const f = vi.fn();

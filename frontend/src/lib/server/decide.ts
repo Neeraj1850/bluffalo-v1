@@ -11,18 +11,19 @@ export type SourcedDecision = Decision & { source: "groq" | "heuristic" };
 /**
  * One decision for the seat to act. Groq first; any failure — no key, rate
  * limit, bad JSON, illegal move — falls back to the heuristic so play never stalls.
+ * `offline` skips the model on purpose (the practice bot).
  * `params` null means the house.
  */
 export async function decide(
   state: HandState,
   params: StrategyParams | null,
-  opts: { fetch?: typeof fetch; rand?: () => number } = {},
+  opts: { fetch?: typeof fetch; rand?: () => number; offline?: boolean } = {},
 ): Promise<SourcedDecision> {
   const seat: Seat = state.toAct;
   const view = seatView(state, seat);
   const fallback = () => ({ ...heuristic(view, params ?? HOUSE_PARAMS, opts.rand), source: "heuristic" as const });
 
-  if (!hasGroqKey()) return fallback();
+  if (opts.offline || !hasGroqKey()) return fallback();
   try {
     const raw = await chatJson({
       model: params ? MODELS.agent : MODELS.house,
