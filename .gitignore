@@ -4,3 +4,10 @@ notes/
 # Local markdown docs (CLAUDE.md, specs, skills) — never committed; READMEs stay tracked
 *.md
 !README.md
+
+# Python backend
+backend/.env
+backend/.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
