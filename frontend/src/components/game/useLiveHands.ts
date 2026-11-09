@@ -59,5 +59,11 @@ export function useLiveHands({ tableId, params, startStack, limits, bigBlind }: 
     [limits, bigBlind],
   );
 
-  return { hand, session, stopped, error, loading, finish, next: deal };
+  /** After an error: drop the finished hand (so it isn't settled twice) and deal again. */
+  const retry = useCallback(() => {
+    setHand(null);
+    deal();
+  }, [deal]);
+
+  return { hand, session, stopped, error, loading, finish, next: deal, retry };
 }

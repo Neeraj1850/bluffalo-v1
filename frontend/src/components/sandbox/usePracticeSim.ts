@@ -64,7 +64,8 @@ export function usePracticeSim() {
   return {
     hand,
     feed,
-    thinking: !paused && !stopped && (loading || !hand || done),
+    // Nobody is thinking while the service is down.
+    thinking: !paused && !stopped && !loop.error && (loading || !hand || done),
     paused,
     togglePaused: () => setPaused((p) => !p),
     boardShown: hand ? hand.steps[step].boardCount : 0,

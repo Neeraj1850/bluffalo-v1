@@ -48,7 +48,8 @@ function Sitting() {
   });
   const [stopRequested, setStopRequested] = useState(false);
 
-  if (!loop.hand) {
+  // Also mid-session: if the service goes down, say so instead of leaving the last hand up.
+  if (!loop.hand || loop.error) {
     return (
       <main className="flex h-dvh flex-col items-center justify-center gap-4 px-5 text-center">
         <StatusBadge kind={live ? "live" : "practice"} size="sm">
@@ -57,7 +58,7 @@ function Sitting() {
         {loop.error ? (
           <>
             <p className="max-w-sm text-[15px] text-muted">{loop.error}</p>
-            <button type="button" onClick={loop.next} className="h-11 rounded-btn border border-border px-4">
+            <button type="button" onClick={loop.retry} className="h-11 rounded-btn border border-border px-4">
               Try again
             </button>
           </>
