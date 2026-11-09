@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -27,7 +28,6 @@ import { defaultBuyIn, DEFAULT_TABLE_ID, getTable } from "@/lib/data/tables";
  * new tab doesn't lose it.
  */
 export type SetupState = {
-  connected: boolean;
   /** Demo starting balance until the account service is wired. */
   balance: number;
   tableId: string;
@@ -42,7 +42,6 @@ export type SetupState = {
 const SAVE_DEBOUNCE_MS = 300;
 
 const initialState: SetupState = {
-  connected: false,
   balance: 120,
   tableId: DEFAULT_TABLE_ID,
   preset: DEFAULT_PRESET,
@@ -54,7 +53,10 @@ const initialState: SetupState = {
 type SetupContextValue = SetupState & {
   hydrated: boolean;
   buyIn: number;
-  connect: () => void;
+  /** Replace everything with a saved setup (after sign-in links the user's session). */
+  adopt: (saved: Partial<SetupState>) => void;
+  /** Back to defaults (after sign-out). */
+  reset: () => void;
   selectTable: (id: string) => void;
   choosePreset: (key: PresetKey) => void;
   setParam: (key: ParamKey, value: number) => void;
@@ -71,10 +73,15 @@ export function SetupProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<SetupState>(initialState);
   const [hydrated, setHydrated] = useState(false);
 
+  // Set once sign-in has adopted the user's session, so a slower first load can't overwrite it.
+  const adopted = useRef(false);
+
   useEffect(() => {
     fetch("/api/session")
       .then((r) => (r.ok ? r.json() : { state: {} }))
-      .then(({ state: saved }) => setState({ ...initialState, ...(saved as Partial<SetupState>) }))
+      .then(({ state: saved }) => {
+        if (!adopted.current) setState({ ...initialState, ...(saved as Partial<SetupState>) });
+      })
       .catch(() => {
         // Server unreachable: start fresh; saving retries on the next change.
       })
@@ -98,7 +105,12 @@ export function SetupProvider({ children }: { children: ReactNode }) {
   const table = getTable(state.tableId);
   const buyIn = defaultBuyIn(table);
 
-  const connect = useCallback(() => setState((s) => ({ ...s, connected: true })), []);
+  const adopt = useCallback((saved: Partial<SetupState>) => {
+    adopted.current = true;
+    setState({ ...initialState, ...saved });
+    setHydrated(true);
+  }, []);
+  const reset = useCallback(() => setState(initialState), []);
   const selectTable = useCallback((id: string) => setState((s) => ({ ...s, tableId: id })), []);
   const choosePreset = useCallback(
     (key: PresetKey) =>
@@ -158,7 +170,8 @@ export function SetupProvider({ children }: { children: ReactNode }) {
       ...state,
       hydrated,
       buyIn,
-      connect,
+      adopt,
+      reset,
       selectTable,
       choosePreset,
       setParam,
@@ -167,7 +180,7 @@ export function SetupProvider({ children }: { children: ReactNode }) {
       stopAgent,
       withdraw,
     }),
-    [state, hydrated, buyIn, connect, selectTable, choosePreset, setParam, setLimit, markDeployed, stopAgent, withdraw],
+    [state, hydrated, buyIn, adopt, reset, selectTable, choosePreset, setParam, setLimit, markDeployed, stopAgent, withdraw],
   );
 
   return <SetupContext.Provider value={value}>{children}</SetupContext.Provider>;
