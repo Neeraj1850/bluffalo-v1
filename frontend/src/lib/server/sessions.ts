@@ -23,11 +23,10 @@ export async function sessionFrom(request: Request): Promise<Session> {
     const found = await backend<{ state: Record<string, unknown> }>(`/sessions/${id}`);
     if (found) return { id, state: found.state, created: false };
   }
-  const fresh = await backend<{ id: string }>("/sessions", { method: "POST" });
-  return { id: fresh!.id, state: {}, created: true };
+  return freshSession();
 }
 
-/** Set the cookie on the response when the session was just created. */
+/** Set the cookie on the response when the session is new (or switched). */
 export function withSession<T extends NextResponse>(res: T, session: Session): T {
   if (session.created) {
     res.cookies.set(SESSION_COOKIE, session.id, {
@@ -46,6 +45,29 @@ export function parseState(body: unknown): Record<string, unknown> | string {
   if (!body || typeof body !== "object" || Array.isArray(body)) return "State must be a JSON object";
   if (JSON.stringify(body).length > MAX_STATE_BYTES) return "State is too large";
   return body as Record<string, unknown>;
+}
+
+/** The signed-in Privy user for this session, if any. */
+export async function sessionUser(id: string): Promise<string | null> {
+  return (await backend<{ user_id: string | null }>(`/sessions/${id}/user`))?.user_id ?? null;
+}
+
+/**
+ * Tie the session to a signed-in user. Returns the session to use from now on —
+ * the user's existing one if they've signed in before — and always resets the cookie.
+ */
+export async function linkUser(id: string, userId: string): Promise<Session> {
+  const linked = await backend<{ id: string; state: Record<string, unknown> }>(`/sessions/${id}/user`, {
+    method: "POST",
+    body: { user_id: userId },
+  });
+  return { id: linked!.id, state: linked!.state, created: true };
+}
+
+/** A brand-new anonymous session (sign out). */
+export async function freshSession(): Promise<Session> {
+  const { id } = (await backend<{ id: string }>("/sessions", { method: "POST" }))!;
+  return { id, state: {}, created: true };
 }
 
 export async function saveState(id: string, state: Record<string, unknown>) {

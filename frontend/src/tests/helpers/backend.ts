@@ -14,6 +14,7 @@ export function useFakeBackend(fallthrough?: typeof fetch) {
   vi.stubEnv("BACKEND_TOKEN", "test-token");
 
   const sessions = new Map<string, Record<string, unknown>>();
+  const users = new Map<string, string>(); // session id → Privy user id
   const deals = new Map<string, { session: string; seed: string; commitment: string; played: boolean }>();
   const hands: { session: string; id: string; record: unknown }[] = [];
   const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
@@ -41,6 +42,13 @@ export function useFakeBackend(fallthrough?: typeof fetch) {
       sessions.set(sid, body.state);
       return json({ ok: true });
     }
+    if (kind === "user" && method === "GET") return json({ user_id: users.get(sid) ?? null });
+    if (kind === "user" && method === "POST") {
+      const existing = [...users].find(([, u]) => u === body.user_id)?.[0];
+      const id = existing ?? sid;
+      users.set(id, body.user_id);
+      return json({ id, state: sessions.get(id) });
+    }
     if (kind === "deals" && !handId) {
       deals.set(body.hand_id, { session: sid, seed: body.seed, commitment: body.commitment, played: false });
       return json({ ok: true }, 201);
@@ -60,7 +68,10 @@ export function useFakeBackend(fallthrough?: typeof fetch) {
   });
 
   vi.stubGlobal("fetch", fake);
-  /** Create a session directly, as if a browser had visited before. */
-  const seedSession = (id: string) => sessions.set(id, {});
+  /** Create a session directly, as if a browser had visited before (optionally signed in). */
+  const seedSession = (id: string, userId?: string) => {
+    sessions.set(id, {});
+    if (userId) users.set(id, userId);
+  };
   return { fake, seedSession };
 }
