@@ -1,5 +1,5 @@
 import type { NextResponse } from "next/server";
-import { db } from "./db";
+import { backend } from "./backend";
 
 export const SESSION_COOKIE = "np_session";
 const MAX_STATE_BYTES = 16_000;
@@ -20,12 +20,11 @@ function readCookie(request: Request): string | null {
 export async function sessionFrom(request: Request): Promise<Session> {
   const id = readCookie(request);
   if (id && UUID.test(id)) {
-    const { rows } = await db().query<{ state: Record<string, unknown> }>("select state from sessions where id = $1", [id]);
-    if (rows[0]) return { id, state: rows[0].state, created: false };
+    const found = await backend<{ state: Record<string, unknown> }>(`/sessions/${id}`);
+    if (found) return { id, state: found.state, created: false };
   }
-  const fresh = crypto.randomUUID();
-  await db().query("insert into sessions (id) values ($1)", [fresh]);
-  return { id: fresh, state: {}, created: true };
+  const fresh = await backend<{ id: string }>("/sessions", { method: "POST" });
+  return { id: fresh!.id, state: {}, created: true };
 }
 
 /** Set the cookie on the response when the session was just created. */
@@ -50,5 +49,5 @@ export function parseState(body: unknown): Record<string, unknown> | string {
 }
 
 export async function saveState(id: string, state: Record<string, unknown>) {
-  await db().query("update sessions set state = $2, updated_at = now() where id = $1", [id, JSON.stringify(state)]);
+  await backend(`/sessions/${id}`, { method: "PUT", body: { state } });
 }

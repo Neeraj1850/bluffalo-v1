@@ -1,7 +1,7 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET, PUT } from "@/app/api/session/route";
 import { parseState, SESSION_COOKIE } from "@/lib/server/sessions";
-import { useTestDb } from "@/tests/helpers/db";
+import { useFakeBackend } from "@/tests/helpers/backend";
 
 const req = (method: string, cookie?: string, body?: unknown) =>
   new Request("http://x/api/session", {
@@ -12,8 +12,12 @@ const req = (method: string, cookie?: string, body?: unknown) =>
 
 const cookieOf = (res: Response) => res.headers.get("set-cookie")?.match(new RegExp(`${SESSION_COOKIE}=([^;]+)`))?.[1];
 
-beforeEach(async () => {
-  await useTestDb();
+beforeEach(() => {
+  useFakeBackend();
+});
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
 });
 
 describe("session routes", () => {
@@ -50,6 +54,13 @@ describe("session routes", () => {
   it("rejects bad state with 400", async () => {
     const id = cookieOf(await GET(req("GET")))!;
     expect((await PUT(req("PUT", id, [1, 2]))).status).toBe(400);
+  });
+});
+
+describe("backend wiring", () => {
+  it("sends the bearer token and fails loudly without config", async () => {
+    vi.stubEnv("BACKEND_TOKEN", "");
+    await expect(GET(req("GET"))).rejects.toThrow("BACKEND_URL / BACKEND_TOKEN");
   });
 });
 

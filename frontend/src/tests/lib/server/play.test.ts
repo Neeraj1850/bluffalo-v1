@@ -6,7 +6,7 @@ import { commitment, verifyDeal } from "@/lib/poker/fairness";
 import { createDeal } from "@/lib/server/deals";
 import { parsePlayRequest, playHand } from "@/lib/server/play";
 import { SESSION_COOKIE } from "@/lib/server/sessions";
-import { useTestDb } from "@/tests/helpers/db";
+import { useFakeBackend } from "@/tests/helpers/backend";
 import { fakeGroq } from "@/tests/helpers/groq";
 
 const params = getPreset("shark").params!;
@@ -16,14 +16,15 @@ const OTHER = "00000000-0000-4000-8000-00000000000b";
 const headers = (id = ME) => ({ cookie: `${SESSION_COOKIE}=${id}` });
 const post = (body: unknown, id = ME) =>
   POST(new Request("http://x/api/play", { method: "POST", headers: headers(id), body: JSON.stringify(body) }));
+let backend: ReturnType<typeof useFakeBackend>;
 const archive = async (id = ME) => (await (await hands(new Request("http://x/api/hands", { headers: headers(id) }))).json()).hands;
 
 // Groq is faked: every model answers "call" (a check when nothing is owed), so hands reach showdown.
 beforeEach(async () => {
   vi.stubEnv("GROQ_API_KEY", "test-key");
-  vi.stubGlobal("fetch", fakeGroq({ action: "call", reason: "Keep it simple." }));
-  const pg = await useTestDb();
-  await pg.query("insert into sessions (id) values ($1), ($2)", [ME, OTHER]);
+  backend = useFakeBackend(fakeGroq({ action: "call", reason: "Keep it simple." }));
+  backend.seedSession(ME);
+  backend.seedSession(OTHER);
 });
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -103,7 +104,8 @@ describe("POST /api/play", () => {
   });
 
   it("answers 503 service_down when Groq is unavailable, and records nothing", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 429 })));
+    backend = useFakeBackend(vi.fn(async () => new Response("{}", { status: 429 })));
+    backend.seedSession(ME);
     const deal = await createDeal(ME);
     const res = await post({ ...valid, handId: deal.handId });
     expect(res.status).toBe(503);

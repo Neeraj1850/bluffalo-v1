@@ -1,17 +1,21 @@
-import type { PGlite } from "@electric-sql/pglite";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST } from "@/app/api/deal/route";
 import { commitment } from "@/lib/poker/fairness";
 import { createDeal, takeSeed } from "@/lib/server/deals";
-import { useTestDb } from "@/tests/helpers/db";
+import { useFakeBackend } from "@/tests/helpers/backend";
 
+// Expiry and the SQL itself are tested against the real models in backend/tests.
 const A = "00000000-0000-4000-8000-00000000000a";
 const B = "00000000-0000-4000-8000-00000000000b";
-let pg: PGlite;
 
-beforeEach(async () => {
-  pg = await useTestDb();
-  await pg.query("insert into sessions (id) values ($1), ($2)", [A, B]);
+beforeEach(() => {
+  const { seedSession } = useFakeBackend();
+  seedSession(A);
+  seedSession(B);
+});
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
 });
 
 describe("deal store", () => {
@@ -36,12 +40,6 @@ describe("deal store", () => {
 
   it("returns null for unknown hands", async () => {
     expect(await takeSeed("nope", A)).toBeNull();
-  });
-
-  it("expires deals that were never played", async () => {
-    const { handId } = await createDeal(A);
-    await pg.query("update deals set created_at = now() - interval '11 minutes' where hand_id = $1", [handId]);
-    expect(await takeSeed(handId, A)).toBeNull();
   });
 });
 

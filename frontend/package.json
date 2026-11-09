@@ -8,23 +8,19 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit",
-    "db:setup": "psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f db/schema.sql"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "clsx": "^2.1.1",
     "framer-motion": "^12.43.0",
     "next": "15.5.28",
-    "pg": "^8.23.1",
     "react": "19.1.0",
     "react-dom": "19.1.0"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "^0.5.11",
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
-    "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
