@@ -4,7 +4,7 @@ import { takeSeed } from "@/lib/server/deals";
 import { ServiceDownError } from "@/lib/server/decide";
 import { recordHand } from "@/lib/server/hands";
 import { parsePlayRequest, playHand } from "@/lib/server/play";
-import { sessionFrom, withSession } from "@/lib/server/sessions";
+import { sessionFrom, sessionUser, withSession } from "@/lib/server/sessions";
 
 /** Play a hand committed with POST /api/deal. The response reveals the seed. */
 export async function POST(request: Request) {
@@ -13,6 +13,10 @@ export async function POST(request: Request) {
 
   const req = parsePlayRequest(await request.json().catch(() => null));
   if (typeof req === "string") return reply({ error: req }, 400);
+
+  // Real money needs a signed-in player; practice is open to anyone.
+  const real = getTable(req.tableId).mode === "real";
+  if (real && !(await sessionUser(session.id))) return reply({ error: "Sign in to play for real money" }, 401);
 
   const deal = await takeSeed(req.handId, session.id);
   if (!deal) return reply({ error: "Unknown, expired or already played hand" }, 404);
@@ -26,6 +30,6 @@ export async function POST(request: Request) {
     throw e;
   }
   // Real-money hands go in the archive; practice hands don't.
-  if (getTable(req.tableId).mode === "real") await recordHand(session.id, hand);
+  if (real) await recordHand(session.id, hand);
   return reply(hand);
 }

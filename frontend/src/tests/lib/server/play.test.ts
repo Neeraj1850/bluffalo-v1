@@ -23,8 +23,8 @@ const archive = async (id = ME) => (await (await hands(new Request("http://x/api
 beforeEach(async () => {
   vi.stubEnv("GROQ_API_KEY", "test-key");
   backend = useFakeBackend(fakeGroq({ action: "call", reason: "Keep it simple." }));
-  backend.seedSession(ME);
-  backend.seedSession(OTHER);
+  backend.seedSession(ME, "did:privy:me");
+  backend.seedSession(OTHER, "did:privy:other");
 });
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -85,6 +85,17 @@ describe("POST /api/play", () => {
     expect(await verifyDeal(hand.proof)).toEqual({ ok: true });
   });
 
+  it("requires sign-in for real money, but not for practice", async () => {
+    const GUEST = "00000000-0000-4000-8000-00000000000c";
+    backend.seedSession(GUEST);
+    const real = await createDeal(GUEST);
+    const res = await post({ ...valid, handId: real.handId }, GUEST);
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: "Sign in to play for real money" });
+    const practice = await createDeal(GUEST);
+    expect((await post({ ...valid, tableId: "kitchen", handId: practice.handId }, GUEST)).status).toBe(200);
+  });
+
   it("refuses another session's hand", async () => {
     const deal = await createDeal(ME);
     expect((await post({ ...valid, handId: deal.handId }, OTHER)).status).toBe(404);
@@ -105,7 +116,7 @@ describe("POST /api/play", () => {
 
   it("answers 503 service_down when Groq is unavailable, and records nothing", async () => {
     backend = useFakeBackend(vi.fn(async () => new Response("{}", { status: 429 })));
-    backend.seedSession(ME);
+    backend.seedSession(ME, "did:privy:me");
     const deal = await createDeal(ME);
     const res = await post({ ...valid, handId: deal.handId });
     expect(res.status).toBe(503);
