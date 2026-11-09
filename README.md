@@ -133,6 +133,17 @@ npm run dev
 Agent decisions use [Groq](https://console.groq.com) (free tier). If Groq is unavailable (no key, rate limit,
 outage) the hand stops and the app says the agent service is down — it never swaps in a different strategy.
 
+## Deploy with Docker
+
+```bash
+cp .env.deploy.example .env.deploy   # POSTGRES_PASSWORD, BACKEND_TOKEN, GROQ_API_KEY, Privy keys
+docker compose --env-file .env.deploy up --build -d
+# web on :3000 · backend and Postgres stay on the internal network
+```
+
+The backend runs `alembic upgrade head` on start. Put HTTPS in front of `:3000` in production
+(the session cookie is `Secure` there).
+
 ## Contributing
 
 - Every feature and every bug fix ships with a test: `frontend/src/tests/` (vitest, mirroring `src/` paths)
