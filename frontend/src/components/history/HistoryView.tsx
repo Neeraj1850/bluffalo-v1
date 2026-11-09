@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { useState } from "react";
+import { SignOutButton } from "@/components/SignOutButton";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 import { MonoLabel } from "@/components/ui/MonoLabel";
@@ -45,7 +46,10 @@ export function HistoryView() {
       <header className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <MonoLabel tracking="wide">07 · The archive</MonoLabel>
-          <ThemeToggle className="lg:hidden" />
+          <div className="flex items-center gap-1 lg:hidden">
+            <SignOutButton />
+            <ThemeToggle />
+          </div>
         </div>
         <Rise
           as="h1"

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { SignOutButton } from "@/components/SignOutButton";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { cn } from "@/lib/cn";
 import { spring } from "@/lib/motion";
@@ -51,6 +52,7 @@ export function NavRail({ active }: { active: NavKey | null }) {
         })}
       </ul>
       <ThemeToggle className="mt-auto" />
+      <SignOutButton />
     </nav>
   );
 }
