@@ -41,8 +41,13 @@ describe("decide", () => {
     ["Groq has an outage", 503],
     ["the key is rejected", 401],
   ])("reports the service down when %s", async (_, status) => {
-    const f = vi.fn().mockResolvedValue(new Response("{}", { status }));
-    await expect(decide(state, shark, { fetch: f, rand: () => 0 })).rejects.toBeInstanceOf(ServiceDownError);
+    // Fresh response per call, and fake timers so retry backoff doesn't wait in real time.
+    vi.useFakeTimers();
+    const f = vi.fn(async () => new Response("{}", { status }));
+    const result = expect(decide(state, shark, { fetch: f, rand: () => 0 })).rejects.toBeInstanceOf(ServiceDownError);
+    await vi.runAllTimersAsync();
+    await result;
+    vi.useRealTimers();
   });
 
   it("reports the service down when Groq can't be reached", async () => {
