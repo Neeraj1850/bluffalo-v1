@@ -5,7 +5,7 @@ import { toHistory, toRecord } from "@/lib/poker/record";
 
 // Agent Qs Qd · house 9h 8s · board 9c 4h 2s Kd 4c; agent on the button.
 const DECK = cards("Qs", "9h", "Qd", "8s", "9c", "4h", "2s", "Kd", "4c");
-const proof = { seed: "s", commitment: "c", hole: [[], []] as [never[], never[]], board: [] };
+const proof = { seed: "s", commitment: "c", playerSeed: "p", hole: [[], []] as [never[], never[]], board: [] };
 const meta = (reasons: string[]) => ({ id: "ab12", table: "the back room", reasons, proof });
 const play = (...actions: Action[]) =>
   actions.reduce(apply, newHand({ deck: DECK, stacks: [50, 50], blinds: { small: 0.5, big: 1 }, button: 0 }));

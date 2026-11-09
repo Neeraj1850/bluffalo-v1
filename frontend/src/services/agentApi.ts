@@ -1,4 +1,5 @@
 import type { Limits, PresetKey, StrategyParams } from "@/lib/data/strategy";
+import { newSeed } from "@/lib/poker/fairness";
 import type { LiveHand } from "@/lib/poker/record";
 
 /**
@@ -85,9 +86,13 @@ async function post<T>(f: typeof fetch, url: string, body?: unknown): Promise<T>
 
 export async function fetchLiveHand(req: HandRequest, f: typeof fetch = fetch): Promise<LiveHand> {
   const deal = await post<{ handId: string; commitment: string }>(f, "/api/deal");
-  const hand = await post<LiveHand>(f, "/api/play", { ...req, handId: deal.handId });
-  // The server must reveal the seed it committed to before the deal.
-  if (hand.proof?.commitment !== deal.commitment) throw new Error("Hand doesn’t match its commitment");
+  // Our share of the shuffle, chosen only after the server has committed to its own.
+  const playerSeed = newSeed();
+  const hand = await post<LiveHand>(f, "/api/play", { ...req, handId: deal.handId, playerSeed });
+  // The server must reveal the seed it committed to, and use ours.
+  if (hand.proof?.commitment !== deal.commitment || hand.proof?.playerSeed !== playerSeed) {
+    throw new Error("Hand doesn’t match its commitment");
+  }
   return hand;
 }
 

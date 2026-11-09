@@ -1,6 +1,7 @@
 import { PARAMS, type StrategyParams } from "@/lib/data/strategy";
 import { TABLES } from "@/lib/data/tables";
 import { shuffle } from "@/lib/poker/deck";
+import { mixSeed } from "@/lib/poker/fairness";
 import { apply, isOver, newHand, type Seat } from "@/lib/poker/game";
 import { toRecord, type LiveHand } from "@/lib/poker/record";
 import { decide } from "./decide";
@@ -12,6 +13,8 @@ export type PlayRequest = {
   /** The agent's stack going into the hand; the house sits with the same. */
   stack: number;
   button: Seat;
+  /** The player's contribution to the shuffle, sent after the server committed. */
+  playerSeed: string;
 };
 
 const MAX_STACK = 10_000;
@@ -23,6 +26,7 @@ export function parsePlayRequest(body: unknown): PlayRequest | string {
   if (typeof b.handId !== "string" || !/^[0-9a-f]{8}$/.test(b.handId)) return "Invalid handId";
   if (typeof b.tableId !== "string" || !TABLES.some((t) => t.id === b.tableId)) return "Unknown table";
   if (b.button !== 0 && b.button !== 1) return "button must be 0 or 1";
+  if (typeof b.playerSeed !== "string" || !/^[0-9a-f]{32}$/.test(b.playerSeed)) return "Invalid playerSeed";
   if (typeof b.stack !== "number" || !(b.stack > 0 && b.stack <= MAX_STACK)) return "Invalid stack";
   const p = b.params as Record<string, unknown> | undefined;
   if (!p || typeof p !== "object") return "Missing params";
@@ -32,7 +36,7 @@ export function parsePlayRequest(body: unknown): PlayRequest | string {
     if (typeof v !== "number" || !(v >= 0 && v <= 100)) return `Invalid ${key}`;
     params[key] = v;
   }
-  return { handId: b.handId, tableId: b.tableId, params, stack: b.stack, button: b.button };
+  return { handId: b.handId, tableId: b.tableId, params, stack: b.stack, button: b.button, playerSeed: b.playerSeed };
 }
 
 /** Play a committed hand to the end. The house is the practice bot (no model) on practice tables. */
@@ -44,7 +48,7 @@ export async function playHand(
   const table = TABLES.find((t) => t.id === req.tableId)!;
   const practice = table.mode === "practice";
   let s = newHand({
-    deck: shuffle(deal.seed),
+    deck: shuffle(await mixSeed(deal.seed, req.playerSeed)),
     stacks: [req.stack, req.stack],
     blinds: table.blinds,
     button: req.button,
@@ -64,6 +68,6 @@ export async function playHand(
     table: table.name,
     reasons,
     opponent: practice ? "practice bot" : "house agent",
-    proof: { seed: deal.seed, commitment: deal.commitment, hole: s.hole, board: s.board },
+    proof: { seed: deal.seed, commitment: deal.commitment, playerSeed: req.playerSeed, hole: s.hole, board: s.board },
   });
 }

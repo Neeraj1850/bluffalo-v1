@@ -8,7 +8,7 @@ import { agentApi, type Verification } from "@/services/agentApi";
 
 const COPY: Record<Verification, string> = {
   verified:
-    "Before this hand was dealt, the shuffle was locked in with a fingerprint. That fingerprint matches the revealed shuffle, and the shuffle deals exactly these cards — no one could change them mid-hand.",
+    "Before this hand was dealt, the house locked in its half of the shuffle with a fingerprint; your browser then added its own half. The fingerprint matches, and the two halves deal exactly these cards — no one could pick or change the cards.",
   pending: "Checking this hand’s shuffle against the fingerprint published before the deal…",
   unavailable:
     "This hand’s shuffle doesn’t check out against the fingerprint published before the deal. Treat the result as unverified.",
@@ -57,10 +57,12 @@ export function VerificationCard({ handId, proof }: { handId: string; proof?: De
             <dd>{handId}</dd>
             <dt className="text-muted">FINGERPRINT</dt>
             <dd className="break-all">{proof.commitment}</dd>
-            <dt className="text-muted">SHUFFLE SEED</dt>
+            <dt className="text-muted">HOUSE SEED</dt>
             <dd className="break-all">{proof.seed}</dd>
+            <dt className="text-muted">YOUR SEED</dt>
+            <dd className="break-all">{proof.playerSeed}</dd>
             <dt className="text-muted">HOW</dt>
-            <dd>SHA-256 of the seed equals the fingerprint; the seed re-deals these exact cards.</dd>
+            <dd>SHA-256(house seed) equals the fingerprint; SHA-256(house seed:your seed) re-deals these exact cards.</dd>
           </dl>
         </Disclosure>
       )}

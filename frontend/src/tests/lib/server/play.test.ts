@@ -10,7 +10,7 @@ import { useFakeBackend } from "@/tests/helpers/backend";
 import { fakeGroq } from "@/tests/helpers/groq";
 
 const params = getPreset("shark").params!;
-const valid = { handId: "0123abcd", tableId: "back-room", params, stack: 50, button: 0 as const };
+const valid = { handId: "0123abcd", tableId: "back-room", params, stack: 50, button: 0 as const, playerSeed: "ffeeddccbbaa99887766554433221100" };
 const ME = "00000000-0000-4000-8000-00000000000a";
 const OTHER = "00000000-0000-4000-8000-00000000000b";
 const headers = (id = ME) => ({ cookie: `${SESSION_COOKIE}=${id}` });
@@ -45,6 +45,8 @@ describe("parsePlayRequest", () => {
     ["a huge stack", { ...valid, stack: 1e9 }],
     ["a slider out of range", { ...valid, params: { ...params, bluff: 101 } }],
     ["a missing slider", { ...valid, params: { aggression: 50 } }],
+    ["a missing player seed", { ...valid, playerSeed: undefined }],
+    ["a malformed player seed", { ...valid, playerSeed: "NOT-HEX" }],
   ])("rejects %s", (_, body) => {
     expect(typeof parsePlayRequest(body)).toBe("string");
   });
