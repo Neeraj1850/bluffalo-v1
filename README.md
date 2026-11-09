@@ -122,7 +122,8 @@ npm run dev   # http://localhost:3000
 ```
 
 Agent decisions use [Groq](https://console.groq.com) (free tier). Put `GROQ_API_KEY=...` in
-`frontend/.env.local`; without it the agents fall back to a built-in heuristic.
+`frontend/.env.local`. If Groq is unavailable (no key, rate limit, outage) the hand stops and the
+app says the agent service is down — it never swaps in a different strategy.
 
 ## Contributing
 
