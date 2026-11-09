@@ -109,26 +109,35 @@ Unhappy paths with the mock: `/deploy?fail=quote`, `/deploy?fail=deploy`, `/resu
 
 ## Local development
 
-Requires Node.js 20+.
+Requires Node.js 20+, Python 3.13 with [uv](https://docs.astral.sh/uv/), and Postgres.
 
 ```bash
 git clone https://github.com/Neeraj1850/near-poker-agent.git
-cd near-poker-agent/frontend
+cd near-poker-agent
+
+# Storage backend (FastAPI + SQLAlchemy + Alembic) on :8000
+cd backend
+cp .env.example .env              # DATABASE_URL, BACKEND_TOKEN
+createdb near_poker
+uv sync
+uv run alembic upgrade head
+uv run uvicorn app.main:app --port 8000
+
+# Web app on :3000 (another terminal, from the repo root)
+cd frontend
+cp .env.example .env.local        # GROQ_API_KEY, BACKEND_URL, same BACKEND_TOKEN, Privy keys
 npm install
-cp .env.example .env.local   # add GROQ_API_KEY
-createdb near_poker          # local Postgres (sessions, deals, hands)
-npm run db:setup
-npm run dev   # http://localhost:3000
+npm run dev
 ```
 
-Agent decisions use [Groq](https://console.groq.com) (free tier). Put `GROQ_API_KEY=...` in
-`frontend/.env.local`. If Groq is unavailable (no key, rate limit, outage) the hand stops and the
-app says the agent service is down — it never swaps in a different strategy.
+Agent decisions use [Groq](https://console.groq.com) (free tier). If Groq is unavailable (no key, rate limit,
+outage) the hand stops and the app says the agent service is down — it never swaps in a different strategy.
 
 ## Contributing
 
-- Every feature and every bug fix ships with a test (`frontend/src/tests/`, mirroring `src/` paths, vitest).
-- `make check` (lint + typecheck + tests) must pass before every commit. Enable the hook once:
+- Every feature and every bug fix ships with a test: `frontend/src/tests/` (vitest, mirroring `src/` paths)
+  or `backend/tests/` (pytest).
+- `make check` (ESLint, ruff, TypeScript, vitest, pytest) must pass before every commit. Enable the hook once:
   `git config core.hooksPath .githooks` — it runs `make check` and blocks the commit on failure.
 
 ## Branches
