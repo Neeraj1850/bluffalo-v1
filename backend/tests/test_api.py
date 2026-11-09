@@ -100,3 +100,23 @@ class TestHands:
 
     def test_rejects_malformed_ids(self, client, session_id):
         assert client.post(f"/sessions/{session_id}/hands", json={"id": "x", "record": {}}).status_code == 422
+
+
+class TestUsers:
+    def test_links_a_user_to_the_current_session(self, client, session_id):
+        res = client.post(f"/sessions/{session_id}/user", json={"user_id": "did:privy:alice"})
+        assert res.json()["id"] == session_id
+        assert client.get(f"/sessions/{session_id}/user").json() == {"user_id": "did:privy:alice"}
+
+    def test_returns_the_users_existing_session_on_another_device(self, client, session_id):
+        client.put(f"/sessions/{session_id}", json={"state": {"tableId": "vault"}})
+        client.post(f"/sessions/{session_id}/user", json={"user_id": "did:privy:alice"})
+        laptop = client.post("/sessions").json()["id"]
+        res = client.post(f"/sessions/{laptop}/user", json={"user_id": "did:privy:alice"}).json()
+        assert res == {"id": session_id, "state": {"tableId": "vault"}}
+
+    def test_anonymous_session_has_no_user(self, client, session_id):
+        assert client.get(f"/sessions/{session_id}/user").json() == {"user_id": None}
+
+    def test_rejects_an_empty_user_id(self, client, session_id):
+        assert client.post(f"/sessions/{session_id}/user", json={"user_id": ""}).status_code == 422

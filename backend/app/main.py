@@ -56,6 +56,10 @@ class DealIn(BaseModel):
     commitment: str = Field(pattern=r"^[0-9a-f]{64}$")
 
 
+class LinkIn(BaseModel):
+    user_id: str = Field(min_length=1, max_length=128)
+
+
 class HandIn(BaseModel):
     id: str = Field(pattern=r"^#[0-9a-f]{8}$")
     record: dict
@@ -85,6 +89,24 @@ def save_session(session_id: uuid.UUID, body: StateIn, db: Db) -> dict:
     s.state = body.state
     db.commit()
     return {"ok": True}
+
+
+@app.post("/sessions/{session_id}/user", dependencies=Auth)
+def link_user(session_id: uuid.UUID, body: LinkIn, db: Db) -> dict:
+    """Tie this browser's session to a signed-in user. If the user already has a
+    session (another device, an earlier visit), that one wins and is returned."""
+    current = session_or_404(db, session_id)
+    existing = db.scalar(select(Session).where(Session.user_id == body.user_id))
+    if existing:
+        return {"id": str(existing.id), "state": existing.state}
+    current.user_id = body.user_id
+    db.commit()
+    return {"id": str(current.id), "state": current.state}
+
+
+@app.get("/sessions/{session_id}/user", dependencies=Auth)
+def get_user(session_id: uuid.UUID, db: Db) -> dict:
+    return {"user_id": session_or_404(db, session_id).user_id}
 
 
 @app.post("/sessions/{session_id}/deals", status_code=201, dependencies=Auth)
