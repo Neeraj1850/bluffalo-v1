@@ -141,6 +141,11 @@ outage) the hand stops and the app says the agent service is down — it never s
 2. `settle_hand` — after the hand the server seed is revealed; the contract refuses it unless it matches the commitment, stores both seeds, and pays out (never more than the pot).
 3. `get_hand` — anyone can read the seeds, re-deal from sha256(server seed:player seed) and check the result.
 
+On testnet ([`npoker-43b602.testnet`](https://testnet.nearblocks.io/address/npoker-43b602.testnet)), deploying an
+agent creates a real sub-account (`a<id>.npoker-op-43b602.testnet`) and deposits its buy-in; every real-money hand is
+committed and settled on-chain, and Results links to both transactions. Testnet amounts are table amounts ÷ 1000
+(a 50 NEAR buy-in is 0.05 test NEAR) so the faucet budget lasts.
+
 ```bash
 cd contracts/poker
 cargo test                 # unit tests
