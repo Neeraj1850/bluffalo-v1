@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { chatJson, GroqError } from "@/lib/server/groq";
+import { chatJson, NearAiError } from "@/lib/server/nearai";
 
 const ok = (content: string) =>
   new Response(JSON.stringify({ choices: [{ message: { content } }] }), { status: 200 });
@@ -9,7 +9,7 @@ const fail = (status: number, retryAfter?: string) =>
 const base = { model: "m", messages: [{ role: "user" as const, content: "hi" }] };
 
 describe("chatJson", () => {
-  beforeEach(() => vi.stubEnv("GROQ_API_KEY", "test-key"));
+  beforeEach(() => vi.stubEnv("NEAR_AI_API_KEY", "test-key"));
   afterEach(() => vi.unstubAllEnvs());
 
   it("sends a JSON-mode request with the key and parses the reply", async () => {
@@ -45,7 +45,7 @@ describe("chatJson", () => {
 
   it("does not retry client errors", async () => {
     const f = vi.fn().mockResolvedValue(fail(400));
-    await expect(chatJson({ ...base, fetch: f })).rejects.toBeInstanceOf(GroqError);
+    await expect(chatJson({ ...base, fetch: f })).rejects.toBeInstanceOf(NearAiError);
     expect(f).toHaveBeenCalledTimes(1);
   });
 
@@ -55,9 +55,9 @@ describe("chatJson", () => {
   });
 
   it("fails fast without a key", async () => {
-    vi.stubEnv("GROQ_API_KEY", "");
+    vi.stubEnv("NEAR_AI_API_KEY", "");
     const f = vi.fn();
-    await expect(chatJson({ ...base, fetch: f })).rejects.toThrow("GROQ_API_KEY");
+    await expect(chatJson({ ...base, fetch: f })).rejects.toThrow("NEAR_AI_API_KEY");
     expect(f).not.toHaveBeenCalled();
   });
 });

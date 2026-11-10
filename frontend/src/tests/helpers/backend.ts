@@ -5,7 +5,7 @@ import { vi } from "vitest";
  * global fetch. Mirrors its rules: per-session data, a seed claimed once and
  * only by its session, 404 for unknown sessions. The real SQL is tested in
  * backend/tests with pytest. Requests to anything else go to `fallthrough`
- * (e.g. a fake Groq).
+ * (e.g. a fake NEAR AI).
  */
 export const BACKEND = "http://backend.test";
 

@@ -5,9 +5,10 @@ import { getPreset } from "@/lib/data/strategy";
 import { commitment, verifyDeal } from "@/lib/poker/fairness";
 import { createDeal } from "@/lib/server/deals";
 import { parsePlayRequest, playHand } from "@/lib/server/play";
+import { MODELS } from "@/lib/server/nearai";
 import { SESSION_COOKIE } from "@/lib/server/sessions";
 import { useFakeBackend } from "@/tests/helpers/backend";
-import { fakeGroq } from "@/tests/helpers/groq";
+import { fakeNearAi } from "@/tests/helpers/nearai";
 import { ChainError } from "@/lib/server/near";
 
 // The testnet contract is mocked; its client is tested in near.test.ts and live on testnet.
@@ -24,10 +25,10 @@ const post = (body: unknown, id = ME) =>
 let backend: ReturnType<typeof useFakeBackend>;
 const archive = async (id = ME) => (await (await hands(new Request("http://x/api/hands", { headers: headers(id) }))).json()).hands;
 
-// Groq is faked: every model answers "call" (a check when nothing is owed), so hands reach showdown.
+// NEAR AI is faked: every model answers "call" (a check when nothing is owed), so hands reach showdown.
 beforeEach(async () => {
-  vi.stubEnv("GROQ_API_KEY", "test-key");
-  backend = useFakeBackend(fakeGroq({ action: "call", reason: "Keep it simple." }));
+  vi.stubEnv("NEAR_AI_API_KEY", "test-key");
+  backend = useFakeBackend(fakeNearAi({ action: "call", reason: "Keep it simple." }));
   backend.seedSession(ME, "did:privy:me", "ame.op.testnet");
   backend.seedSession(OTHER, "did:privy:other", "aother.op.testnet");
   vi.stubEnv("NEAR_CONTRACT_ID", "poker.testnet");
@@ -72,11 +73,11 @@ describe("playHand", () => {
   });
 
   it("never calls the model for the practice bot", async () => {
-    const f = fakeGroq({ action: "call" });
+    const f = fakeNearAi({ action: "call" });
     const deal = { seed: "00112233445566778899aabbccddeeff", commitment: "c" };
     await playHand({ ...valid, tableId: "kitchen" }, deal, { fetch: f });
     const models = f.mock.calls.map(([, init]) => JSON.parse(String(init?.body)).model);
-    expect(models.every((m) => m === "openai/gpt-oss-120b")).toBe(true);
+    expect(models.every((m) => m === MODELS.agent)).toBe(true);
   });
 
   it("calls the opponent the practice bot on practice tables", async () => {
@@ -167,7 +168,7 @@ describe("POST /api/play", () => {
     expect(await archive()).toEqual([]);
   });
 
-  it("answers 503 service_down when Groq is unavailable, and records nothing", async () => {
+  it("answers 503 service_down when NEAR AI is unavailable, and records nothing", async () => {
     backend = useFakeBackend(vi.fn(async () => new Response("{}", { status: 429 })));
     backend.seedSession(ME, "did:privy:me", "ame.op.testnet");
     const deal = await createDeal(ME);

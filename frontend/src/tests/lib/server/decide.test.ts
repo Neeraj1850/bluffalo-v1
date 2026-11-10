@@ -3,7 +3,8 @@ import { cards } from "@/lib/cards";
 import { getPreset } from "@/lib/data/strategy";
 import { newHand } from "@/lib/poker/game";
 import { decide, ServiceDownError } from "@/lib/server/decide";
-import { fakeGroq } from "@/tests/helpers/groq";
+import { MODELS } from "@/lib/server/nearai";
+import { fakeNearAi } from "@/tests/helpers/nearai";
 
 const state = newHand({
   deck: cards("Qs", "9h", "Qd", "8s", "9c", "4h", "2s", "Kd", "4c"),
@@ -12,15 +13,15 @@ const state = newHand({
   button: 0,
 });
 const shark = getPreset("shark").params!;
-const reply = fakeGroq;
+const reply = fakeNearAi;
 
 describe("decide", () => {
-  beforeEach(() => vi.stubEnv("GROQ_API_KEY", "test-key"));
+  beforeEach(() => vi.stubEnv("NEAR_AI_API_KEY", "test-key"));
   afterEach(() => vi.unstubAllEnvs());
 
   it("uses the model's legal move", async () => {
     const d = await decide(state, shark, { fetch: reply({ action: "call", reason: "Cheap to see a flop." }) });
-    expect(d).toEqual({ action: { type: "call" }, reason: "Cheap to see a flop.", source: "groq" });
+    expect(d).toEqual({ action: { type: "call" }, reason: "Cheap to see a flop.", source: "nearai" });
   });
 
   it("uses the agent model for the player and the house model for the house", async () => {
@@ -28,7 +29,7 @@ describe("decide", () => {
     await decide(state, shark, { fetch: f });
     await decide(state, null, { fetch: f });
     const models = f.mock.calls.map(([, init]) => JSON.parse(String(init?.body)).model);
-    expect(models).toEqual(["openai/gpt-oss-120b", "openai/gpt-oss-20b"]);
+    expect(models).toEqual([MODELS.agent, MODELS.house]);
   });
 
   it("falls back to the heuristic on an illegal move", async () => {
@@ -38,7 +39,7 @@ describe("decide", () => {
 
   it.each([
     ["the rate limit is hit", 429],
-    ["Groq has an outage", 503],
+    ["NEAR AI has an outage", 503],
     ["the key is rejected", 401],
   ])("reports the service down when %s", async (_, status) => {
     // Fresh response per call, and fake timers so retry backoff doesn't wait in real time.
@@ -50,7 +51,7 @@ describe("decide", () => {
     vi.useRealTimers();
   });
 
-  it("reports the service down when Groq can't be reached", async () => {
+  it("reports the service down when NEAR AI can't be reached", async () => {
     const f = vi.fn().mockRejectedValue(new TypeError("fetch failed"));
     await expect(decide(state, shark, { fetch: f })).rejects.toThrow("service is down");
   });
@@ -69,7 +70,7 @@ describe("decide", () => {
   });
 
   it("reports the service down without a key, without calling out", async () => {
-    vi.stubEnv("GROQ_API_KEY", "");
+    vi.stubEnv("NEAR_AI_API_KEY", "");
     const f = vi.fn();
     await expect(decide(state, shark, { fetch: f })).rejects.toBeInstanceOf(ServiceDownError);
     expect(f).not.toHaveBeenCalled();
