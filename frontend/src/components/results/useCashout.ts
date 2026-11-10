@@ -6,7 +6,7 @@ import { agentApi, type CashoutQuote, type Chain } from "@/services/agentApi";
 export type CashoutState =
   | { step: "choose"; quoting: boolean; error?: string }
   | { step: "review"; quote: CashoutQuote; submitting: boolean; error?: string }
-  | { step: "track"; quote: CashoutQuote; status: "submitted" | "confirmed" | "failed" };
+  | { step: "track"; quote: CashoutQuote; txId: string; status: "submitted" | "confirmed" | "failed" };
 
 /**
  * destination → quote → submitted → confirmed.
@@ -14,6 +14,8 @@ export type CashoutState =
  */
 export function useCashout(amount: number, onConfirmed: () => void) {
   const [chain, setChain] = useState<Chain | null>(null);
+  /** Destination account on NEAR testnet. */
+  const [receiver, setReceiver] = useState("");
   const [state, setState] = useState<CashoutState>({ step: "choose", quoting: false });
   const [now, setNow] = useState(() => Date.now());
   const confirmedRef = useRef(onConfirmed);
@@ -28,13 +30,14 @@ export function useCashout(amount: number, onConfirmed: () => void) {
     if (!chain) return;
     setState({ step: "choose", quoting: true });
     try {
-      const quote = await agentApi.getCashoutQuote(chain, amount);
+      const quote = await agentApi.getCashoutQuote(chain, amount, receiver.trim());
       setNow(Date.now());
       setState({ step: "review", quote, submitting: false });
-    } catch {
-      setState({ step: "choose", quoting: false, error: "Couldn’t get a quote. Nothing was sent." });
+    } catch (err) {
+      const why = err instanceof Error && err.message ? err.message : "Couldn’t get a quote.";
+      setState({ step: "choose", quoting: false, error: `${why} Nothing was sent.` });
     }
-  }, [chain, amount]);
+  }, [chain, amount, receiver]);
 
   const confirm = useCallback(async () => {
     if (state.step !== "review" || state.submitting) return;
@@ -42,12 +45,12 @@ export function useCashout(amount: number, onConfirmed: () => void) {
     setState({ step: "review", quote, submitting: true });
     try {
       const { id } = await agentApi.submitCashout(quote.id);
-      setState({ step: "track", quote, status: "submitted" });
+      setState({ step: "track", quote, txId: id, status: "submitted" });
       // Poll until the destination network confirms.
       for (let i = 0; i < 20; i++) {
         const status = await agentApi.getCashoutStatus(id);
         if (status !== "submitted") {
-          setState({ step: "track", quote, status });
+          setState({ step: "track", quote, txId: id, status });
           if (status === "confirmed") confirmedRef.current();
           return;
         }
@@ -73,5 +76,5 @@ export function useCashout(amount: number, onConfirmed: () => void) {
   const secondsLeft =
     state.step === "review" ? Math.max(0, Math.ceil((state.quote.expiresAt - now) / 1000)) : 0;
 
-  return { chain, setChain, state, getQuote, confirm, reset, secondsLeft };
+  return { chain, setChain, receiver, setReceiver, state, getQuote, confirm, reset, secondsLeft };
 }
