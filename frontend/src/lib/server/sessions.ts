@@ -70,6 +70,15 @@ export async function freshSession(): Promise<Session> {
   return { id, state: {}, created: true };
 }
 
+/** The agent's NEAR account for this session (set by the server at deploy). */
+export async function sessionAgent(id: string): Promise<string | null> {
+  return (await backend<{ account_id: string | null }>(`/sessions/${id}/agent`))?.account_id ?? null;
+}
+
+export async function setSessionAgent(id: string, accountId: string) {
+  await backend(`/sessions/${id}/agent`, { method: "PUT", body: { account_id: accountId } });
+}
+
 export async function saveState(id: string, state: Record<string, unknown>) {
   await backend(`/sessions/${id}`, { method: "PUT", body: { state } });
 }

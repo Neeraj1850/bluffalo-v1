@@ -15,6 +15,7 @@ export function useFakeBackend(fallthrough?: typeof fetch) {
 
   const sessions = new Map<string, Record<string, unknown>>();
   const users = new Map<string, string>(); // session id → Privy user id
+  const agents = new Map<string, string>(); // session id → agent NEAR account
   const deals = new Map<string, { session: string; seed: string; commitment: string; played: boolean }>();
   const hands: { session: string; id: string; record: unknown }[] = [];
   const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
@@ -49,6 +50,11 @@ export function useFakeBackend(fallthrough?: typeof fetch) {
       users.set(id, body.user_id);
       return json({ id, state: sessions.get(id) });
     }
+    if (kind === "agent" && method === "GET") return json({ account_id: agents.get(sid) ?? null });
+    if (kind === "agent" && method === "PUT") {
+      agents.set(sid, body.account_id);
+      return json({ ok: true });
+    }
     if (kind === "deals" && !handId) {
       deals.set(body.hand_id, { session: sid, seed: body.seed, commitment: body.commitment, played: false });
       return json({ ok: true }, 201);
@@ -69,9 +75,10 @@ export function useFakeBackend(fallthrough?: typeof fetch) {
 
   vi.stubGlobal("fetch", fake);
   /** Create a session directly, as if a browser had visited before (optionally signed in). */
-  const seedSession = (id: string, userId?: string) => {
+  const seedSession = (id: string, userId?: string, agent?: string) => {
     sessions.set(id, {});
     if (userId) users.set(id, userId);
+    if (agent) agents.set(id, agent);
   };
   return { fake, seedSession };
 }
