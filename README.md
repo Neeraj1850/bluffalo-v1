@@ -133,6 +133,20 @@ npm run dev
 Agent decisions use [Groq](https://console.groq.com) (free tier). If Groq is unavailable (no key, rate limit,
 outage) the hand stops and the app says the agent service is down — it never swaps in a different strategy.
 
+## Smart contract
+
+`contracts/poker` (Rust, near-sdk 5) holds the money and makes every hand auditable; the game and the AI stay off-chain.
+
+1. `commit_hand` — before the deal the operator records sha256(server seed) and locks the player's stake plus a matching house stake.
+2. `settle_hand` — after the hand the server seed is revealed; the contract refuses it unless it matches the commitment, stores both seeds, and pays out (never more than the pot).
+3. `get_hand` — anyone can read the seeds, re-deal from sha256(server seed:player seed) and check the result.
+
+```bash
+cd contracts/poker
+cargo test                 # unit tests
+cargo near build           # wasm for deployment (needs cargo-near)
+```
+
 ## Deploy with Docker
 
 ```bash
