@@ -30,6 +30,9 @@ export class ChainError extends Error {
 }
 
 const GAS = 30_000_000_000_000n;
+// Wait until the call has executed (we learn success or the panic), not for full
+// finality — that cuts each transaction from ~9s to ~1–2s on testnet.
+const WAIT = "EXECUTED_OPTIMISTIC" as const;
 /** What each new agent account gets for its own storage. */
 const AGENT_STORAGE = 10n ** 22n; // 0.01 NEAR
 
@@ -53,7 +56,7 @@ function operator() {
 async function send(methodName: string, args: Record<string, unknown>, deposit = 0n): Promise<string> {
   const { account, contract } = operator();
   try {
-    const res = await account.callFunctionRaw({ contractId: contract, methodName, args, deposit, gas: GAS });
+    const res = await account.callFunctionRaw({ contractId: contract, methodName, args, deposit, gas: GAS, waitUntil: WAIT });
     return res.transaction.hash;
   } catch (e) {
     throw new ChainError(e);

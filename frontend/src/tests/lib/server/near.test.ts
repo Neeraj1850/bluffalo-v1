@@ -46,6 +46,7 @@ describe("contract calls", () => {
         methodName: "commit_hand",
         args: { hand_id: "0123abcd", player: "a1.op.testnet", commitment: "c".repeat(64), stake: "50000000000000000000000" },
         deposit: 0n,
+        waitUntil: "EXECUTED_OPTIMISTIC",
       }),
     );
   });
