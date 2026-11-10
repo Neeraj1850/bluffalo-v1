@@ -86,7 +86,7 @@ export function ResultsView() {
         </div>
       )}
 
-      <VerificationCard handId={hand.id} proof={live?.proof} />
+      <VerificationCard handId={hand.id} proof={live?.proof} chain={live?.chain} />
 
       <motion.div
         initial="hidden"

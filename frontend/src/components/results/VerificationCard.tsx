@@ -14,11 +14,21 @@ const COPY: Record<Verification, string> = {
     "This hand’s shuffle doesn’t check out against the fingerprint published before the deal. Treat the result as unverified.",
 };
 
+const txUrl = (hash: string) => `https://testnet.nearblocks.io/txns/${hash}`;
+
 /**
  * Shows "verified" only when the check actually passed. With a proof the
  * browser checks the deal itself (commit-reveal); without one it asks the service.
  */
-export function VerificationCard({ handId, proof }: { handId: string; proof?: DealProof }) {
+export function VerificationCard({
+  handId,
+  proof,
+  chain,
+}: {
+  handId: string;
+  proof?: DealProof;
+  chain?: { contract: string; commitTx: string; settleTx: string };
+}) {
   const [state, setState] = useState<Verification | "loading">("loading");
 
   useEffect(() => {
@@ -63,6 +73,19 @@ export function VerificationCard({ handId, proof }: { handId: string; proof?: De
             <dd className="break-all">{proof.playerSeed}</dd>
             <dt className="text-muted">HOW</dt>
             <dd>SHA-256(house seed) equals the fingerprint; SHA-256(house seed:your seed) re-deals these exact cards.</dd>
+            {chain && (
+              <>
+                <dt className="text-muted">ON NEAR</dt>
+                <dd className="flex flex-col gap-1">
+                  <a className="underline underline-offset-4" href={txUrl(chain.commitTx)} target="_blank" rel="noreferrer">
+                    Committed before the deal ↗
+                  </a>
+                  <a className="underline underline-offset-4" href={txUrl(chain.settleTx)} target="_blank" rel="noreferrer">
+                    Seed checked and settled ↗
+                  </a>
+                </dd>
+              </>
+            )}
           </dl>
         </Disclosure>
       )}
