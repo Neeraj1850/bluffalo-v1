@@ -1,16 +1,27 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const callFunctionRaw = vi.fn();
-const createSubAccount = vi.fn();
+const signAndSendTransaction = vi.fn();
 const callFunction = vi.fn();
 vi.mock("near-api-js", () => ({
   Account: class {
     callFunctionRaw = callFunctionRaw;
-    createSubAccount = createSubAccount;
+    signAndSendTransaction = signAndSendTransaction;
     provider = { callFunction };
   },
   JsonRpcProvider: class {},
-  KeyPair: { fromString: () => ({ getPublicKey: () => "ed25519:pub" }) },
+  KeyPair: { fromRandom: () => ({ getPublicKey: () => "ed25519:pub", toString: () => "ed25519:secret-agent" }) },
+  actions: {
+    createAccount: () => ({ kind: "createAccount" }),
+    transfer: (amount: bigint) => ({ kind: "transfer", amount }),
+    addFunctionCallAccessKey: (key: string, receiverId: string, methods: string[], allowance: bigint) => ({
+      kind: "addFunctionCallAccessKey",
+      key,
+      receiverId,
+      methods,
+      allowance,
+    }),
+  },
 }));
 
 const near = await import("@/lib/server/near");
@@ -64,11 +75,20 @@ describe("contract calls", () => {
     expect(callFunctionRaw.mock.calls[0][0]).toMatchObject({ methodName: "deposit_for", deposit: 5n * 10n ** 22n });
   });
 
-  it("creates agents as sub-accounts of the operator", async () => {
-    createSubAccount.mockResolvedValueOnce({});
-    const id = await near.createAgentAccount();
-    expect(id).toMatch(/^a[0-9a-f]{8}\.op\.testnet$/);
-    expect(createSubAccount.mock.calls[0][0]).toMatchObject({ accountOrPrefix: id.split(".")[0], publicKey: "ed25519:pub" });
+  it("creates agents whose only key can call withdraw_to on the poker contract", async () => {
+    signAndSendTransaction.mockResolvedValueOnce({});
+    const { accountId, privateKey } = await near.createAgentAccount();
+    expect(accountId).toMatch(/^a[0-9a-f]{8}\.op\.testnet$/);
+    expect(privateKey).toBe("ed25519:secret-agent");
+    const tx = signAndSendTransaction.mock.calls[0][0];
+    expect(tx.receiverId).toBe(accountId);
+    expect(tx.actions).toEqual([
+      { kind: "createAccount" },
+      { kind: "transfer", amount: 2n * 10n ** 22n },
+      { kind: "addFunctionCallAccessKey", key: "ed25519:pub", receiverId: "poker.testnet", methods: ["withdraw_to"], allowance: 5n * 10n ** 22n },
+    ]);
+    // No full-access key is ever added.
+    expect(tx.actions.map((a: { kind: string }) => a.kind)).not.toContain("addFullAccessKey");
   });
 
   it("reads balances in table NEAR", async () => {

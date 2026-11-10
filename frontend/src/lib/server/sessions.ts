@@ -75,8 +75,13 @@ export async function sessionAgent(id: string): Promise<string | null> {
   return (await backend<{ account_id: string | null }>(`/sessions/${id}/agent`))?.account_id ?? null;
 }
 
-export async function setSessionAgent(id: string, accountId: string) {
-  await backend(`/sessions/${id}/agent`, { method: "PUT", body: { account_id: accountId } });
+/** The agent's withdraw-only key, for cash-outs. Server-side only. */
+export async function sessionAgentKey(id: string): Promise<string | null> {
+  return (await backend<{ private_key: string | null }>(`/sessions/${id}/agent`))?.private_key ?? null;
+}
+
+export async function setSessionAgent(id: string, accountId: string, privateKey: string) {
+  await backend(`/sessions/${id}/agent`, { method: "PUT", body: { account_id: accountId, private_key: privateKey } });
 }
 
 export async function saveState(id: string, state: Record<string, unknown>) {

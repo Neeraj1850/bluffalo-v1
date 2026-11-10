@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST } from "@/app/api/agent/deploy/route";
 import { ChainError } from "@/lib/server/near";
-import { SESSION_COOKIE, sessionAgent } from "@/lib/server/sessions";
+import { SESSION_COOKIE, sessionAgent, sessionAgentKey } from "@/lib/server/sessions";
 import { useFakeBackend } from "@/tests/helpers/backend";
 
 const chain = vi.hoisted(() => ({ createAgentAccount: vi.fn(), depositFor: vi.fn() }));
@@ -16,7 +16,7 @@ beforeEach(() => {
   const { seedSession } = useFakeBackend();
   seedSession(ME, "did:privy:me");
   seedSession(GUEST);
-  chain.createAgentAccount.mockReset().mockResolvedValue("a1b2c3d4.op.testnet");
+  chain.createAgentAccount.mockReset().mockResolvedValue({ accountId: "a1b2c3d4.op.testnet", privateKey: "ed25519:agentkey" });
   chain.depositFor.mockReset().mockResolvedValue("DEPOSIT_TX");
 });
 afterEach(() => {
@@ -31,6 +31,12 @@ describe("POST /api/agent/deploy", () => {
     expect(await res.json()).toMatchObject({ agentAccount: "a1b2c3d4.op.testnet", depositTx: "DEPOSIT_TX" });
     expect(chain.depositFor).toHaveBeenCalledWith("a1b2c3d4.op.testnet", 50); // the table's buy-in, set by the server
     expect(await sessionAgent(ME)).toBe("a1b2c3d4.op.testnet");
+    expect(await sessionAgentKey(ME)).toBe("ed25519:agentkey");
+  });
+
+  it("never returns the agent's key to the browser", async () => {
+    const body = JSON.stringify(await (await deploy({ tableId: "back-room" })).json());
+    expect(body).not.toContain("agentkey");
   });
 
   it("requires sign-in", async () => {

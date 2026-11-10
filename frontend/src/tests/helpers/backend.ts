@@ -16,6 +16,7 @@ export function useFakeBackend(fallthrough?: typeof fetch) {
   const sessions = new Map<string, Record<string, unknown>>();
   const users = new Map<string, string>(); // session id → Privy user id
   const agents = new Map<string, string>(); // session id → agent NEAR account
+  const agentKeys = new Map<string, string>(); // session id → agent key
   const deals = new Map<string, { session: string; seed: string; commitment: string; played: boolean }>();
   const hands: { session: string; id: string; record: unknown }[] = [];
   const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
@@ -50,9 +51,12 @@ export function useFakeBackend(fallthrough?: typeof fetch) {
       users.set(id, body.user_id);
       return json({ id, state: sessions.get(id) });
     }
-    if (kind === "agent" && method === "GET") return json({ account_id: agents.get(sid) ?? null });
+    if (kind === "agent" && method === "GET") {
+      return json({ account_id: agents.get(sid) ?? null, private_key: agentKeys.get(sid) ?? null });
+    }
     if (kind === "agent" && method === "PUT") {
       agents.set(sid, body.account_id);
+      if (body.private_key) agentKeys.set(sid, body.private_key);
       return json({ ok: true });
     }
     if (kind === "deals" && !handId) {

@@ -18,9 +18,9 @@ export async function POST(request: Request) {
   if (!table || table.mode !== "real") return reply({ error: "Pick a real-money table" }, 400);
 
   try {
-    const agentAccount = await createAgentAccount();
+    const { accountId: agentAccount, privateKey } = await createAgentAccount();
     const depositTx = await depositFor(agentAccount, defaultBuyIn(table));
-    await setSessionAgent(session.id, agentAccount);
+    await setSessionAgent(session.id, agentAccount, privateKey);
     return reply({ agentAccount, depositTx, confirmedAt: Date.now() });
   } catch (e) {
     if (e instanceof ChainError) return reply({ error: e.message, code: "chain_down" }, 503);

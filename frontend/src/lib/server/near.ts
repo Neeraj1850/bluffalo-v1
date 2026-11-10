@@ -1,4 +1,4 @@
-import { Account, JsonRpcProvider, KeyPair, type KeyPairString } from "near-api-js";
+import { Account, actions, JsonRpcProvider, KeyPair, type KeyPairString } from "near-api-js";
 
 /**
  * The poker contract on NEAR testnet (contracts/poker). Server-only: signs
@@ -33,8 +33,16 @@ const GAS = 30_000_000_000_000n;
 // Wait until the call has executed (we learn success or the panic), not for full
 // finality — that cuts each transaction from ~9s to ~1–2s on testnet.
 const WAIT = "EXECUTED_OPTIMISTIC" as const;
-/** What each new agent account gets for its own storage. */
-const AGENT_STORAGE = 10n ** 22n; // 0.01 NEAR
+/** What each new agent account gets for its own storage and cash-out gas. */
+const AGENT_FUNDING = 2n * 10n ** 22n; // 0.02 NEAR
+/**
+ * Most the agent's key may spend on gas over its lifetime. NEAR checks a
+ * transaction against ~10× the gas price for its prepaid gas, so a 10 Tgas
+ * withdraw needs ~0.011 NEAR of allowance even though it burns far less.
+ */
+const AGENT_GAS_ALLOWANCE = 5n * 10n ** 22n; // 0.05 NEAR
+/** The only contract method an agent's key can call. */
+export const AGENT_METHODS = ["withdraw_to"];
 
 function config() {
   const { NEAR_RPC_URL, NEAR_CONTRACT_ID, NEAR_OPERATOR_ID, NEAR_OPERATOR_KEY } = process.env;
@@ -63,20 +71,30 @@ async function send(methodName: string, args: Record<string, unknown>, deposit =
   }
 }
 
-/** A fresh sub-account for an agent (a<id>.<operator>), controlled by the operator on testnet. */
-export async function createAgentAccount(): Promise<string> {
-  const { account, operatorId, key } = operator();
-  const prefix = `a${crypto.randomUUID().slice(0, 8)}`;
+/**
+ * A fresh sub-account for an agent (a<id>.<operator>) whose only key is a
+ * function-call key for the poker contract's `withdraw_to` — no full-access
+ * key, so the account can't send NEAR any other way. Returns the key so the
+ * server can store it; it must never reach a browser.
+ */
+export async function createAgentAccount(): Promise<{ accountId: string; privateKey: string }> {
+  const { account, operatorId, contract } = operator();
+  const accountId = `a${crypto.randomUUID().slice(0, 8)}.${operatorId}`;
+  const key = KeyPair.fromRandom("ed25519");
   try {
-    await account.createSubAccount({
-      accountOrPrefix: prefix,
-      publicKey: KeyPair.fromString(key as KeyPairString).getPublicKey(),
-      nearToTransfer: AGENT_STORAGE,
+    await account.signAndSendTransaction({
+      receiverId: accountId,
+      actions: [
+        actions.createAccount(),
+        actions.transfer(AGENT_FUNDING),
+        actions.addFunctionCallAccessKey(key.getPublicKey(), contract, AGENT_METHODS, AGENT_GAS_ALLOWANCE),
+      ],
+      waitUntil: WAIT,
     });
   } catch (e) {
     throw new ChainError(e);
   }
-  return `${prefix}.${operatorId}`;
+  return { accountId, privateKey: key.toString() };
 }
 
 /** Fund an agent's playing balance in the contract (table NEAR). */
