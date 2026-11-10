@@ -186,6 +186,13 @@ export async function txStatus(hash: string, sender: string): Promise<TxStatus> 
   }
 }
 
+const ACCOUNT_ID = /^(([a-z\d]+[-_])*[a-z\d]+\.)*([a-z\d]+[-_])*[a-z\d]+$/;
+
+/** A valid NEAR account id: named (you.testnet) or implicit (64 hex). */
+export function isAccountId(id: unknown): id is string {
+  return typeof id === "string" && id.length >= 2 && id.length <= 64 && ACCOUNT_ID.test(id);
+}
+
 export function explorerTx(hash: string) {
   return `https://testnet.nearblocks.io/txns/${hash}`;
 }

@@ -150,3 +150,13 @@ describe("cash-out", () => {
     expect(await near.txStatus("TX1", "a1")).toBe(expected);
   });
 });
+
+describe("isAccountId", () => {
+  it.each(["you.testnet", "a1b2c3d4.npoker-op-43b602.testnet", "my_name-1.testnet", "f".repeat(64)])("accepts %s", (id) => {
+    expect(near.isAccountId(id)).toBe(true);
+  });
+
+  it.each(["", "a", "You.testnet", "has space.testnet", "-x.testnet", "x..testnet", "x".repeat(65), 42])("rejects %j", (id) => {
+    expect(near.isAccountId(id)).toBe(false);
+  });
+});

@@ -79,10 +79,11 @@ export function useFakeBackend(fallthrough?: typeof fetch) {
 
   vi.stubGlobal("fetch", fake);
   /** Create a session directly, as if a browser had visited before (optionally signed in). */
-  const seedSession = (id: string, userId?: string, agent?: string) => {
+  const seedSession = (id: string, userId?: string, agent?: string, agentKey?: string) => {
     sessions.set(id, {});
     if (userId) users.set(id, userId);
     if (agent) agents.set(id, agent);
+    if (agentKey) agentKeys.set(id, agentKey);
   };
   return { fake, seedSession };
 }
