@@ -12,6 +12,7 @@ import { DEMO_HAND } from "@/lib/data/hands";
 import { getTable } from "@/lib/data/tables";
 import { signed } from "@/lib/format";
 import { useSetup } from "@/lib/store/setup";
+import { useAgent } from "@/lib/store/useAgent";
 import { useHands } from "@/lib/store/useHands";
 import { CashoutSheet } from "./CashoutSheet";
 import { VerificationCard } from "./VerificationCard";
@@ -19,6 +20,7 @@ import { VerificationCard } from "./VerificationCard";
 export function ResultsView() {
   const setup = useSetup();
   const hands = useHands();
+  const onChain = useAgent();
   // The agent's latest real hand; the demo hand until it has played one.
   const live = hands?.[0];
   const hand = live ?? DEMO_HAND;
@@ -30,12 +32,9 @@ export function ResultsView() {
   const buyIn = agent?.buyIn ?? setup.buyIn;
   const table = getTable(agent?.tableId ?? setup.tableId);
 
-  // Cash out the agent's stack if it's still seated, otherwise the playing balance.
-  const source = agent ? "agent" : "balance";
-  const amount = agent ? agent.buyIn + hand.net : setup.balance;
-  const sourceLabel = agent
-    ? `your agent’s stack: ${agent.buyIn} buy-in ${signed(hand.net)} net`
-    : "your playing balance";
+  // Only real money can be cashed out: the agent's balance in the contract, read from the chain.
+  const amount = onChain.agent?.balance ?? 0;
+  const sourceLabel = "your agent’s balance on NEAR testnet";
 
   return (
     <main className="relative mx-auto flex min-h-dvh w-full max-w-xl flex-col gap-6 overflow-hidden px-5 pb-8 pt-5 lg:pt-10">
@@ -116,8 +115,12 @@ export function ResultsView() {
           disabled={amount <= 0}
           trailing={<span aria-hidden="true">{"↗"}</span>}
         >
-          Cash out to any chain
+          {amount > 0 ? `Cash out ${amount.toFixed(1)} NEAR` : "Nothing to cash out"}
         </Button>
+        {onChain.agent && !onChain.agent.account && (
+          <p className="text-[13px] text-muted">Deploy an agent to a real-money table to have something to cash out.</p>
+        )}
+        {onChain.error && <p className="text-[13px] text-muted">{onChain.error}</p>}
         <ButtonLink href="/game" variant="secondary" size="md">
           Play another hand
         </ButtonLink>
@@ -128,7 +131,10 @@ export function ResultsView() {
         onClose={() => setSheetOpen(false)}
         amount={amount}
         sourceLabel={sourceLabel}
-        onConfirmed={() => setup.withdraw(source, amount)}
+        onConfirmed={() => {
+          setup.withdraw("agent", amount);
+          onChain.refresh();
+        }}
       />
     </main>
   );
