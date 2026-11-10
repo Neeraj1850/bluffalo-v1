@@ -63,6 +63,24 @@ mod money {
     }
 
     #[test]
+    fn anyone_can_deposit_for_another_account() {
+        let mut c = setup();
+        let bob: AccountId = "bob.testnet".parse().unwrap();
+        call(op(), 3 * NEAR);
+        assert_eq!(c.deposit_for(bob.clone()).0, 3 * NEAR);
+        assert_eq!(c.balance_of(bob).0, 3 * NEAR);
+        assert_eq!(c.balance_of(alice()).0, 10 * NEAR);
+    }
+
+    #[test]
+    #[should_panic(expected = "Attach some NEAR")]
+    fn empty_deposit_for_is_rejected() {
+        let mut c = setup();
+        call(op(), 0);
+        c.deposit_for(alice());
+    }
+
+    #[test]
     fn withdraw_takes_from_the_balance() {
         let mut c = setup();
         call(alice(), 0);

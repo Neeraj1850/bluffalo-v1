@@ -86,6 +86,16 @@ impl Poker {
         U128(balance)
     }
 
+    /// Add the attached NEAR to someone else's balance (the operator funds agents this way).
+    #[payable]
+    pub fn deposit_for(&mut self, account_id: AccountId) -> U128 {
+        let amount = env::attached_deposit().as_yoctonear();
+        require!(amount > 0, "Attach some NEAR to deposit");
+        let balance = self.balance(&account_id) + amount;
+        self.balances.insert(account_id, balance);
+        U128(balance)
+    }
+
     /// Send NEAR from the caller's (unlocked) balance back to them.
     pub fn withdraw(&mut self, amount: U128) -> Promise {
         let who = env::predecessor_account_id();
