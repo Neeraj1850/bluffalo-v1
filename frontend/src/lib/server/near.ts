@@ -117,6 +117,11 @@ export function settleHand(handId: string, serverSeed: string, playerSeed: strin
   });
 }
 
+/** Give both stakes back on a hand that was committed but never settled (agent stalled). */
+export function cancelHand(handId: string) {
+  return send("cancel_hand", { hand_id: handId });
+}
+
 /** The agent's balance in the contract, exactly, in yoctoNEAR. */
 export async function balanceYocto(agent: string): Promise<bigint> {
   const { account, contract } = operator();

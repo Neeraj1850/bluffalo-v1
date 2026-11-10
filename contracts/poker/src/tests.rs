@@ -270,4 +270,50 @@ mod hands {
         commit(&mut c, NEAR);
         c.settle_hand("0123abcd".into(), SEED.into(), "short".into(), U128(0));
     }
+
+    #[test]
+    fn cancel_refunds_both_stakes_and_conserves_money() {
+        let mut c = setup();
+        let before = total(&c);
+        commit(&mut c, 3 * NEAR);
+        assert_eq!(c.balance_of(alice()).0, 7 * NEAR); // stake locked
+        call(op(), 0);
+        c.cancel_hand("0123abcd".into());
+        assert_eq!(c.balance_of(alice()).0, 10 * NEAR); // stake back
+        assert_eq!(c.house_balance().0, 100 * NEAR); // house match back
+        assert_eq!(total(&c), before);
+        assert_eq!(
+            c.get_hand("0123abcd".into()).unwrap().status,
+            HandStatus::Cancelled
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "Hand is already closed")]
+    fn a_settled_hand_cannot_be_cancelled() {
+        let mut c = setup();
+        commit(&mut c, 2 * NEAR);
+        c.settle_hand("0123abcd".into(), SEED.into(), PLAYER_SEED.into(), U128(0));
+        call(op(), 0);
+        c.cancel_hand("0123abcd".into());
+    }
+
+    #[test]
+    #[should_panic(expected = "Hand already settled")]
+    fn a_cancelled_hand_cannot_be_settled() {
+        let mut c = setup();
+        commit(&mut c, 2 * NEAR);
+        call(op(), 0);
+        c.cancel_hand("0123abcd".into());
+        c.settle_hand("0123abcd".into(), SEED.into(), PLAYER_SEED.into(), U128(0));
+    }
+
+    #[test]
+    #[should_panic(expected = "Only the operator")]
+    fn only_the_operator_cancels() {
+        let mut c = setup();
+        commit(&mut c, NEAR);
+        call(alice(), 0);
+        c.cancel_hand("0123abcd".into());
+    }
 }

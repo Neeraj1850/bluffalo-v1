@@ -81,6 +81,11 @@ describe("contract calls", () => {
     expect(callFunctionRaw.mock.calls[0][0]).toMatchObject({ methodName: "deposit_for", deposit: 5n * 10n ** 22n });
   });
 
+  it("cancels a hand to refund it", async () => {
+    expect(await near.cancelHand("0123abcd")).toBe("TX1");
+    expect(callFunctionRaw.mock.calls[0][0]).toMatchObject({ methodName: "cancel_hand", args: { hand_id: "0123abcd" } });
+  });
+
   it("creates agents whose only key can call withdraw_to on the poker contract", async () => {
     signAndSendTransaction.mockResolvedValueOnce({});
     const { accountId, privateKey } = await near.createAgentAccount();

@@ -20,6 +20,8 @@ use near_sdk::{env, near, require, AccountId, NearToken, PanicOnDefault, Promise
 pub enum HandStatus {
     Committed,
     Settled,
+    /// Refunded without a result: the player's agent never finished the hand.
+    Cancelled,
 }
 
 #[near(serializers = [borsh, json])]
@@ -181,6 +183,26 @@ impl Poker {
         hand.server_seed = Some(server_seed);
         hand.player_seed = Some(player_seed);
         hand.payout = Some(payout);
+        self.hands.insert(hand_id, hand);
+    }
+
+    /// A committed hand that was never settled (the agent stalled or disconnected,
+    /// or settling couldn't run): give both stakes back and close it. No seeds are
+    /// revealed — the hand wasn't played. Refunds exactly what `commit_hand` locked.
+    pub fn cancel_hand(&mut self, hand_id: String) {
+        self.only_operator();
+        let mut hand = self
+            .hands
+            .get(&hand_id)
+            .cloned()
+            .unwrap_or_else(|| env::panic_str("Unknown hand"));
+        require!(hand.status == HandStatus::Committed, "Hand is already closed");
+
+        let balance = self.balance(&hand.player);
+        self.balances.insert(hand.player.clone(), balance + hand.stake.0);
+        self.house += hand.house_stake.0;
+
+        hand.status = HandStatus::Cancelled;
         self.hands.insert(hand_id, hand);
     }
 
