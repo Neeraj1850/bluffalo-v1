@@ -89,6 +89,23 @@ mod money {
     }
 
     #[test]
+    fn withdraw_to_sends_the_callers_balance_elsewhere() {
+        let mut c = setup();
+        call(alice(), 0);
+        let _ = c.withdraw_to("bob.testnet".parse().unwrap(), U128(4 * NEAR));
+        assert_eq!(c.balance_of(alice()).0, 6 * NEAR);
+        assert_eq!(c.balance_of("bob.testnet".parse().unwrap()).0, 0); // paid out, not credited
+    }
+
+    #[test]
+    #[should_panic(expected = "Not enough balance")]
+    fn withdraw_to_only_spends_the_callers_own_balance() {
+        let mut c = setup();
+        call("mallory.testnet".parse().unwrap(), 0);
+        let _ = c.withdraw_to("mallory.testnet".parse().unwrap(), U128(NEAR));
+    }
+
+    #[test]
     #[should_panic(expected = "Not enough balance")]
     fn cannot_withdraw_more_than_the_balance() {
         let mut c = setup();

@@ -99,10 +99,17 @@ impl Poker {
     /// Send NEAR from the caller's (unlocked) balance back to them.
     pub fn withdraw(&mut self, amount: U128) -> Promise {
         let who = env::predecessor_account_id();
+        self.withdraw_to(who, amount)
+    }
+
+    /// Send NEAR from the caller's (unlocked) balance to `receiver_id`. Agents cash out
+    /// this way: their only key is a function-call key limited to this method.
+    pub fn withdraw_to(&mut self, receiver_id: AccountId, amount: U128) -> Promise {
+        let who = env::predecessor_account_id();
         let balance = self.balance(&who);
         require!(amount.0 > 0 && amount.0 <= balance, "Not enough balance");
-        self.balances.insert(who.clone(), balance - amount.0);
-        Promise::new(who).transfer(NearToken::from_yoctonear(amount.0))
+        self.balances.insert(who, balance - amount.0);
+        Promise::new(receiver_id).transfer(NearToken::from_yoctonear(amount.0))
     }
 
     /// Operator adds house money.
