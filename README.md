@@ -168,7 +168,8 @@ The backend runs `alembic upgrade head` on start. Put HTTPS in front of `:3000` 
 - Every feature and every bug fix ships with a test: `frontend/src/tests/` (vitest, mirroring `src/` paths)
   or `backend/tests/` (pytest).
 - `make check` (ESLint, ruff, TypeScript, vitest, pytest) must pass before every commit. Enable the hook once:
-  `git config core.hooksPath .githooks` — it runs `make check` and blocks the commit on failure.
+  `git config core.hooksPath .githooks` — it runs `make check` on exactly what is staged (unstaged and
+  untracked files are set aside meanwhile) and blocks the commit on failure.
 
 ## Branches
 
