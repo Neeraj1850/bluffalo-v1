@@ -1,3 +1,17 @@
 #!/bin/sh
-# Block the commit unless lint, typecheck and tests pass.
-exec make check
+# Block the commit unless lint, typecheck and tests pass — on exactly what is
+# being committed. Unstaged changes and untracked files are set aside while
+# `make check` runs, so a commit can't pass by leaning on files it leaves out.
+# (Ignored files such as .env.local and node_modules stay where they are.)
+before=$(git stash list | wc -l)
+git stash push --quiet --keep-index --include-untracked --message "pre-commit: set aside unstaged" || exit 1
+after=$(git stash list | wc -l)
+
+make check
+status=$?
+
+# Only restore if we actually stashed something (never pop someone else's stash).
+if [ "$after" -gt "$before" ]; then
+  git stash pop --quiet || { echo "pre-commit: could not restore your unstaged changes; they are in 'git stash list'"; exit 1; }
+fi
+exit $status
