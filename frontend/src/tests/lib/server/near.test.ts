@@ -3,11 +3,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const callFunctionRaw = vi.fn();
 const signAndSendTransaction = vi.fn();
 const callFunction = vi.fn();
+const viewAccount = vi.fn();
+const viewTransactionStatus = vi.fn();
+const constructed: unknown[][] = [];
 vi.mock("near-api-js", () => ({
   Account: class {
+    constructor(...args: unknown[]) {
+      constructed.push(args);
+    }
     callFunctionRaw = callFunctionRaw;
     signAndSendTransaction = signAndSendTransaction;
-    provider = { callFunction };
+    provider = { callFunction, viewAccount, viewTransactionStatus };
   },
   JsonRpcProvider: class {},
   KeyPair: { fromRandom: () => ({ getPublicKey: () => "ed25519:pub", toString: () => "ed25519:secret-agent" }) },
@@ -104,5 +110,43 @@ describe("contract calls", () => {
   it("refuses to run without configuration", async () => {
     vi.stubEnv("NEAR_OPERATOR_KEY", "");
     await expect(near.depositFor("a1", 1)).rejects.toThrow("NEAR_OPERATOR_KEY");
+  });
+});
+
+describe("cash-out", () => {
+  it("signs withdraw_to as the agent, with the agent's own key, for the exact amount", async () => {
+    const hash = await near.withdrawTo("a1.op.testnet", "ed25519:agentkey", "you.testnet", 49_000_000_000_000_000_000_000n);
+    expect(hash).toBe("TX1");
+    expect(constructed.at(-1)?.[0]).toBe("a1.op.testnet");
+    expect(constructed.at(-1)?.[2]).toBe("ed25519:agentkey");
+    expect(callFunctionRaw.mock.calls[0][0]).toMatchObject({
+      contractId: "poker.testnet",
+      methodName: "withdraw_to",
+      args: { receiver_id: "you.testnet", amount: "49000000000000000000000" },
+      gas: 10_000_000_000_000n,
+    });
+  });
+
+  it("reads the exact on-chain balance", async () => {
+    callFunction.mockResolvedValueOnce("49000000000000000000123");
+    expect(await near.balanceYocto("a1")).toBe(49_000_000_000_000_000_000_123n);
+  });
+
+  it("tells a missing account from an outage", async () => {
+    viewAccount.mockResolvedValueOnce({ amount: "1" });
+    expect(await near.accountExists("you.testnet")).toBe(true);
+    viewAccount.mockRejectedValueOnce(Object.assign(new Error("does not exist"), { name: "AccountDoesNotExistError" }));
+    expect(await near.accountExists("nobody.testnet")).toBe(false);
+    viewAccount.mockRejectedValueOnce(new Error("fetch failed"));
+    await expect(near.accountExists("you.testnet")).rejects.toBeInstanceOf(near.ChainError);
+  });
+
+  it.each([
+    [{ SuccessValue: "" }, "confirmed"],
+    [{ Failure: { ActionError: {} } }, "failed"],
+    ["Started", "submitted"],
+  ])("maps transaction status %j to %s", async (status, expected) => {
+    viewTransactionStatus.mockResolvedValueOnce({ status });
+    expect(await near.txStatus("TX1", "a1")).toBe(expected);
   });
 });

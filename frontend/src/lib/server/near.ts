@@ -117,12 +117,70 @@ export function settleHand(handId: string, serverSeed: string, playerSeed: strin
   });
 }
 
-/** The agent's balance in the contract (table NEAR). */
-export async function balanceOf(agent: string): Promise<number> {
+/** The agent's balance in the contract, exactly, in yoctoNEAR. */
+export async function balanceYocto(agent: string): Promise<bigint> {
   const { account, contract } = operator();
   try {
     const raw = await account.provider.callFunction({ contractId: contract, method: "balance_of", args: { account_id: agent } });
-    return fromYocto(String(raw ?? "0"));
+    return BigInt(String(raw ?? "0"));
+  } catch (e) {
+    throw new ChainError(e);
+  }
+}
+
+/** The agent's balance in the contract (table NEAR). */
+export async function balanceOf(agent: string): Promise<number> {
+  return fromYocto(await balanceYocto(agent));
+}
+
+/** Whether an account exists on the network (a cash-out destination must). */
+export async function accountExists(accountId: string): Promise<boolean> {
+  const { account } = operator();
+  try {
+    await account.provider.viewAccount({ accountId });
+    return true;
+  } catch (e) {
+    // "Account doesn't exist" is an answer, not an outage.
+    if ((e as Error)?.name === "AccountDoesNotExistError") return false;
+    throw new ChainError(e);
+  }
+}
+
+/** 10 Tgas covers one withdraw_to with room to spare (it burns ~0.3 Tgas). */
+const WITHDRAW_GAS = 10_000_000_000_000n;
+
+/**
+ * Cash out: the agent signs `withdraw_to` with its own withdraw-only key, sending
+ * `amount` yoctoNEAR of its contract balance to `receiver`. Returns the tx hash.
+ */
+export async function withdrawTo(agent: string, agentKey: string, receiver: string, amount: bigint): Promise<string> {
+  const { account: operatorAccount, contract } = operator();
+  const agentAccount = new Account(agent, operatorAccount.provider, agentKey as KeyPairString);
+  try {
+    const res = await agentAccount.callFunctionRaw({
+      contractId: contract,
+      methodName: "withdraw_to",
+      args: { receiver_id: receiver, amount: amount.toString() },
+      gas: WITHDRAW_GAS,
+      waitUntil: WAIT,
+    });
+    return res.transaction.hash;
+  } catch (e) {
+    throw new ChainError(e);
+  }
+}
+
+export type TxStatus = "submitted" | "confirmed" | "failed";
+
+/** Where a transaction stands, from the network's own record. */
+export async function txStatus(hash: string, sender: string): Promise<TxStatus> {
+  const { account } = operator();
+  try {
+    const res = await account.provider.viewTransactionStatus({ txHash: hash, accountId: sender, waitUntil: "NONE" });
+    const status = res.status as Record<string, unknown> | string | undefined;
+    if (status && typeof status === "object" && "Failure" in status) return "failed";
+    if (status && typeof status === "object" && "SuccessValue" in status) return "confirmed";
+    return "submitted";
   } catch (e) {
     throw new ChainError(e);
   }
