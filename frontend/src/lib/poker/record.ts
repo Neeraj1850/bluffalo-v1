@@ -4,7 +4,11 @@ import type { DealProof } from "./fairness";
 import { settle, type HandState, type LogEntry } from "./game";
 
 /** A played hand: what the screens render, plus what anyone needs to verify the deal. */
-export type LiveHand = ScriptedHand & { proof: DealProof };
+export type LiveHand = ScriptedHand & {
+  proof: DealProof;
+  /** Real-money hands: the testnet transactions that committed and settled them. */
+  chain?: { contract: string; agent: string; commitTx: string; settleTx: string };
+};
 
 const BOARD: Record<LogEntry["street"], HandStep["boardCount"]> = {
   "PRE-FLOP": 0,

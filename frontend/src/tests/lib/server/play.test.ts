@@ -8,6 +8,11 @@ import { parsePlayRequest, playHand } from "@/lib/server/play";
 import { SESSION_COOKIE } from "@/lib/server/sessions";
 import { useFakeBackend } from "@/tests/helpers/backend";
 import { fakeGroq } from "@/tests/helpers/groq";
+import { ChainError } from "@/lib/server/near";
+
+// The testnet contract is mocked; its client is tested in near.test.ts and live on testnet.
+const chain = vi.hoisted(() => ({ balanceOf: vi.fn(), commitHand: vi.fn(), settleHand: vi.fn() }));
+vi.mock("@/lib/server/near", async (orig) => ({ ...(await orig<object>()), ...chain }));
 
 const params = getPreset("shark").params!;
 const valid = { handId: "0123abcd", tableId: "back-room", params, stack: 50, button: 0 as const, playerSeed: "ffeeddccbbaa99887766554433221100" };
@@ -23,8 +28,12 @@ const archive = async (id = ME) => (await (await hands(new Request("http://x/api
 beforeEach(async () => {
   vi.stubEnv("GROQ_API_KEY", "test-key");
   backend = useFakeBackend(fakeGroq({ action: "call", reason: "Keep it simple." }));
-  backend.seedSession(ME, "did:privy:me");
-  backend.seedSession(OTHER, "did:privy:other");
+  backend.seedSession(ME, "did:privy:me", "ame.op.testnet");
+  backend.seedSession(OTHER, "did:privy:other", "aother.op.testnet");
+  vi.stubEnv("NEAR_CONTRACT_ID", "poker.testnet");
+  chain.balanceOf.mockReset().mockResolvedValue(50);
+  chain.commitHand.mockReset().mockResolvedValue("COMMIT_TX");
+  chain.settleHand.mockReset().mockResolvedValue("SETTLE_TX");
 });
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -98,6 +107,48 @@ describe("POST /api/play", () => {
     expect((await post({ ...valid, tableId: "kitchen", handId: practice.handId }, GUEST)).status).toBe(200);
   });
 
+  it("commits on-chain before the deal and settles the ending stack after", async () => {
+    const deal = await createDeal(ME);
+    const hand = await (await post({ ...valid, handId: deal.handId })).json();
+    expect(chain.commitHand).toHaveBeenCalledWith(deal.handId, "ame.op.testnet", deal.commitment, 50);
+    expect(chain.settleHand).toHaveBeenCalledWith(deal.handId, hand.proof.seed, valid.playerSeed, hand.stackAfter);
+    expect(chain.commitHand.mock.invocationCallOrder[0]).toBeLessThan(chain.settleHand.mock.invocationCallOrder[0]);
+    expect(hand.chain).toEqual({ contract: "poker.testnet", agent: "ame.op.testnet", commitTx: "COMMIT_TX", settleTx: "SETTLE_TX" });
+  });
+
+  it("takes the stack from the contract, not the browser", async () => {
+    chain.balanceOf.mockResolvedValueOnce(37.5);
+    const deal = await createDeal(ME);
+    await post({ ...valid, stack: 9999, handId: deal.handId });
+    expect(chain.commitHand.mock.calls[0][3]).toBe(37.5);
+  });
+
+  it("needs a deployed agent with chips for real money", async () => {
+    const NEW = "00000000-0000-4000-8000-00000000000d";
+    backend.seedSession(NEW, "did:privy:new");
+    let deal = await createDeal(NEW);
+    expect((await post({ ...valid, handId: deal.handId }, NEW)).status).toBe(409);
+    chain.balanceOf.mockResolvedValueOnce(0.5);
+    deal = await createDeal(ME);
+    expect(await (await post({ ...valid, handId: deal.handId })).json()).toEqual({ error: "Your agent is out of chips at this table" });
+  });
+
+  it("never touches the chain for practice hands", async () => {
+    const deal = await createDeal(ME);
+    await post({ ...valid, tableId: "kitchen", handId: deal.handId });
+    expect(chain.balanceOf).not.toHaveBeenCalled();
+    expect(chain.commitHand).not.toHaveBeenCalled();
+  });
+
+  it("answers 503 chain_down when testnet fails, and records nothing", async () => {
+    chain.commitHand.mockRejectedValueOnce(new ChainError());
+    const deal = await createDeal(ME);
+    const res = await post({ ...valid, handId: deal.handId });
+    expect(res.status).toBe(503);
+    expect((await res.json()).code).toBe("chain_down");
+    expect(await archive()).toEqual([]);
+  });
+
   it("refuses another session's hand", async () => {
     const deal = await createDeal(ME);
     expect((await post({ ...valid, handId: deal.handId }, OTHER)).status).toBe(404);
@@ -118,7 +169,7 @@ describe("POST /api/play", () => {
 
   it("answers 503 service_down when Groq is unavailable, and records nothing", async () => {
     backend = useFakeBackend(vi.fn(async () => new Response("{}", { status: 429 })));
-    backend.seedSession(ME, "did:privy:me");
+    backend.seedSession(ME, "did:privy:me", "ame.op.testnet");
     const deal = await createDeal(ME);
     const res = await post({ ...valid, handId: deal.handId });
     expect(res.status).toBe(503);
