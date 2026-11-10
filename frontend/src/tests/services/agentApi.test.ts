@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { getPreset } from "@/lib/data/strategy";
-import { ApiError, deployAgent, fetchHands, fetchLiveHand } from "@/services/agentApi";
+import { ApiError, deployAgent, fetchAgent, fetchHands, fetchLiveHand, testnetCashout } from "@/services/agentApi";
 
 const req = { tableId: "back-room", params: getPreset("shark").params!, stack: 50, button: 0 as const };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
@@ -67,5 +67,40 @@ describe("deployAgent", () => {
     const f = vi.fn().mockResolvedValue(json({ error: "NEAR testnet isn't reachable right now." }, 503));
     await expect(deployAgent(dreq, f)).rejects.toMatchObject({ message: "NEAR testnet isn't reachable right now.", fundsMoved: false });
     await expect(deployAgent(dreq, vi.fn().mockResolvedValue(json({}, 500)))).rejects.toBeInstanceOf(ApiError);
+  });
+});
+
+describe("testnet cash-out", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("refuses chains other than NEAR instead of faking them", async () => {
+    await expect(testnetCashout.getCashoutQuote("Ethereum", 10, "you.testnet")).rejects.toThrow("mainnet-only");
+  });
+
+  it("quotes, submits to the destination account, and reads the status", async () => {
+    const f = vi
+      .fn()
+      .mockResolvedValueOnce(json({ id: "you.testnet", chain: "NEAR", send: 49, fee: 0.001, receive: 0.049, receiveAsset: "test NEAR", expiresAt: 1 }))
+      .mockResolvedValueOnce(json({ id: "TXHASH" }))
+      .mockResolvedValueOnce(json({ status: "confirmed" }));
+    vi.stubGlobal("fetch", f);
+    const q = await testnetCashout.getCashoutQuote("NEAR", 49, "you.testnet");
+    expect(q.receive).toBe(0.049);
+    expect(await testnetCashout.submitCashout(q.id)).toEqual({ id: "TXHASH" });
+    expect(await testnetCashout.getCashoutStatus("TXHASH")).toBe("confirmed");
+    expect(f.mock.calls.map(([url]) => url)).toEqual(["/api/cashout/quote", "/api/cashout", "/api/cashout/status?tx=TXHASH"]);
+    expect(JSON.parse(f.mock.calls[1][1].body)).toEqual({ receiver: "you.testnet" });
+  });
+
+  it("surfaces the server's reason, e.g. a missing account", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(json({ error: "nobody.testnet doesn’t exist on NEAR testnet" }, 400)));
+    await expect(testnetCashout.getCashoutQuote("NEAR", 1, "nobody.testnet")).rejects.toThrow("doesn’t exist");
+  });
+});
+
+describe("fetchAgent", () => {
+  it("returns the agent account and on-chain balance", async () => {
+    const f = vi.fn().mockResolvedValue(json({ account: "a1.op.testnet", balance: 49 }));
+    expect(await fetchAgent(f)).toEqual({ account: "a1.op.testnet", balance: 49 });
   });
 });

@@ -45,7 +45,8 @@ export interface AgentApi {
   getFeeQuote(req: DeployRequest): Promise<FeeQuote>;
   deployAgent(req: DeployRequest): Promise<DeployResult>;
   getVerification(handId: string): Promise<Verification>;
-  getCashoutQuote(chain: Chain, amount: number): Promise<CashoutQuote>;
+  /** `receiver`: the destination account (real NEAR testnet cash-outs). */
+  getCashoutQuote(chain: Chain, amount: number, receiver?: string): Promise<CashoutQuote>;
   submitCashout(quoteId: string): Promise<{ id: string }>;
   getCashoutStatus(id: string): Promise<CashoutStatus>;
 }
@@ -193,5 +194,35 @@ export async function deployAgent(req: DeployRequest, f: typeof fetch = fetch): 
   return { agentAccount: data.agentAccount, confirmedAt: data.confirmedAt };
 }
 
-// Fee quotes, verification and cash-out are still mocked; deploying is real.
-export const agentApi: AgentApi = { ...mockAgentApi, deployAgent: (req) => deployAgent(req) };
+/** The agent's account and real balance in the contract (table NEAR). */
+export async function fetchAgent(f: typeof fetch = fetch): Promise<{ account: string | null; balance: number }> {
+  const res = await f("/api/agent");
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`);
+  return data;
+}
+
+/**
+ * Real cash-out on NEAR testnet: the server reads the agent's on-chain balance
+ * and the agent signs withdraw_to with its own key. Other chains need NEAR
+ * Intents, which is mainnet-only — refused here rather than faked.
+ */
+export const testnetCashout = {
+  async getCashoutQuote(chain: Chain, _amount: number, receiver?: string): Promise<CashoutQuote> {
+    if (chain !== "NEAR") throw new ApiError("Other chains need NEAR Intents, which is mainnet-only.", false);
+    return post<CashoutQuote>(fetch, "/api/cashout/quote", { receiver });
+  },
+  /** The quote id is the destination account. */
+  submitCashout(quoteId: string): Promise<{ id: string }> {
+    return post<{ id: string }>(fetch, "/api/cashout", { receiver: quoteId });
+  },
+  async getCashoutStatus(id: string): Promise<CashoutStatus> {
+    const res = await fetch(`/api/cashout/status?tx=${encodeURIComponent(id)}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`);
+    return data.status;
+  },
+};
+
+// Fee quotes and verification are still mocked; deploying and cash-out are real (testnet).
+export const agentApi: AgentApi = { ...mockAgentApi, deployAgent: (req) => deployAgent(req), ...testnetCashout };
