@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { defaultBuyIn, TABLES } from "@/lib/data/tables";
+import { newSeed } from "@/lib/poker/fairness";
 import { ChainError, createAgentAccount, depositFor } from "@/lib/server/near";
 import { sessionFrom, sessionUser, setSessionAgent, withSession } from "@/lib/server/sessions";
 
@@ -20,8 +21,10 @@ export async function POST(request: Request) {
   try {
     const { accountId: agentAccount, privateKey } = await createAgentAccount();
     const depositTx = await depositFor(agentAccount, defaultBuyIn(table));
-    await setSessionAgent(session.id, agentAccount, privateKey);
-    return reply({ agentAccount, depositTx, confirmedAt: Date.now() });
+    // The token the player's external agent uses to connect to the MCP server as this agent.
+    const mcpToken = newSeed() + newSeed(); // 64 hex
+    await setSessionAgent(session.id, agentAccount, privateKey, mcpToken);
+    return reply({ agentAccount, depositTx, mcpToken, confirmedAt: Date.now() });
   } catch (e) {
     if (e instanceof ChainError) return reply({ error: e.message, code: "chain_down" }, 503);
     throw e;

@@ -80,8 +80,21 @@ export async function sessionAgentKey(id: string): Promise<string | null> {
   return (await backend<{ private_key: string | null }>(`/sessions/${id}/agent`))?.private_key ?? null;
 }
 
-export async function setSessionAgent(id: string, accountId: string, privateKey: string) {
-  await backend(`/sessions/${id}/agent`, { method: "PUT", body: { account_id: accountId, private_key: privateKey } });
+export async function setSessionAgent(id: string, accountId: string, privateKey: string, mcpToken?: string) {
+  await backend(`/sessions/${id}/agent`, {
+    method: "PUT",
+    body: { account_id: accountId, private_key: privateKey, mcp_token: mcpToken },
+  });
+}
+
+export type TokenSession = { id: string; userId: string | null; agent: string | null; agentKey: string | null };
+
+/** Resolve an external agent's MCP token to its session, or null. Server-side only. */
+export async function sessionByToken(token: string): Promise<TokenSession | null> {
+  const r = await backend<{ id: string; user_id: string | null; agent_account: string | null; agent_key: string | null }>(
+    `/sessions/by-token/${token}`,
+  );
+  return r ? { id: r.id, userId: r.user_id, agent: r.agent_account, agentKey: r.agent_key } : null;
 }
 
 export async function saveState(id: string, state: Record<string, unknown>) {
