@@ -3,7 +3,7 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Index, String, Uuid
+from sqlalchemy import JSON, BigInteger, DateTime, ForeignKey, Index, Integer, String, Uuid
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -31,6 +31,8 @@ class Session(Base):
     # The agent's only key: a function-call key limited to the poker contract's withdraw_to.
     # Read by the web server for cash-outs; never sent to a browser.
     agent_key: Mapped[str | None] = mapped_column(String(128))
+    # Opaque bearer token an external agent presents to the MCP server; resolves back to this session.
+    mcp_token: Mapped[str | None] = mapped_column(String(64), unique=True)
     state: Mapped[dict] = mapped_column(Json, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
@@ -59,3 +61,20 @@ class Hand(Base):
     session_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("sessions.id", ondelete="CASCADE"))
     record: Mapped[dict] = mapped_column(Json)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class LiveHand(Base):
+    """A hand in progress, driven turn by turn by an external agent over MCP. The whole
+    turn-machine record lives in `data`; `status`/`to_act`/`updated_at` are pulled out so the
+    timeout sweep can find hands stuck waiting on the agent (status=active, to_act=0, old)."""
+
+    __tablename__ = "live_hands"
+    __table_args__ = (Index("live_hands_sweep", "status", "to_act", "updated_at"),)
+
+    hand_id: Mapped[str] = mapped_column(String(8), primary_key=True)
+    session_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("sessions.id", ondelete="CASCADE"))
+    status: Mapped[str] = mapped_column(String(16))
+    to_act: Mapped[int] = mapped_column(Integer)
+    # Milliseconds since the epoch, to match the machine's JS record exactly.
+    updated_at: Mapped[int] = mapped_column(BigInteger)
+    data: Mapped[dict] = mapped_column(Json)

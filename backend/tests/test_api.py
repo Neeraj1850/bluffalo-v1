@@ -143,3 +143,70 @@ class TestAgents:
     @pytest.mark.parametrize("bad", ["", "UPPER.testnet", "has space", "x" * 65])
     def test_rejects_invalid_account_ids(self, client, session_id, bad):
         assert client.put(f"/sessions/{session_id}/agent", json={"account_id": bad}).status_code == 422
+
+
+class TestLiveHands:
+    def live(self, session_id, **over):
+        body = {
+            "session_id": session_id,
+            "status": "active",
+            "to_act": 0,
+            "updated_at": 1000,
+            "data": {"handId": "0123abcd", "reasons": []},
+        }
+        return body | over
+
+    def test_saves_and_loads_a_live_hand(self, client, session_id):
+        assert client.put("/live/0123abcd", json=self.live(session_id)).json() == {"ok": True}
+        assert client.get("/live/0123abcd").json() == {"data": {"handId": "0123abcd", "reasons": []}}
+
+    def test_put_upserts(self, client, session_id):
+        client.put("/live/0123abcd", json=self.live(session_id))
+        client.put(
+            "/live/0123abcd",
+            json=self.live(session_id, status="settled", data={"handId": "0123abcd", "net": 4}),
+        )
+        assert client.get("/live/0123abcd").json() == {"data": {"handId": "0123abcd", "net": 4}}
+
+    def test_unknown_live_hand_is_404(self, client):
+        assert client.get("/live/deadbeef").status_code == 404
+
+    def test_malformed_hand_id_is_422(self, client, session_id):
+        assert client.put("/live/NOTHEX12", json=self.live(session_id)).status_code == 422
+
+    def test_put_to_unknown_session_is_404(self, client):
+        body = self.live("00000000-0000-4000-8000-000000000000")
+        assert client.put("/live/0123abcd", json=body).status_code == 404
+
+    def test_stale_returns_only_old_active_hands_awaiting_the_agent(self, client, session_id):
+        client.put(
+            "/live/0000aaaa", json=self.live(session_id) | {"updated_at": 500}
+        )  # old, active, to_act 0
+        client.put("/live/0000bbbb", json=self.live(session_id) | {"updated_at": 5000})  # too recent
+        client.put(
+            "/live/0000cccc", json=self.live(session_id) | {"updated_at": 500, "to_act": 1}
+        )  # house's turn
+        client.put(
+            "/live/0000dddd", json=self.live(session_id) | {"updated_at": 500, "status": "settled"}
+        )  # done
+        got = client.get("/live", params={"cutoff": 1000}).json()["hands"]
+        assert got == [{"handId": "0123abcd", "reasons": []}]
+
+
+class TestMcpToken:
+    def test_stores_and_resolves_the_token(self, client, session_id):
+        token = "a" * 48
+        client.put(
+            f"/sessions/{session_id}/agent",
+            json={"account_id": "a1.op.testnet", "private_key": "ed25519:" + "3" * 64, "mcp_token": token},
+        )
+        got = client.get(f"/sessions/by-token/{token}").json()
+        assert got["id"] == session_id
+        assert got["agent_account"] == "a1.op.testnet"
+        assert got["agent_key"] == "ed25519:" + "3" * 64
+
+    def test_unknown_token_is_404(self, client):
+        assert client.get("/sessions/by-token/" + "f" * 48).status_code == 404
+
+    def test_malformed_token_is_422(self, client):
+        assert client.get("/sessions/by-token/not-a-hex-token").status_code == 422

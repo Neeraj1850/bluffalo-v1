@@ -7,17 +7,19 @@ import uuid
 from datetime import timedelta
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, Header, HTTPException, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Path, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session as DbSession
 
 from .db import get_db
-from .models import Deal, Hand, Session, now
+from .models import Deal, Hand, LiveHand, Session, now
 
 DEAL_TTL = timedelta(minutes=10)
 MAX_STATE_BYTES = 16_000
 HANDS_LIMIT = 50
+STALE_LIMIT = 100
+HandId = Annotated[str, Path(pattern=r"^[0-9a-f]{8}$")]
 
 
 def require_token(authorization: Annotated[str, Header()] = "") -> None:
@@ -63,11 +65,20 @@ class LinkIn(BaseModel):
 class AgentIn(BaseModel):
     account_id: str = Field(pattern=r"^[a-z0-9._-]{2,64}$")
     private_key: str | None = Field(default=None, pattern=r"^ed25519:[1-9A-HJ-NP-Za-km-z]{32,100}$")
+    mcp_token: str | None = Field(default=None, pattern=r"^[0-9a-f]{32,64}$")
 
 
 class HandIn(BaseModel):
     id: str = Field(pattern=r"^#[0-9a-f]{8}$")
     record: dict
+
+
+class LiveHandIn(BaseModel):
+    session_id: uuid.UUID
+    status: str = Field(pattern=r"^(active|settled|cancelled)$")
+    to_act: int = Field(ge=0, le=1)
+    updated_at: int = Field(ge=0)
+    data: dict
 
 
 @app.get("/health")
@@ -118,8 +129,19 @@ def get_user(session_id: uuid.UUID, db: Db) -> dict:
 def set_agent(session_id: uuid.UUID, body: AgentIn, db: Db) -> dict:
     s = session_or_404(db, session_id)
     s.agent_account, s.agent_key = body.account_id, body.private_key
+    if body.mcp_token is not None:
+        s.mcp_token = body.mcp_token
     db.commit()
     return {"ok": True}
+
+
+@app.get("/sessions/by-token/{token}", dependencies=Auth)
+def session_by_token(token: Annotated[str, Path(pattern=r"^[0-9a-f]{32,64}$")], db: Db) -> dict:
+    """Resolve an agent's MCP token to its session (for the MCP server's auth)."""
+    s = db.scalar(select(Session).where(Session.mcp_token == token))
+    if not s:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown token")
+    return {"id": str(s.id), "user_id": s.user_id, "agent_account": s.agent_account, "agent_key": s.agent_key}
 
 
 @app.get("/sessions/{session_id}/agent", dependencies=Auth)
@@ -175,3 +197,41 @@ def list_hands(session_id: uuid.UUID, db: Db) -> dict:
         .limit(HANDS_LIMIT)
     )
     return {"hands": list(rows)}
+
+
+# Live hands are addressed by hand_id alone: the turn machine looks them up that way, and the
+# timeout sweep is global, not per-session.
+
+
+@app.get("/live", dependencies=Auth)
+def stale_live_hands(cutoff: int, db: Db) -> dict:
+    """Active hands still waiting on the external agent since before `cutoff` (ms epoch)."""
+    rows = db.scalars(
+        select(LiveHand.data)
+        .where(LiveHand.status == "active", LiveHand.to_act == 0, LiveHand.updated_at < cutoff)
+        .order_by(LiveHand.updated_at)
+        .limit(STALE_LIMIT)
+    )
+    return {"hands": list(rows)}
+
+
+@app.put("/live/{hand_id}", dependencies=Auth)
+def save_live_hand(hand_id: HandId, body: LiveHandIn, db: Db) -> dict:
+    session_or_404(db, body.session_id)
+    row = db.get(LiveHand, hand_id)
+    fields = body.model_dump()
+    if row:
+        for k, v in fields.items():
+            setattr(row, k, v)
+    else:
+        db.add(LiveHand(hand_id=hand_id, **fields))
+    db.commit()
+    return {"ok": True}
+
+
+@app.get("/live/{hand_id}", dependencies=Auth)
+def get_live_hand(hand_id: HandId, db: Db) -> dict:
+    row = db.get(LiveHand, hand_id)
+    if not row:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown live hand")
+    return {"data": row.data}
