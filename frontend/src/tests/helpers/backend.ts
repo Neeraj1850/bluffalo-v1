@@ -17,8 +17,11 @@ export function useFakeBackend(fallthrough?: typeof fetch) {
   const users = new Map<string, string>(); // session id → Privy user id
   const agents = new Map<string, string>(); // session id → agent NEAR account
   const agentKeys = new Map<string, string>(); // session id → agent key
+  const mcpTokens = new Map<string, string>(); // mcp token → session id
   const deals = new Map<string, { session: string; seed: string; commitment: string; played: boolean }>();
   const hands: { session: string; id: string; record: unknown }[] = [];
+  type LiveRow = { session_id: string; status: string; to_act: number; updated_at: number; data: unknown };
+  const liveHands = new Map<string, LiveRow>(); // hand_id → row
   const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 
   const fake = vi.fn<typeof fetch>(async (input, init) => {
@@ -38,6 +41,40 @@ export function useFakeBackend(fallthrough?: typeof fetch) {
       sessions.set(id, {});
       return json({ id }, 201);
     }
+
+    // Live hands: addressed by hand_id, global (not per session). The path is
+    // /live or /live/<hand_id>, so parse it on its own, not via the session split.
+    if (path === "/live" || path.startsWith("/live?") || path.startsWith("/live/")) {
+      if (path.startsWith("/live/") && method === "PUT") {
+        const liveId = path.split("/")[2];
+        if (!sessions.has(body.session_id)) return json({ detail: "Unknown session" }, 404);
+        liveHands.set(liveId, body);
+        return json({ ok: true });
+      }
+      if (path.startsWith("/live/") && method === "GET") {
+        const h = liveHands.get(path.split("/")[2]);
+        return h ? json({ data: h.data }) : json({ detail: "Unknown live hand" }, 404);
+      }
+      if (method === "GET") {
+        const cutoff = Number(new URL(url).searchParams.get("cutoff"));
+        const stale = [...liveHands.values()].filter(
+          (h) => h.status === "active" && h.to_act === 0 && h.updated_at < cutoff,
+        );
+        return json({ hands: stale.map((h) => h.data) });
+      }
+    }
+
+    if (sid === "by-token") {
+      const owner = mcpTokens.get(kind);
+      if (!owner) return json({ detail: "Unknown token" }, 404);
+      return json({
+        id: owner,
+        user_id: users.get(owner) ?? null,
+        agent_account: agents.get(owner) ?? null,
+        agent_key: agentKeys.get(owner) ?? null,
+      });
+    }
+
     if (!sessions.has(sid)) return json({ detail: "Unknown session" }, 404);
     if (!kind && method === "GET") return json({ state: sessions.get(sid) });
     if (!kind && method === "PUT") {
@@ -57,6 +94,7 @@ export function useFakeBackend(fallthrough?: typeof fetch) {
     if (kind === "agent" && method === "PUT") {
       agents.set(sid, body.account_id);
       if (body.private_key) agentKeys.set(sid, body.private_key);
+      if (body.mcp_token) mcpTokens.set(body.mcp_token, sid);
       return json({ ok: true });
     }
     if (kind === "deals" && !handId) {
