@@ -60,6 +60,10 @@ class LinkIn(BaseModel):
     user_id: str = Field(min_length=1, max_length=128)
 
 
+class AgentIn(BaseModel):
+    account_id: str = Field(pattern=r"^[a-z0-9._-]{2,64}$")
+
+
 class HandIn(BaseModel):
     id: str = Field(pattern=r"^#[0-9a-f]{8}$")
     record: dict
@@ -107,6 +111,18 @@ def link_user(session_id: uuid.UUID, body: LinkIn, db: Db) -> dict:
 @app.get("/sessions/{session_id}/user", dependencies=Auth)
 def get_user(session_id: uuid.UUID, db: Db) -> dict:
     return {"user_id": session_or_404(db, session_id).user_id}
+
+
+@app.put("/sessions/{session_id}/agent", dependencies=Auth)
+def set_agent(session_id: uuid.UUID, body: AgentIn, db: Db) -> dict:
+    session_or_404(db, session_id).agent_account = body.account_id
+    db.commit()
+    return {"ok": True}
+
+
+@app.get("/sessions/{session_id}/agent", dependencies=Auth)
+def get_agent(session_id: uuid.UUID, db: Db) -> dict:
+    return {"account_id": session_or_404(db, session_id).agent_account}
 
 
 @app.post("/sessions/{session_id}/deals", status_code=201, dependencies=Auth)

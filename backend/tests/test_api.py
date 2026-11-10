@@ -120,3 +120,16 @@ class TestUsers:
 
     def test_rejects_an_empty_user_id(self, client, session_id):
         assert client.post(f"/sessions/{session_id}/user", json={"user_id": ""}).status_code == 422
+
+
+class TestAgents:
+    def test_stores_the_agent_account(self, client, session_id):
+        assert client.get(f"/sessions/{session_id}/agent").json() == {"account_id": None}
+        client.put(f"/sessions/{session_id}/agent", json={"account_id": "a1b2c3d4.npoker-op.testnet"})
+        assert client.get(f"/sessions/{session_id}/agent").json() == {
+            "account_id": "a1b2c3d4.npoker-op.testnet"
+        }
+
+    @pytest.mark.parametrize("bad", ["", "UPPER.testnet", "has space", "x" * 65])
+    def test_rejects_invalid_account_ids(self, client, session_id, bad):
+        assert client.put(f"/sessions/{session_id}/agent", json={"account_id": bad}).status_code == 422

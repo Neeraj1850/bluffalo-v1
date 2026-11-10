@@ -26,6 +26,8 @@ class Session(Base):
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     # Privy user (did:privy:…) once signed in; one session per user so data follows them across devices.
     user_id: Mapped[str | None] = mapped_column(String(128), unique=True)
+    # The agent's NEAR account, set by the server at deploy — never by the browser.
+    agent_account: Mapped[str | None] = mapped_column(String(64))
     state: Mapped[dict] = mapped_column(Json, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
