@@ -124,11 +124,21 @@ class TestUsers:
 
 class TestAgents:
     def test_stores_the_agent_account(self, client, session_id):
-        assert client.get(f"/sessions/{session_id}/agent").json() == {"account_id": None}
+        assert client.get(f"/sessions/{session_id}/agent").json() == {"account_id": None, "private_key": None}
         client.put(f"/sessions/{session_id}/agent", json={"account_id": "a1b2c3d4.npoker-op.testnet"})
         assert client.get(f"/sessions/{session_id}/agent").json() == {
-            "account_id": "a1b2c3d4.npoker-op.testnet"
+            "account_id": "a1b2c3d4.npoker-op.testnet",
+            "private_key": None,
         }
+
+    def test_stores_the_agent_key_with_the_account(self, client, session_id):
+        key = "ed25519:" + "3" * 64
+        client.put(f"/sessions/{session_id}/agent", json={"account_id": "a1.op.testnet", "private_key": key})
+        assert client.get(f"/sessions/{session_id}/agent").json()["private_key"] == key
+
+    def test_rejects_a_malformed_key(self, client, session_id):
+        body = {"account_id": "a1.op.testnet", "private_key": "not-a-key"}
+        assert client.put(f"/sessions/{session_id}/agent", json=body).status_code == 422
 
     @pytest.mark.parametrize("bad", ["", "UPPER.testnet", "has space", "x" * 65])
     def test_rejects_invalid_account_ids(self, client, session_id, bad):

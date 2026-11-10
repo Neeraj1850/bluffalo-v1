@@ -62,6 +62,7 @@ class LinkIn(BaseModel):
 
 class AgentIn(BaseModel):
     account_id: str = Field(pattern=r"^[a-z0-9._-]{2,64}$")
+    private_key: str | None = Field(default=None, pattern=r"^ed25519:[1-9A-HJ-NP-Za-km-z]{32,100}$")
 
 
 class HandIn(BaseModel):
@@ -115,14 +116,16 @@ def get_user(session_id: uuid.UUID, db: Db) -> dict:
 
 @app.put("/sessions/{session_id}/agent", dependencies=Auth)
 def set_agent(session_id: uuid.UUID, body: AgentIn, db: Db) -> dict:
-    session_or_404(db, session_id).agent_account = body.account_id
+    s = session_or_404(db, session_id)
+    s.agent_account, s.agent_key = body.account_id, body.private_key
     db.commit()
     return {"ok": True}
 
 
 @app.get("/sessions/{session_id}/agent", dependencies=Auth)
 def get_agent(session_id: uuid.UUID, db: Db) -> dict:
-    return {"account_id": session_or_404(db, session_id).agent_account}
+    s = session_or_404(db, session_id)
+    return {"account_id": s.agent_account, "private_key": s.agent_key}
 
 
 @app.post("/sessions/{session_id}/deals", status_code=201, dependencies=Auth)

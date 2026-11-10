@@ -28,6 +28,9 @@ class Session(Base):
     user_id: Mapped[str | None] = mapped_column(String(128), unique=True)
     # The agent's NEAR account, set by the server at deploy — never by the browser.
     agent_account: Mapped[str | None] = mapped_column(String(64))
+    # The agent's only key: a function-call key limited to the poker contract's withdraw_to.
+    # Read by the web server for cash-outs; never sent to a browser.
+    agent_key: Mapped[str | None] = mapped_column(String(128))
     state: Mapped[dict] = mapped_column(Json, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
