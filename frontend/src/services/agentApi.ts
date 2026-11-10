@@ -180,4 +180,18 @@ export const mockAgentApi: AgentApi = {
   },
 };
 
-export const agentApi: AgentApi = mockAgentApi;
+/** Real today: a funded NEAR testnet sub-account for the agent. */
+export async function deployAgent(req: DeployRequest, f: typeof fetch = fetch): Promise<DeployResult> {
+  const res = await f("/api/agent/deploy", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tableId: req.tableId }),
+  });
+  const data = await res.json().catch(() => ({}));
+  // The player's own money never moves here — the testnet operator funds the agent.
+  if (!res.ok) throw new ApiError(data.error ?? "The network didn’t accept the request.", false);
+  return { agentAccount: data.agentAccount, confirmedAt: data.confirmedAt };
+}
+
+// Fee quotes, verification and cash-out are still mocked; deploying is real.
+export const agentApi: AgentApi = { ...mockAgentApi, deployAgent: (req) => deployAgent(req) };

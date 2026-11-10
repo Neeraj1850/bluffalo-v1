@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { getPreset } from "@/lib/data/strategy";
-import { fetchHands, fetchLiveHand } from "@/services/agentApi";
+import { ApiError, deployAgent, fetchHands, fetchLiveHand } from "@/services/agentApi";
 
 const req = { tableId: "back-room", params: getPreset("shark").params!, stack: 50, button: 0 as const };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
@@ -51,5 +51,21 @@ describe("fetchHands", () => {
 
   it("throws when the archive can't be loaded", async () => {
     await expect(fetchHands(vi.fn().mockResolvedValue(json({}, 500)))).rejects.toThrow("500");
+  });
+});
+
+describe("deployAgent", () => {
+  const dreq = { tableId: "back-room", buyIn: 50, preset: "shark" as const, params: req.params, limits: { stopLoss: 25, takeProfit: 60, maxHands: 100 } };
+
+  it("asks the server for the table only — the server sets the buy-in", async () => {
+    const f = vi.fn().mockResolvedValue(json({ agentAccount: "a1.op.testnet", confirmedAt: 1 }));
+    expect(await deployAgent(dreq, f)).toEqual({ agentAccount: "a1.op.testnet", confirmedAt: 1 });
+    expect(JSON.parse(f.mock.calls[0][1].body)).toEqual({ tableId: "back-room" });
+  });
+
+  it("reports failures without claiming funds moved", async () => {
+    const f = vi.fn().mockResolvedValue(json({ error: "NEAR testnet isn't reachable right now." }, 503));
+    await expect(deployAgent(dreq, f)).rejects.toMatchObject({ message: "NEAR testnet isn't reachable right now.", fundsMoved: false });
+    await expect(deployAgent(dreq, vi.fn().mockResolvedValue(json({}, 500)))).rejects.toBeInstanceOf(ApiError);
   });
 });
