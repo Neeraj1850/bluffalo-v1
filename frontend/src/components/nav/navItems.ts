@@ -5,10 +5,9 @@ export type NavItem = { key: NavKey; label: string; href: string; match: string[
 export const NAV_ITEMS: NavItem[] = [
   { key: "lobby", label: "Lobby", href: "/lobby", match: ["/lobby"] },
   { key: "strategy", label: "Strategy", href: "/strategy", match: ["/strategy", "/sandbox", "/deploy"] },
-  { key: "live", label: "Live", href: "/game", match: ["/game"] },
+  { key: "live", label: "Live", href: "/game", match: ["/game", "/results"] },
   { key: "history", label: "History", href: "/history", match: ["/history"] },
-  // No dedicated wallet screen yet: cash-out lives on the results screen.
-  { key: "wallet", label: "Wallet", href: "/results", match: ["/results"] },
+  { key: "wallet", label: "Wallet", href: "/wallet", match: ["/wallet"] },
 ];
 
 /** Screens that show the mobile bottom bar. Focused flows stay full-screen. */

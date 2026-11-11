@@ -4,11 +4,13 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/cn";
 import { spring } from "@/lib/motion";
+import { useLiveLock } from "@/lib/store/liveLock";
 import { NavIcon, type NavKey } from "./NavIcon";
 import { NAV_ITEMS } from "./navItems";
 
 /** Mobile bottom bar. The active bar slides between items. */
 export function BottomNav({ active }: { active: NavKey | null }) {
+  const locked = useLiveLock();
   return (
     <nav
       aria-label="Main"
@@ -30,9 +32,12 @@ export function BottomNav({ active }: { active: NavKey | null }) {
               <Link
                 href={item.href}
                 aria-current={isActive ? "page" : undefined}
+                aria-disabled={locked && !isActive}
+                tabIndex={locked && !isActive ? -1 : undefined}
                 className={cn(
                   "flex h-full min-h-11 flex-col items-center justify-center gap-1 font-mono text-[10px] uppercase tracking-[0.08em] transition-colors",
                   isActive ? "text-fg" : "text-muted hover:text-fg",
+                  locked && !isActive && "pointer-events-none opacity-40",
                 )}
               >
                 <NavIcon name={item.key} />

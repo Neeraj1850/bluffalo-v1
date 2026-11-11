@@ -6,11 +6,13 @@ import { SignOutButton } from "@/components/SignOutButton";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { cn } from "@/lib/cn";
 import { spring } from "@/lib/motion";
+import { useLiveLock } from "@/lib/store/liveLock";
 import { NavIcon, type NavKey } from "./NavIcon";
 import { NAV_ITEMS } from "./navItems";
 
 /** Desktop (≥1024px) slim left rail. Same order as the bottom bar. */
 export function NavRail({ active }: { active: NavKey | null }) {
+  const locked = useLiveLock();
   return (
     <nav
       aria-label="Main"
@@ -18,8 +20,13 @@ export function NavRail({ active }: { active: NavKey | null }) {
     >
       <Link
         href="/"
-        className="mb-2 flex h-12 w-[72px] items-center justify-center font-display text-[22px] font-bold tracking-[-0.04em]"
-        aria-label="Near Poker Agent home"
+        aria-disabled={locked}
+        tabIndex={locked ? -1 : undefined}
+        className={cn(
+          "mb-2 flex h-12 w-[72px] items-center justify-center font-display text-[22px] font-bold tracking-[-0.04em]",
+          locked && "pointer-events-none opacity-40",
+        )}
+        aria-label="Bluffalo home"
       >
         np{"♠︎"}
       </Link>
@@ -39,9 +46,13 @@ export function NavRail({ active }: { active: NavKey | null }) {
               <Link
                 href={item.href}
                 aria-current={isActive ? "page" : undefined}
+                aria-disabled={locked && !isActive}
+                tabIndex={locked && !isActive ? -1 : undefined}
+                title={locked && !isActive ? "Finish or stop the hand to leave" : undefined}
                 className={cn(
                   "relative flex h-[60px] w-[72px] flex-col items-center justify-center gap-1 rounded-btn font-mono text-[10px] uppercase tracking-[0.06em] transition-colors",
                   isActive ? "text-onsel" : "text-muted hover:text-fg",
+                  locked && !isActive && "pointer-events-none opacity-40",
                 )}
               >
                 <NavIcon name={item.key} />
