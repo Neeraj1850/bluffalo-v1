@@ -37,11 +37,3 @@ export type ScriptedHand = {
   kickerIndex: number;
 };
 
-export type HistoryHand = {
-  id: string;
-  hole: Card[];
-  description: string;
-  net: number;
-  scope: "session" | "week" | "all";
-  steps: { street: string; board: string; action: string }[];
-};

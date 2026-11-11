@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET as hands } from "@/app/api/hands/route";
-import { GET as tested } from "@/app/api/agents/tested/route";
 import { POST } from "@/app/api/play/route";
+import { GET as runs } from "@/app/api/runs/route";
 import { getPreset } from "@/lib/data/strategy";
 import { commitment, verifyDeal } from "@/lib/poker/fairness";
 import { createDeal } from "@/lib/server/deals";
@@ -24,6 +24,8 @@ const headers = (id = ME) => ({ cookie: `${SESSION_COOKIE}=${id}` });
 const post = (body: unknown, id = ME) =>
   POST(new Request("http://x/api/play", { method: "POST", headers: headers(id), body: JSON.stringify(body) }));
 let backend: ReturnType<typeof useFakeBackend>;
+const archiveQ = async (q: string) =>
+  (await (await hands(new Request(`http://x/api/hands${q}`, { headers: headers() }))).json()).hands;
 const archive = async (id = ME, mode = "") =>
   (await (await hands(new Request(`http://x/api/hands${mode && `?mode=${mode}`}`, { headers: headers(id) }))).json()).hands;
 
@@ -45,6 +47,11 @@ afterEach(() => {
 });
 
 describe("parsePlayRequest", () => {
+  it("accepts a hex session id and rejects anything else", () => {
+    expect(parsePlayRequest({ ...valid, runId: "ab12cd34ef56" })).toMatchObject({ runId: "ab12cd34ef56" });
+    for (const runId of ["AB12CD34", "ab12", 42]) expect(parsePlayRequest({ ...valid, runId })).toBe("Invalid runId");
+  });
+
   it("accepts a valid request", () => {
     expect(parsePlayRequest(valid)).toEqual(valid);
   });
@@ -207,14 +214,20 @@ describe("POST /api/play", () => {
     expect(typeof practice.at).toBe("number");
   });
 
-  it("summarises tested agents from practice hands only", async () => {
-    for (const tableId of ["kitchen", "kitchen", "back-room"]) {
+  it("groups hands into sessions by run id, one mode at a time", async () => {
+    for (const [tableId, runId] of [["kitchen", "aaaa1111"], ["kitchen", "aaaa1111"], ["kitchen", "bbbb2222"], ["back-room", "cccc3333"]]) {
       const deal = await createDeal(ME);
-      await post({ ...valid, preset: "shark", tableId, handId: deal.handId });
+      await post({ ...valid, tableId, runId, handId: deal.handId });
     }
-    const { agents } = await (await tested(new Request("http://x/api/agents/tested", { headers: headers() }))).json();
-    expect(agents).toHaveLength(1);
-    expect(agents[0]).toMatchObject({ preset: "shark", params: valid.params, hands: 2 });
+    const get = async (q: string) =>
+      (await (await runs(new Request(`http://x/api/runs${q}`, { headers: headers() }))).json()).runs;
+    const practice = await get("?mode=practice");
+    expect(practice.map((r: { id: string; hands: number }) => [r.id, r.hands]).sort()).toEqual([["aaaa1111", 2], ["bbbb2222", 1]]);
+    expect((await get("")).map((r: { id: string }) => r.id)).toEqual(["cccc3333"]); // real by default
+    const one = await archiveQ("?mode=practice&run=aaaa1111");
+    expect(one).toHaveLength(2);
+    expect(one.every((h: { run: string }) => h.run === "aaaa1111")).toBe(true);
+    expect((await hands(new Request("http://x/api/hands?run=BAD", { headers: headers() }))).status).toBe(400);
   });
 
   it("tags real-money hands as real", async () => {

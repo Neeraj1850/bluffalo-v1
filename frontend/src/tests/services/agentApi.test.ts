@@ -5,6 +5,7 @@ import {
   deployAgent,
   fetchAgent,
   fetchHands,
+  fetchRuns,
   fetchLiveHand,
   fetchWallet,
   getFeeQuote,
@@ -58,14 +59,14 @@ describe("fetchLiveHand", () => {
 describe("fetchHands", () => {
   it("returns the recorded hands", async () => {
     const f = vi.fn().mockImplementation(async () => json({ hands: [{ id: "#a" }] }));
-    expect(await fetchHands("real", f)).toEqual([{ id: "#a" }]);
+    expect(await fetchHands("real", undefined, f)).toEqual([{ id: "#a" }]);
     expect(f).toHaveBeenCalledWith("/api/hands?mode=real");
-    await fetchHands("practice", f);
-    expect(f).toHaveBeenLastCalledWith("/api/hands?mode=practice");
+    await fetchHands("practice", "ab12cd34", f);
+    expect(f).toHaveBeenLastCalledWith("/api/hands?mode=practice&run=ab12cd34");
   });
 
   it("throws when the archive can't be loaded", async () => {
-    await expect(fetchHands("real", vi.fn().mockResolvedValue(json({}, 500)))).rejects.toThrow("500");
+    await expect(fetchHands("real", undefined, vi.fn().mockResolvedValue(json({}, 500)))).rejects.toThrow("500");
   });
 });
 
@@ -191,5 +192,16 @@ describe("fetchTables", () => {
     const f = vi.fn().mockResolvedValue(new Response(JSON.stringify(body)));
     expect(await fetchTables(f)).toEqual(body);
     expect(f).toHaveBeenCalledWith("/api/tables");
+  });
+});
+
+describe("fetchRuns", () => {
+  it("asks for one mode's sessions", async () => {
+    const f = vi.fn().mockImplementation(async () => json({ runs: [{ id: "ab12" }] }));
+    expect(await fetchRuns("practice", f)).toEqual([{ id: "ab12" }]);
+    expect(f).toHaveBeenCalledWith("/api/runs?mode=practice");
+  });
+  it("throws when sessions can't be loaded", async () => {
+    await expect(fetchRuns("real", vi.fn().mockResolvedValue(json({}, 500)))).rejects.toThrow("500");
   });
 });

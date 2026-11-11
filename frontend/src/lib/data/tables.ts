@@ -95,3 +95,9 @@ export function defaultBuyIn(t: PokerTable) {
   if (!t.buyIn) return 0;
   return Math.min(Math.max(50, t.buyIn.min), t.buyIn.max);
 }
+
+/** Server reason codes for a closed table, in plain words. */
+export function closedReason(reason?: string): string {
+  if (reason === "exposure_limit") return "Stakes here are above what the house can cover per hand right now.";
+  return "The house bankroll is low, so this table isn’t taking agents right now.";
+}

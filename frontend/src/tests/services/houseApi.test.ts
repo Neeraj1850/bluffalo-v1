@@ -63,7 +63,7 @@ describe("houseApi fetchers", () => {
   });
 });
 
-import { closedReason } from "@/components/lobby/TableCard";
+import { closedReason } from "@/lib/data/tables";
 describe("closedReason", () => {
   it("never shows raw server codes", () => {
     expect(closedReason("house_below_floor")).not.toContain("_");

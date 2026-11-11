@@ -159,3 +159,6 @@ export const LIMITS: LimitDef[] = [
 
 export const DEFAULT_LIMITS: Limits = { stopLoss: 25, takeProfit: 60, maxHands: 100 };
 export const DEFAULT_PRESET: PresetKey = "shark";
+
+/** "Aggression 65 · Bluff 30 · Position 85 · Bet 60": the settings at a glance. */
+export const strategyLine = (p: StrategyParams) => PARAMS.map(({ key, label }) => `${label.split(" ")[0]} ${p[key]}`).join(" · ");

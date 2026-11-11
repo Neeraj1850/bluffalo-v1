@@ -1,5 +1,5 @@
 import { cardShort } from "@/lib/cards";
-import type { HandStep, HistoryHand, ScriptedHand } from "@/lib/data/hands";
+import type { HandStep, ScriptedHand } from "@/lib/data/hands";
 import type { PresetKey, StrategyParams } from "@/lib/data/strategy";
 import type { DealProof } from "./fairness";
 import { settle, type HandState, type LogEntry } from "./game";
@@ -18,6 +18,8 @@ export type LiveHand = ScriptedHand & {
   agent?: { preset?: PresetKey; params: StrategyParams };
   /** When the hand was played (ms since epoch). */
   at?: number;
+  /** The play session it belongs to: one practice run or one sitting at a live table. */
+  run?: string;
 };
 
 export type HandMode = "practice" | "real";
@@ -141,20 +143,4 @@ export function toRecord(
 }
 
 /** The archive row for a played hand. */
-export function toHistory(h: LiveHand): HistoryHand {
-  return {
-    id: h.id,
-    hole: h.hole,
-    description: h.outcome,
-    net: h.net,
-    scope: "session",
-    steps: h.steps
-      .filter((st) => st.street !== "SHOWDOWN")
-      .map((st) => ({
-        street: st.street === "PRE-FLOP" ? "PRE" : st.street,
-        board: st.boardCount ? h.board.slice(0, st.boardCount).map(cardShort).join(" ") : "—",
-        action: `${st.action.charAt(0)}${st.action.slice(1).toLowerCase()}${st.opponent !== "—" ? `, ${st.opponent}` : ""}`,
-      })),
-  };
-}
 

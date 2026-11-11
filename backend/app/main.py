@@ -9,7 +9,7 @@ from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Path, Query, status
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session as DbSession
 
 from .db import get_db
@@ -18,7 +18,6 @@ from .models import Deal, Hand, LiveHand, Session, now
 DEAL_TTL = timedelta(minutes=10)
 MAX_STATE_BYTES = 16_000
 HANDS_LIMIT = 50
-HANDS_SCAN = 1000
 HANDS_MAX = 500
 STALE_LIMIT = 100
 HandId = Annotated[str, Path(pattern=r"^[0-9a-f]{8}$")]
@@ -216,17 +215,12 @@ def list_hands(
     mode: Annotated[str | None, Query(pattern="^(real|practice)$")] = None,
     limit: Annotated[int, Query(ge=1, le=HANDS_MAX)] = HANDS_LIMIT,
 ) -> dict:
-    # ponytail: filters the mode in Python over the newest HANDS_SCAN rows (records
-    # are JSON). Add a mode column + index if sessions grow past that.
-    rows = db.scalars(
-        select(Hand.record)
-        .where(Hand.session_id == session_id)
-        .order_by(Hand.created_at.desc())
-        .limit(HANDS_SCAN if mode else limit)
-    )
-    # Records from before practice hands were stored have no mode: they're real.
-    hands = [r for r in rows if mode is None or (r.get("mode") or "real") == mode]
-    return {"hands": hands[:limit]}
+    query = select(Hand.record).where(Hand.session_id == session_id)
+    if mode:
+        # Records from before practice hands were stored have no mode: they're real.
+        query = query.where(func.coalesce(Hand.record["mode"].as_string(), "real") == mode)
+    rows = db.scalars(query.order_by(Hand.created_at.desc()).limit(limit))
+    return {"hands": list(rows)}
 
 
 # Live hands are addressed by hand_id alone: the turn machine looks them up that way, and the

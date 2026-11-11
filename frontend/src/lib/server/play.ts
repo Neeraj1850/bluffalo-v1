@@ -10,8 +10,10 @@ export type PlayRequest = {
   handId: string;
   tableId: string;
   params: StrategyParams;
-  /** Which preset the params came from (labels tested agents; not used to play). */
+  /** Which preset the params came from (labels sessions; not used to play). */
   preset?: PresetKey;
+  /** The play session this hand belongs to (chosen by the client per run/sitting). */
+  runId?: string;
   /** The agent's stack going into the hand; the house sits with the same. */
   stack: number;
   button: Seat;
@@ -39,11 +41,13 @@ export function parsePlayRequest(body: unknown): PlayRequest | string {
     params[key] = v;
   }
   const preset = PRESETS.find((x) => x.key === b.preset)?.key;
+  if (b.runId !== undefined && (typeof b.runId !== "string" || !/^[0-9a-f]{8,32}$/.test(b.runId))) return "Invalid runId";
   return {
     handId: b.handId,
     tableId: b.tableId,
     params,
     ...(preset ? { preset } : {}),
+    ...(b.runId ? { runId: b.runId as string } : {}),
     stack: b.stack,
     button: b.button,
     playerSeed: b.playerSeed,
@@ -92,5 +96,6 @@ export async function playHand(
     tableId: table.id,
     agent: { ...(req.preset ? { preset: req.preset } : {}), params: req.params },
     at: Date.now(),
+    ...(req.runId ? { run: req.runId } : {}),
   };
 }

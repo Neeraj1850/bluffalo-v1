@@ -29,6 +29,8 @@ describe("nav", () => {
     expect(NAV_ITEMS.find((i) => i.key === "wallet")?.href).toBe("/wallet");
     expect(activeNavKey("/wallet")).toBe("wallet");
     expect(activeNavKey("/results")).toBe("live");
+    expect(activeNavKey("/live/abc123")).toBe("live");
+    expect(activeNavKey("/practice/abc123")).toBe("practice");
   });
 });
 
