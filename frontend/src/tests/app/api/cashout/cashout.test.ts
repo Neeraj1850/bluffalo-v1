@@ -43,12 +43,12 @@ afterEach(() => {
 describe("GET /api/agent", () => {
   it("returns the agent account and its on-chain balance", async () => {
     const res = await getAgent(new Request("http://x/api/agent", { headers: headers(ME) }));
-    expect(await res.json()).toEqual({ account: "a1.op.testnet", balance: 49 });
+    expect(await res.json()).toEqual({ account: "a1.op.testnet", balance: 49, inHand: false });
   });
 
   it("returns no agent for a fresh session, without touching the chain", async () => {
     const res = await getAgent(new Request("http://x/api/agent", { headers: headers(GUEST) }));
-    expect(await res.json()).toEqual({ account: null, balance: 0 });
+    expect(await res.json()).toEqual({ account: null, balance: 0, inHand: false });
     expect(chain.balanceOf).not.toHaveBeenCalled();
   });
 });
