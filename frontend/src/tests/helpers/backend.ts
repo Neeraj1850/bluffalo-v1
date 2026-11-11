@@ -18,6 +18,7 @@ export function useFakeBackend(fallthrough?: typeof fetch) {
   const agents = new Map<string, string>(); // session id → agent NEAR account
   const agentKeys = new Map<string, string>(); // session id → agent key
   const mcpTokens = new Map<string, string>(); // mcp token → session id
+  const wallets = new Map<string, { account_id: string; private_key: string }>(); // session id → deposit wallet
   const deals = new Map<string, { session: string; seed: string; commitment: string; played: boolean }>();
   const hands: { session: string; id: string; record: unknown }[] = [];
   type LiveRow = { session_id: string; status: string; to_act: number; updated_at: number; data: unknown };
@@ -97,6 +98,14 @@ export function useFakeBackend(fallthrough?: typeof fetch) {
       if (body.mcp_token) mcpTokens.set(body.mcp_token, sid);
       return json({ ok: true });
     }
+    if (kind === "wallet" && method === "GET") return json(wallets.get(sid) ?? { account_id: null, private_key: null });
+    if (kind === "wallet" && method === "PUT") {
+      wallets.set(sid, {
+        account_id: body.account_id,
+        private_key: body.private_key,
+      });
+      return json({ ok: true });
+    }
     if (kind === "deals" && !handId) {
       deals.set(body.hand_id, { session: sid, seed: body.seed, commitment: body.commitment, played: false });
       return json({ ok: true }, 201);
@@ -123,5 +132,8 @@ export function useFakeBackend(fallthrough?: typeof fetch) {
     if (agent) agents.set(id, agent);
     if (agentKey) agentKeys.set(id, agentKey);
   };
-  return { fake, seedSession };
+  /** Give a session a deposit wallet directly. */
+  const seedWallet = (id: string, account: string, key: string) =>
+    wallets.set(id, { account_id: account, private_key: key });
+  return { fake, seedSession, seedWallet };
 }
