@@ -3,6 +3,7 @@ import { HistoryView } from "@/components/history/HistoryView";
 
 export const metadata: Metadata = { title: "History" };
 
-export default function HistoryPage() {
-  return <HistoryView />;
+export default async function HistoryPage({ searchParams }: { searchParams: Promise<{ mode?: string }> }) {
+  const { mode } = await searchParams;
+  return <HistoryView key={mode} mode={mode === "practice" ? "practice" : "real"} />;
 }

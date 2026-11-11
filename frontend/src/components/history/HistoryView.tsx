@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { SignOutButton } from "@/components/SignOutButton";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -8,37 +9,36 @@ import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 import { MonoLabel } from "@/components/ui/MonoLabel";
 import { Rise } from "@/components/ui/Rise";
 import { cn } from "@/lib/cn";
-import type { HistoryHand } from "@/lib/data/hands";
 import { ButtonLink } from "@/components/ui/Button";
+import { getPreset } from "@/lib/data/strategy";
 import { signed } from "@/lib/format";
+import { HISTORY_FILTERS as FILTERS, inRange, type HistoryFilter as Filter } from "@/lib/history";
 import { spring } from "@/lib/motion";
-import { toHistory } from "@/lib/poker/record";
+import { toHistory, type HandMode, type LiveHand } from "@/lib/poker/record";
 import { useHands } from "@/lib/store/useHands";
 import { netAfterRake, rakeOf } from "@/services/houseApi";
 import { HistoryRow } from "./HistoryRow";
+import { replayHref } from "./ReplayView";
 
-type Filter = "session" | "week" | "all";
-
-const FILTERS: { key: Filter; label: string }[] = [
-  { key: "session", label: "This session" },
-  { key: "week", label: "7 days" },
-  { key: "all", label: "All" },
+const MODES: { key: HandMode; label: string }[] = [
+  { key: "real", label: "Real money" },
+  { key: "practice", label: "Practice" },
 ];
 
-function inScope(scope: HistoryHand["scope"], filter: Filter) {
-  return filter === "all" || scope === "session" || (filter === "week" && scope === "week");
-}
+const agentTag = (h: LiveHand) => (h.agent ? `Agent · ${getPreset(h.agent.preset ?? "custom").label}` : undefined);
 
-export function HistoryView() {
-  const played = useHands();
-  // Only real, recorded hands — never demo data.
-  const archive = played ? played.map((h) => ({ ...toHistory(h), net: netAfterRake(h), rake: rakeOf(h) })) : [];
-  const [filter, setFilter] = useState<Filter>("session");
+export function HistoryView({ mode }: { mode: HandMode }) {
+  const router = useRouter();
+  const played = useHands(mode);
+  const archive = played
+    ? played.map((h) => ({ ...toHistory(h), net: netAfterRake(h), rake: rakeOf(h), at: h.at, tag: agentTag(h) }))
+    : [];
+  const [filter, setFilter] = useState<Filter>("all");
   const [chosen, setOpen] = useState<string | null | undefined>(undefined);
   // Open the newest hand until the player picks one (hands load after first render).
   const open = chosen === undefined ? (archive[0]?.id ?? null) : chosen;
 
-  const hands = archive.filter((h) => inScope(h.scope, filter));
+  const hands = archive.filter((h) => inRange(h.at, filter));
   const net = hands.reduce((a, h) => a + h.net, 0);
   const won = hands.filter((h) => h.net > 0).reduce((a, h) => a + h.net, 0);
   const lost = hands.filter((h) => h.net < 0).reduce((a, h) => a + h.net, 0);
@@ -62,7 +62,32 @@ export function HistoryView() {
         </Rise>
       </header>
 
-      <div role="tablist" aria-label="Session filter" className="flex gap-2">
+      <div role="tablist" aria-label="Real or practice hands" className="grid grid-cols-2 gap-2">
+        {MODES.map((m) => {
+          const on = m.key === mode;
+          return (
+            <button
+              key={m.key}
+              type="button"
+              role="tab"
+              aria-selected={on}
+              onClick={() => {
+                setOpen(undefined);
+                router.replace(`/history?mode=${m.key}`, { scroll: false });
+              }}
+              className={cn(
+                "h-12 rounded-btn border font-display text-[16px] font-medium transition-colors",
+                m.key === "practice" && "border-dashed",
+                on ? "border-fg bg-fg text-bg" : "border-border text-fg hover:border-fg",
+              )}
+            >
+              {m.label}
+            </button>
+          );
+        })}
+      </div>
+
+      <div role="tablist" aria-label="Time range" className="flex gap-2">
         {FILTERS.map((f) => {
           const on = f.key === filter;
           return (
@@ -129,19 +154,29 @@ export function HistoryView() {
           <MonoLabel tracking="tight">{hands.length} hands · tap to open</MonoLabel>
         </div>
         {played === null && <p className="py-4 text-[14px] text-muted">Loading your hands…</p>}
-        {played && archive.length === 0 && (
+        {played && archive.length === 0 && mode === "real" && (
           <div className="flex flex-col gap-3 py-4">
             <p className="text-[15px] text-muted">
-              No real hands yet. Deploy your agent to a real-money table and its hands show up here.
+              No real hands yet. Send your agent to a real-money table and its hands show up here.
             </p>
             <div className="flex flex-col gap-2 sm:flex-row">
               <ButtonLink href="/lobby" size="sm">
                 Pick a table
               </ButtonLink>
-              <ButtonLink href="/sandbox" variant="secondary" size="sm">
-                Practice first
+              <ButtonLink href="/strategy" variant="secondary" size="sm">
+                Test an agent first
               </ButtonLink>
             </div>
+          </div>
+        )}
+        {played && archive.length === 0 && mode === "practice" && (
+          <div className="flex flex-col gap-3 py-4">
+            <p className="text-[15px] text-muted">
+              No practice hands yet. Test an agent for free on the Strategy page and every hand lands here.
+            </p>
+            <ButtonLink href="/strategy" size="sm" className="self-start">
+              Test an agent
+            </ButtonLink>
           </div>
         )}
         {played && archive.length > 0 && hands.length === 0 && (
@@ -155,6 +190,8 @@ export function HistoryView() {
               index={i}
               expanded={open === h.id}
               onToggle={() => setOpen(open === h.id ? null : h.id)}
+              replayHref={replayHref(h.id, mode)}
+              tag={mode === "practice" ? h.tag : undefined}
             />
           ))}
         </ul>

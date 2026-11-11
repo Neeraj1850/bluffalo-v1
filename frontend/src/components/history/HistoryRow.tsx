@@ -18,12 +18,17 @@ type HistoryRowProps = {
   onToggle: () => void;
   /** Position in the list, for the entry stagger. */
   index?: number;
+  /** Where "Watch full replay" goes: the stored hand, never the live table. */
+  replayHref: string;
+  /** Small line under the description, e.g. which agent played it. */
+  tag?: string;
 };
 
 /** One archived hand. Expands into its street-by-street progression. */
-export function HistoryRow({ hand, expanded, onToggle, index = 0 }: HistoryRowProps) {
+export function HistoryRow({ hand, expanded, onToggle, index = 0, replayHref, tag }: HistoryRowProps) {
   const id = useId();
   const won = hand.net > 0;
+  const even = hand.net === 0;
 
   return (
     <motion.li
@@ -45,7 +50,10 @@ export function HistoryRow({ hand, expanded, onToggle, index = 0 }: HistoryRowPr
           <PlayingCard card={hand.hole[0]} size="xs" tilt={-4} decorative className="shadow-none ring-1 ring-border" />
           <PlayingCard card={hand.hole[1]} size="xs" tilt={4} decorative className="shadow-none ring-1 ring-border" />
         </span>
-        <span className="text-[14px] leading-[1.35]">{hand.description}</span>
+        <span className="flex flex-col gap-1">
+          <span className="text-[14px] leading-[1.35]">{hand.description}</span>
+          {tag && <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted">{tag}</span>}
+        </span>
         <span className="flex flex-col items-end gap-0.5">
           <span
             className={cn(
@@ -61,7 +69,7 @@ export function HistoryRow({ hand, expanded, onToggle, index = 0 }: HistoryRowPr
               won ? "border-sel bg-sel text-onsel" : "border-border text-muted",
             )}
           >
-            {won ? "Won" : "Lost"}
+            {won ? "Won" : even ? "Even" : "Lost"}
           </span>
           {rakeOf(hand) > 0 && (
             <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted">{rakeLabel(rakeOf(hand))}</span>
@@ -97,7 +105,7 @@ export function HistoryRow({ hand, expanded, onToggle, index = 0 }: HistoryRowPr
               ))}
               <li>
                 <Link
-                  href="/game"
+                  href={replayHref}
                   className="inline-flex min-h-11 items-center font-mono text-[11px] uppercase tracking-[0.12em] hover:underline"
                 >
                   Watch full replay {"→"}

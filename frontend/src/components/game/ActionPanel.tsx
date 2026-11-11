@@ -18,6 +18,8 @@ type ActionPanelProps = {
   stopRequested?: boolean;
   /** When set, a finished hand offers the next one instead of a replay. */
   onNextHand?: () => void;
+  /** Where the main button goes once the hand is over; null hides it. */
+  doneLink?: { href: string; label: string } | null;
   size?: "mobile" | "desktop";
   className?: string;
 };
@@ -37,6 +39,7 @@ export function ActionPanel({
   onNextHand,
   size = "mobile",
   className,
+  doneLink = { href: "/results", label: "See the result" },
 }: ActionPanelProps) {
   const desktop = size === "desktop";
   return (
@@ -84,18 +87,23 @@ export function ActionPanel({
       <div className={cn("mt-auto flex gap-2", desktop && "pt-2")}>
         {done ? (
           <>
-            <motion.div className="flex flex-1" {...pressable}>
-              <Link
-                href="/results"
-                className="flex h-11 flex-1 items-center justify-center rounded-btn bg-onsel font-display text-[16px] font-medium text-sel lg:h-12 lg:text-[17px]"
-              >
-                See the result {"→"}
-              </Link>
-            </motion.div>
+            {doneLink && (
+              <motion.div className="flex flex-1" {...pressable}>
+                <Link
+                  href={doneLink.href}
+                  className="flex h-11 flex-1 items-center justify-center rounded-btn bg-onsel font-display text-[16px] font-medium text-sel lg:h-12 lg:text-[17px]"
+                >
+                  {doneLink.label} {"→"}
+                </Link>
+              </motion.div>
+            )}
             <motion.button
               type="button"
               onClick={onNextHand ?? onReplay}
-              className="h-11 rounded-btn border border-current px-3.5 font-mono text-[12px] uppercase lg:h-12 lg:px-4"
+              className={cn(
+                "h-11 rounded-btn border border-current px-3.5 font-mono text-[12px] uppercase lg:h-12 lg:px-4",
+                !doneLink && "flex-1",
+              )}
               {...pressable}
             >
               {onNextHand ? "Next hand" : "Replay"}
