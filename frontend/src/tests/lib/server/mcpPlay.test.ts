@@ -60,6 +60,9 @@ describe("liveDeps (MCP play wiring)", () => {
     if (result.done) {
       expect(result.settled).toBe(true);
       expect(chain.settleHand).toHaveBeenCalledOnce();
+      // payout = pre-rake stackAfter − the disclosed rake
+      expect(result.hand.rake).toBeGreaterThanOrEqual(0);
+      expect(chain.settleHand.mock.calls[0][3]).toBe(Math.round((result.hand.stackAfter - result.hand.rake!) * 100) / 100);
       expect(result.hand.chain).toMatchObject({
         contract: "poker.testnet",
         agent: "ame.op.testnet",

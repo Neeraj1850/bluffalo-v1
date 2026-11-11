@@ -8,6 +8,8 @@ export type LiveHand = ScriptedHand & {
   proof: DealProof;
   /** Real-money hands: the testnet transactions that committed and settled them. */
   chain?: { contract: string; agent: string; commitTx: string; settleTx: string };
+  /** Real-money hands: rake the house kept from the agent's winnings (table NEAR). */
+  rake?: number;
 };
 
 const BOARD: Record<LogEntry["street"], HandStep["boardCount"]> = {
@@ -53,9 +55,18 @@ export function toRecord(
     id,
     table,
     reasons,
+    chatIds,
     proof,
     opponent = "house agent",
-  }: { id: string; table: string; reasons: string[]; proof: DealProof; opponent?: string },
+  }: {
+    id: string;
+    table: string;
+    reasons: string[];
+    /** NEAR AI completion id per agent decision, aligned with `reasons`. */
+    chatIds?: (string | undefined)[];
+    proof: DealProof;
+    opponent?: string;
+  },
 ): LiveHand {
   const r = settle(s);
   const steps: HandStep[] = [];
@@ -68,11 +79,13 @@ export function toRecord(
     const after = s.log.findIndex((_, j) => j > i && house(j));
     const before = s.log.findLastIndex((_, j) => j < i && house(j));
     const reply = after !== -1 ? after : before;
+    const j = k++;
     steps.push({
       street: e.street,
       pot: e.pot,
       action: label(s.log, i),
-      reason: reasons[k++] ?? "",
+      reason: reasons[j] ?? "",
+      chatId: chatIds?.[j],
       opponent: reply === -1 ? "—" : past(s.log, reply),
       boardCount: BOARD[e.street],
     });

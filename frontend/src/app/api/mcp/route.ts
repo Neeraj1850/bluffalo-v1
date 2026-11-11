@@ -12,7 +12,8 @@ import {
   startHand,
   UnknownHandError,
 } from "@/lib/server/liveHand";
-import { balanceOf, cancelHand, ChainError, commitHand } from "@/lib/server/near";
+import { sessionPayoutCap, stakeFor, TABLE_CLOSED, tableStatus } from "@/lib/server/economics";
+import { balanceOf, cancelHand, ChainError, commitHand, houseBalance } from "@/lib/server/near";
 import { authFromRequest, requireAuth, withAuth } from "@/lib/server/mcpAuth";
 import { liveDeps, mapAction } from "@/lib/server/mcpPlay";
 
@@ -84,7 +85,11 @@ const mcp = createMcpHandler((server) => {
       const table = getTable(tableId);
       if (table.mode !== "real") return fail("That table isn't a real-money table");
       try {
-        const stack = await balanceOf(agent);
+        // Same disclosed bankroll limits as /api/play: closed tables, session cap, exposure cap.
+        const [balance, house] = await Promise.all([balanceOf(agent), houseBalance()]);
+        if (!tableStatus(table, house).open) return fail(TABLE_CLOSED.error);
+        if (balance >= sessionPayoutCap(table, house)) return fail("Your agent hit this table's session limit — cash out to keep playing");
+        const stack = stakeFor(balance, house);
         if (stack < table.blinds.big) return fail("Your agent is out of chips at this table");
 
         const { handId } = await createDeal(sessionId);

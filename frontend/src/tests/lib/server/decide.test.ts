@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cards } from "@/lib/cards";
 import { getPreset } from "@/lib/data/strategy";
 import { newHand } from "@/lib/poker/game";
-import { decide, ServiceDownError } from "@/lib/server/decide";
+import { decide, decideHouse, ServiceDownError } from "@/lib/server/decide";
+import { seatView } from "@/lib/poker/agent";
 import { MODELS } from "@/lib/server/nearai";
 import { fakeNearAi } from "@/tests/helpers/nearai";
 
@@ -74,5 +75,28 @@ describe("decide", () => {
     const f = vi.fn();
     await expect(decide(state, shark, { fetch: f })).rejects.toBeInstanceOf(ServiceDownError);
     expect(f).not.toHaveBeenCalled();
+  });
+});
+
+describe("decideHouse", () => {
+  afterEach(() => vi.unstubAllEnvs());
+  const v = seatView(state, 1);
+
+  it("plays the baseline when NEAR AI is unavailable (house only)", async () => {
+    vi.stubEnv("NEAR_AI_API_KEY", "");
+    expect((await decide(state, null)).source).toBe("baseline");
+    vi.stubEnv("NEAR_AI_API_KEY", "k");
+    const f = vi.fn().mockRejectedValue(new TypeError("fetch failed"));
+    expect((await decideHouse(v, { fetch: f })).source).toBe("baseline");
+  });
+
+  it("sends computed stats to the model and clamps absurd moves", async () => {
+    vi.stubEnv("NEAR_AI_API_KEY", "k");
+    const f = fakeNearAi({ action: "raise", amount: 50, reason: "shove trash" });
+    const d = await decideHouse({ ...v, hole: cards("7d", "2c") }, { fetch: f });
+    expect(d.source).toBe("baseline");
+    const body = JSON.parse(String(f.mock.calls[0][1]?.body));
+    expect(body.messages[1].content).toMatch(/Equity vs a random hand/);
+    expect(body.messages[1].content).toMatch(/Stack-to-pot/);
   });
 });

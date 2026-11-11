@@ -1,5 +1,6 @@
 import type { Action } from "@/lib/poker/game";
 import { decide } from "./decide";
+import { payoutFor, rakeFor } from "./economics";
 import { recordHand } from "./hands";
 import { type Deps, timeoutHand } from "./liveHand";
 import { backendStore } from "./liveHandStore";
@@ -16,7 +17,10 @@ export const liveDeps: Deps = {
   // Settle on-chain first; recording the hand off-chain is best-effort (a throw here
   // would make the machine needlessly refund an already-settled hand).
   onSettle: async (rec, hand) => {
-    const settleTx = await settleHand(rec.handId, rec.deal.seed, rec.deal.playerSeed, hand.stackAfter);
+    // Disclosed rake: taken from the agent's winnings only; it stays with the house on-chain.
+    const rake = rakeFor(hand, rec.state.bigBlind);
+    const settleTx = await settleHand(rec.handId, rec.deal.seed, rec.deal.playerSeed, payoutFor(hand.stackAfter, rake));
+    hand.rake = rake;
     if (rec.agent && rec.commitTx) {
       hand.chain = { contract: process.env.NEAR_CONTRACT_ID!, agent: rec.agent, commitTx: rec.commitTx, settleTx };
     }
