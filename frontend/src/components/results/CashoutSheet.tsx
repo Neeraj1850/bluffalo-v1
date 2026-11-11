@@ -6,16 +6,8 @@ import { Sheet } from "@/components/ui/Sheet";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ThinkingDots } from "@/components/ui/ThinkingDots";
 import { cn } from "@/lib/cn";
-import type { Chain } from "@/services/agentApi";
 import { useCashout } from "./useCashout";
 
-// Testnet: only NEAR is real. Other chains go through NEAR Intents, which is mainnet-only.
-const CHAINS: { chain: Chain; note: string; available: boolean }[] = [
-  { chain: "NEAR", note: "Testnet", available: true },
-  { chain: "Ethereum", note: "Mainnet · NEAR Intents", available: false },
-  { chain: "Solana", note: "Mainnet · NEAR Intents", available: false },
-  { chain: "Base", note: "Mainnet · NEAR Intents", available: false },
-];
 const ACCOUNT = /^(([a-z\d]+[-_])*[a-z\d]+\.)*([a-z\d]+[-_])*[a-z\d]+$/;
 
 const STEPS = ["1 Destination", "2 Review", "3 Confirm"];
@@ -71,41 +63,20 @@ export function CashoutSheet({ open, onClose, amount, sourceLabel, onConfirmed }
             className="flex flex-col gap-2"
           >
             <legend className="pb-2 text-[14px] text-muted">
-              Where should {amount.toFixed(1)} NEAR go? ({sourceLabel})
+              Send {amount.toFixed(1)} NEAR to a testnet account ({sourceLabel})
             </legend>
-            {CHAINS.map(({ chain, note, available }) => {
-              const on = c.chain === chain;
-              return (
-                <button
-                  key={chain}
-                  type="button"
-                  aria-pressed={on}
-                  disabled={!available}
-                  onClick={() => c.setChain(chain)}
-                  className={cn(
-                    "flex h-[52px] items-center justify-between rounded-btn border px-4 text-[15px] font-medium transition-colors disabled:border-dashed disabled:text-muted",
-                    on ? "border-sel bg-sel text-onsel" : "border-border text-fg",
-                  )}
-                >
-                  {chain}
-                  <span className="font-mono text-[10px] uppercase tracking-[0.1em]">{note}</span>
-                </button>
-              );
-            })}
-            {c.chain === "NEAR" && (
-              <label className="flex flex-col gap-1.5 pt-1">
-                <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted">Your testnet account</span>
-                <input
-                  value={c.receiver}
-                  onChange={(e) => c.setReceiver(e.target.value.toLowerCase())}
-                  placeholder="you.testnet"
-                  autoComplete="off"
-                  autoCapitalize="none"
-                  spellCheck={false}
-                  className="h-12 rounded-btn border border-border bg-transparent px-4 font-mono text-[15px] outline-none focus:border-fg"
-                />
-              </label>
-            )}
+            <label className="flex flex-col gap-1.5">
+              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted">Your testnet account</span>
+              <input
+                value={c.receiver}
+                onChange={(e) => c.setReceiver(e.target.value.toLowerCase())}
+                placeholder="you.testnet"
+                autoComplete="off"
+                autoCapitalize="none"
+                spellCheck={false}
+                className="h-12 rounded-btn border border-border bg-transparent px-4 font-mono text-[15px] outline-none focus:border-fg"
+              />
+            </label>
             {state.error && (
               <p role="alert" className="text-[13px] text-muted">
                 ! {state.error}
@@ -113,7 +84,7 @@ export function CashoutSheet({ open, onClose, amount, sourceLabel, onConfirmed }
             )}
             <Button
               className="mt-2"
-              disabled={c.chain !== "NEAR" || !ACCOUNT.test(c.receiver.trim())}
+              disabled={!ACCOUNT.test(c.receiver.trim())}
               pending={state.quoting}
               pendingLabel="Getting a quote…"
               onClick={c.getQuote}
@@ -139,7 +110,7 @@ export function CashoutSheet({ open, onClose, amount, sourceLabel, onConfirmed }
             <dl className="flex flex-col">
               {[
                 ["From your agent", `${state.quote.send.toFixed(1)} NEAR`],
-                ["To", state.quote.id === state.quote.chain ? state.quote.chain : `${state.quote.id} · ${state.quote.chain}`],
+                ["To", state.quote.id],
                 ["Fees", `${fmt(state.quote.fee)} ${state.quote.receiveAsset}`],
               ].map(([k, v]) => (
                 <div key={k} className="flex justify-between border-b border-hair py-2.5">
@@ -184,7 +155,7 @@ export function CashoutSheet({ open, onClose, amount, sourceLabel, onConfirmed }
               { label: "Quote accepted", done: true, tag: "Done" },
               { label: "Submitted to the network", done: true, tag: "Submitted" },
               {
-                label: `Arrived on ${state.quote.chain}`,
+                label: `Arrived at ${state.quote.id}`,
                 done: state.status === "confirmed",
                 tag: state.status === "confirmed" ? "Confirmed" : state.status === "failed" ? "Failed" : "Waiting",
               },

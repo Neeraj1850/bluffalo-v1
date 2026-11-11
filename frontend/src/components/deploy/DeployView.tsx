@@ -57,7 +57,9 @@ export function DeployView() {
               </button>
             ),
           }
-        : { label: "Network fee", value: `≈ ${fee.quote.fee} NEAR`, note: "Network’s cost, not ours" };
+        : fee.quote.fee === 0
+          ? { label: "Network fee", value: "None", note: "Operator-funded on testnet" }
+          : { label: "Network fee", value: `≈ ${fee.quote.fee} NEAR`, note: "Network’s cost, not ours" };
 
   const rows: SummaryRow[] = [
     { label: "Table", value: table.name, note: table.seated !== null ? `${table.seated} / ${table.seats} seated` : undefined },

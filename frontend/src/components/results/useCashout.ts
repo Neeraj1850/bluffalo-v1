@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { agentApi, type CashoutQuote, type Chain } from "@/services/agentApi";
+import { agentApi, type CashoutQuote } from "@/services/agentApi";
 
 export type CashoutState =
   | { step: "choose"; quoting: boolean; error?: string }
@@ -12,8 +12,7 @@ export type CashoutState =
  * destination → quote → submitted → confirmed.
  * Each transition only happens when the service says so.
  */
-export function useCashout(amount: number, onConfirmed: () => void) {
-  const [chain, setChain] = useState<Chain | null>(null);
+export function useCashout(_amount: number, onConfirmed: () => void) {
   /** Destination account on NEAR testnet. */
   const [receiver, setReceiver] = useState("");
   const [state, setState] = useState<CashoutState>({ step: "choose", quoting: false });
@@ -22,22 +21,20 @@ export function useCashout(amount: number, onConfirmed: () => void) {
   confirmedRef.current = onConfirmed;
 
   const reset = useCallback(() => {
-    setChain(null);
     setState({ step: "choose", quoting: false });
   }, []);
 
   const getQuote = useCallback(async () => {
-    if (!chain) return;
     setState({ step: "choose", quoting: true });
     try {
-      const quote = await agentApi.getCashoutQuote(chain, amount, receiver.trim());
+      const quote = await agentApi.getCashoutQuote(receiver.trim());
       setNow(Date.now());
       setState({ step: "review", quote, submitting: false });
     } catch (err) {
       const why = err instanceof Error && err.message ? err.message : "Couldn’t get a quote.";
       setState({ step: "choose", quoting: false, error: `${why} Nothing was sent.` });
     }
-  }, [chain, amount, receiver]);
+  }, [receiver]);
 
   const confirm = useCallback(async () => {
     if (state.step !== "review" || state.submitting) return;
@@ -76,5 +73,5 @@ export function useCashout(amount: number, onConfirmed: () => void) {
   const secondsLeft =
     state.step === "review" ? Math.max(0, Math.ceil((state.quote.expiresAt - now) / 1000)) : 0;
 
-  return { chain, setChain, receiver, setReceiver, state, getQuote, confirm, reset, secondsLeft };
+  return { receiver, setReceiver, state, getQuote, confirm, reset, secondsLeft };
 }

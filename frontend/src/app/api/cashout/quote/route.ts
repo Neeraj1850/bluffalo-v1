@@ -17,7 +17,6 @@ export async function POST(request: Request) {
     if (yocto === 0n) return reply({ error: "Your agent has nothing to cash out" }, 409);
     return reply({
       id: ctx.receiver,
-      chain: "NEAR",
       send: fromYocto(yocto),
       fee: FEE,
       receive: Number(yocto) / 1e24,

@@ -56,7 +56,7 @@ describe("GET /api/agent", () => {
 describe("POST /api/cashout/quote", () => {
   it("quotes the whole on-chain balance, scaled back to testnet NEAR", async () => {
     const res = await post(quote, { receiver: "you.testnet" });
-    expect(await res.json()).toMatchObject({ id: "you.testnet", chain: "NEAR", send: 49, receive: 0.049, receiveAsset: "test NEAR" });
+    expect(await res.json()).toMatchObject({ id: "you.testnet", send: 49, receive: 0.049, receiveAsset: "test NEAR" });
     expect(chain.withdrawTo).not.toHaveBeenCalled();
   });
 

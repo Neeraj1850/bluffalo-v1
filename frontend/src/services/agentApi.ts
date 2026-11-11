@@ -27,11 +27,8 @@ export type DeployResult = {
 
 export type Verification = "verified" | "pending" | "unavailable";
 
-export type Chain = "NEAR" | "Ethereum" | "Solana" | "Base";
-
 export type CashoutQuote = {
   id: string;
-  chain: Chain;
   send: number;
   fee: number;
   receive: number;
@@ -45,8 +42,8 @@ export interface AgentApi {
   getFeeQuote(req: DeployRequest): Promise<FeeQuote>;
   deployAgent(req: DeployRequest): Promise<DeployResult>;
   getVerification(handId: string): Promise<Verification>;
-  /** `receiver`: the destination account (real NEAR testnet cash-outs). */
-  getCashoutQuote(chain: Chain, amount: number, receiver?: string): Promise<CashoutQuote>;
+  /** Cash out the agent's whole balance to a NEAR testnet account (`receiver`). */
+  getCashoutQuote(receiver: string): Promise<CashoutQuote>;
   submitCashout(quoteId: string): Promise<{ id: string }>;
   getCashoutStatus(id: string): Promise<CashoutStatus>;
 }
@@ -116,21 +113,14 @@ function flag(name: string): string | null {
   return new URLSearchParams(window.location.search).get(name);
 }
 
-/** Demo-only conversion rates; a real quote comes from the cross-chain router. */
-const MOCK_RATES: Record<Chain, { asset: string; rate: number; fee: number }> = {
-  NEAR: { asset: "NEAR", rate: 1, fee: 0.001 },
-  Ethereum: { asset: "ETH", rate: 0.0011, fee: 0.0004 },
-  Solana: { asset: "SOL", rate: 0.021, fee: 0.0001 },
-  Base: { asset: "USDC", rate: 3.1, fee: 0.05 },
-};
-
 const cashouts = new Map<string, number>();
 
 export const mockAgentApi: AgentApi = {
   async getFeeQuote() {
     await wait(900);
     if (flag("fail") === "quote") throw new ApiError("Fee quote unavailable", false);
-    return { fee: 0.0025, currency: "NEAR", expiresAt: Date.now() + 60_000 };
+    // On testnet the operator funds the agent account and its gas — the player pays nothing.
+    return { fee: 0, currency: "NEAR", expiresAt: Date.now() + 60_000 };
   },
 
   async deployAgent() {
@@ -148,17 +138,14 @@ export const mockAgentApi: AgentApi = {
     return "verified";
   },
 
-  async getCashoutQuote(chain, amount) {
+  async getCashoutQuote(receiver) {
     await wait(800);
-    const r = MOCK_RATES[chain];
-    const receive = Math.max(0, amount * r.rate - r.fee);
     return {
-      id: `q_${Date.now()}`,
-      chain,
-      send: amount,
-      fee: r.fee,
-      receive,
-      receiveAsset: r.asset,
+      id: receiver,
+      send: 50,
+      fee: 0.001,
+      receive: 49.999,
+      receiveAsset: "NEAR",
       expiresAt: Date.now() + 30_000,
     };
   },
@@ -204,12 +191,10 @@ export async function fetchAgent(f: typeof fetch = fetch): Promise<{ account: st
 
 /**
  * Real cash-out on NEAR testnet: the server reads the agent's on-chain balance
- * and the agent signs withdraw_to with its own key. Other chains need NEAR
- * Intents, which is mainnet-only — refused here rather than faked.
+ * and the agent signs withdraw_to with its own key. NEAR testnet only.
  */
 export const testnetCashout = {
-  async getCashoutQuote(chain: Chain, _amount: number, receiver?: string): Promise<CashoutQuote> {
-    if (chain !== "NEAR") throw new ApiError("Other chains need NEAR Intents, which is mainnet-only.", false);
+  getCashoutQuote(receiver: string): Promise<CashoutQuote> {
     return post<CashoutQuote>(fetch, "/api/cashout/quote", { receiver });
   },
   /** The quote id is the destination account. */
