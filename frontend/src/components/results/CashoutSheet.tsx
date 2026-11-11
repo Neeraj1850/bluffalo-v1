@@ -63,7 +63,7 @@ export function CashoutSheet({ open, onClose, amount, sourceLabel, onConfirmed }
             className="flex flex-col gap-2"
           >
             <legend className="pb-2 text-[14px] text-muted">
-              Send {amount.toFixed(1)} NEAR to a testnet account ({sourceLabel})
+              Send {amount.toFixed(1)} GNEAR to a testnet account ({sourceLabel})
             </legend>
             <label className="flex flex-col gap-1.5">
               <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted">Your testnet account</span>
@@ -109,7 +109,7 @@ export function CashoutSheet({ open, onClose, amount, sourceLabel, onConfirmed }
             </StatusBadge>
             <dl className="flex flex-col">
               {[
-                ["From your agent", `${state.quote.send.toFixed(1)} NEAR`],
+                ["From your agent", `${state.quote.send.toFixed(1)} GNEAR`],
                 ["To", state.quote.id],
                 ["Fees", `${fmt(state.quote.fee)} ${state.quote.receiveAsset}`],
               ].map(([k, v]) => (

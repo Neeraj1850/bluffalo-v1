@@ -73,14 +73,14 @@ export function ResultsView() {
           {inHand
             ? IN_HAND_COPY
             : amount > 0
-              ? `Stop agent & return ${amount.toFixed(1)} NEAR to balance`
+              ? `Stop agent & return ${amount.toFixed(1)} GNEAR to balance`
               : "Agent balance is empty"}
         </Button>
       )}
       {stop.status === "done" && (
         <p role="status" className="text-[13px] text-muted">
-          Returned {stop.amount.toFixed(2)} NEAR to your playing balance
-          {wallet.wallet ? ` (now ${wallet.wallet.balance.toFixed(2)} NEAR)` : ""}.{" "}
+          Returned {stop.amount.toFixed(2)} GNEAR to your playing balance
+          {wallet.wallet ? ` (now ${wallet.wallet.balance.toFixed(2)} GNEAR)` : ""}.{" "}
           <a href={txUrl(stop.tx)} target="_blank" rel="noreferrer" className="underline underline-offset-4">
             View the transaction ↗
           </a>
@@ -98,7 +98,7 @@ export function ResultsView() {
         disabled={amount <= 0}
         trailing={<span aria-hidden="true">{"↗"}</span>}
       >
-        {amount > 0 ? `Cash out ${amount.toFixed(1)} NEAR to a testnet account` : "Nothing to cash out"}
+        {amount > 0 ? `Cash out ${amount.toFixed(1)} GNEAR to a testnet account` : "Nothing to cash out"}
       </Button>
       {onChain.agent && !onChain.agent.account && (
         <p className="text-[13px] text-muted">Deploy an agent to a real-money table to have something to cash out.</p>
@@ -196,12 +196,12 @@ function HandResult({
             delay={0.25}
             className="font-display text-[120px] font-bold leading-[0.82] tracking-[-0.07em] tabular"
           />
-          <span className="font-display text-[22px] font-medium">NEAR</span>
+          <span className="font-display text-[22px] font-medium">GNEAR</span>
         </div>
         <p className="mt-2 text-[15px] leading-normal text-muted">
           {hand.outcome} After its own bets, your agent is {net < 0 ? "down" : "up"}{" "}
-          <strong className="text-fg">{signed(net)} NEAR</strong> this hand
-          {rake > 0 ? `, after the house took ${rake.toFixed(1)} NEAR rake from the pot` : ""}.
+          <strong className="text-fg">{signed(net)} GNEAR</strong> this hand
+          {rake > 0 ? `, after the house took ${rake.toFixed(1)} GNEAR rake from the pot` : ""}.
         </p>
       </header>
 

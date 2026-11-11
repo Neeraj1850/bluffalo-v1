@@ -12,7 +12,7 @@ export function signed(value: number, decimals = 1) {
 }
 
 export function near(value: number, decimals = 1) {
-  return `${amount(value, decimals)} NEAR`;
+  return `${amount(value, decimals)} GNEAR`;
 }
 
 export function percent(part: number, whole: number) {

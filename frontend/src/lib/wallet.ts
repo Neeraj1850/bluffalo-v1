@@ -23,6 +23,6 @@ export function withdrawProblem(receiver: string, amountText: string, balance: n
   if (amountText.trim() === "") return null;
   const n = Number(amountText);
   if (!Number.isFinite(n) || n <= 0) return "Enter an amount above zero.";
-  if (n > balance + 1e-9) return `You have ${balance.toFixed(2)} NEAR.`;
+  if (n > balance + 1e-9) return `You have ${balance.toFixed(2)} GNEAR.`;
   return null;
 }

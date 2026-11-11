@@ -128,7 +128,7 @@ export const LIMITS: LimitDef[] = [
   {
     key: "stopLoss",
     label: "Stop loss",
-    hint: (v) => `Stops after losing ${v} NEAR`,
+    hint: (v) => `Stops after losing ${v} GNEAR`,
     step: 5,
     min: 5,
     max: 100,
@@ -138,7 +138,7 @@ export const LIMITS: LimitDef[] = [
   {
     key: "takeProfit",
     label: "Take profit",
-    hint: (v) => `Stops after winning ${v} NEAR`,
+    hint: (v) => `Stops after winning ${v} GNEAR`,
     step: 10,
     min: 10,
     max: 300,

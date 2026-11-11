@@ -9,9 +9,9 @@ describe("format", () => {
     expect(signed(1.234, 2)).toBe("+1.23");
   });
 
-  it("formats absolute amounts and NEAR", () => {
+  it("formats absolute amounts and GNEAR", () => {
     expect(amount(-12.5)).toBe("12.5");
-    expect(near(2)).toBe("2.0 NEAR");
+    expect(near(2)).toBe("2.0 GNEAR");
   });
 
   it("guards percent against zero", () => {

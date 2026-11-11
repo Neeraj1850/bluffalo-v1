@@ -81,20 +81,20 @@ export function DeployView() {
 
   const rows: SummaryRow[] = [
     { label: "Table", value: table.name, note: "heads-up vs the house agent" },
-    { label: "Blinds", value: `${blindsLabel(table)} NEAR`, note: "two small forced bets per hand" },
-    { label: "Agent balance", value: `${buyIn} NEAR`, note: "its whole stack" },
+    { label: "Blinds", value: `${blindsLabel(table)} GNEAR`, note: "two small forced bets per hand" },
+    { label: "Agent balance", value: `${buyIn} GNEAR`, note: "its whole stack" },
     { label: "Strategy", value: preset.label, note: preset.tag.split("·").pop()?.trim().toLowerCase() },
-    { label: "Stop loss", value: `${setup.limits.stopLoss} NEAR`, note: "stops after losing this" },
-    { label: "Take profit", value: `${setup.limits.takeProfit} NEAR`, note: "stops after winning this" },
+    { label: "Stop loss", value: `${setup.limits.stopLoss} GNEAR`, note: "stops after losing this" },
+    { label: "Take profit", value: `${setup.limits.takeProfit} GNEAR`, note: "stops after winning this" },
     { label: "Max hands", value: String(setup.limits.maxHands), note: "then leaves the table" },
     feeRow,
     {
       label: "Table fee",
-      value: fee.status === "quoted" ? (tableFee > 0 ? `${fmt(tableFee)} NEAR` : "None") : "—",
+      value: fee.status === "quoted" ? (tableFee > 0 ? `${fmt(tableFee)} GNEAR` : "None") : "—",
       note: "2% of the buy-in, kept by the house",
     },
     { label: "House rake", value: "5% of won pots", note: "only pots that see a flop · max 3 big blinds" },
-    { label: "Total from balance", value: `${fmt(total)} NEAR`, note: "buy-in + table fee" },
+    { label: "Total from balance", value: `${fmt(total)} GNEAR`, note: "buy-in + table fee" },
   ];
 
   const onSubmit = async () => {
@@ -131,7 +131,7 @@ export function DeployView() {
         <div className="flex flex-1 flex-col gap-1.5 px-5 py-[18px]">
           <span className="font-mono text-[11px] uppercase tracking-[0.16em]">Real money at risk</span>
           <span className="font-display text-[44px] font-bold leading-[0.95] tracking-[-0.05em]">
-            {buyIn} NEAR
+            {buyIn} GNEAR
           </span>
           <span className="text-[13px] leading-[1.4]">
             {alreadyDeployed
@@ -193,7 +193,7 @@ export function DeployView() {
               {alreadyDeployed ? "Your agent is already seated" : "Confirmed · your agent is seated"}
             </span>
             <span className="text-[14px] leading-normal text-muted">
-              {buyIn} NEAR moved to your agent&rsquo;s account{tableFee > 0 ? ` (plus a ${fmt(tableFee)} NEAR table fee)` : ""}
+              {buyIn} GNEAR moved to your agent&rsquo;s account{tableFee > 0 ? ` (plus a ${fmt(tableFee)} GNEAR table fee)` : ""}
               {phase.status === "done" && phase.account ? ` (${phase.account})` : ""}. You can stop it anytime from the
               game screen.
             </span>
@@ -203,7 +203,7 @@ export function DeployView() {
           <motion.div key="funds" role="alert" className="flex flex-col gap-1.5 rounded-card border-2 border-fg p-4">
             <span className="font-mono text-[11px] uppercase tracking-[0.16em]">! Not enough playing balance</span>
             <span className="text-[14px] leading-normal text-muted">
-              This table needs {fmt(total)} NEAR (buy-in plus table fee)
+              This table needs {fmt(total)} GNEAR (buy-in plus table fee)
               {startBalance !== null ? ` and you have ${fmt(startBalance)}` : ""}. Deposit testnet NEAR to your
               playing balance, or pick a table with a smaller buy-in.
             </span>
@@ -221,7 +221,7 @@ export function DeployView() {
 
       {!done && !isPractice && !insufficient && (
         <Checkbox checked={agreed} onChange={setAgreed} disabled={pending}>
-          I understand my agent can lose up to <strong>{buyIn} NEAR</strong> playing for real.
+          I understand my agent can lose up to <strong>{buyIn} GNEAR</strong> playing for real.
         </Checkbox>
       )}
 

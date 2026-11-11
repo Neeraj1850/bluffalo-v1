@@ -100,7 +100,7 @@ function Sitting() {
             {returned.status === "returning" ? "Returning…" : "Return funds to my balance"}
           </button>
         )}
-        {returned.status === "done" && <p className="text-[13px] text-muted">{returned.amount} NEAR returned.</p>}
+        {returned.status === "done" && <p className="text-[13px] text-muted">{returned.amount} GNEAR returned.</p>}
         {returned.status === "failed" && <p className="text-[13px] text-muted">! {returned.error}</p>}
         <Link href="/lobby" className="font-mono text-[11px] uppercase tracking-[0.12em] underline">
           Pick another table
@@ -311,9 +311,9 @@ function GameTable({
               className="origin-right font-display text-[34px] font-bold leading-none tracking-[-0.05em] tabular lg:text-[48px]"
             >
               <AnimatedNumber value={s.pot} decimals={1} duration={0.5} />
-              <span className="text-[14px] font-medium tracking-normal lg:hidden"> NEAR</span>
+              <span className="text-[14px] font-medium tracking-normal lg:hidden"> GNEAR</span>
             </motion.span>
-            <span className="hidden font-display text-[18px] font-medium lg:inline">NEAR</span>
+            <span className="hidden font-display text-[18px] font-medium lg:inline">GNEAR</span>
             {play.done && rakeOf(hand) > 0 && (
               <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted lg:text-[11px]">
                 {rakeLabel(rakeOf(hand))} · Net {signed(netAfterRake(hand))}
@@ -447,7 +447,7 @@ function GameTable({
           )}
           {returned.status === "done" && (
             <p role="status" className="col-span-full text-[13px] text-muted">
-              Agent stopped. Returned {returned.amount.toFixed(2)} NEAR to your playing balance.{" "}
+              Agent stopped. Returned {returned.amount.toFixed(2)} GNEAR to your playing balance.{" "}
               <a href={txUrl(returned.tx)} target="_blank" rel="noreferrer" className="underline underline-offset-4">
                 View the transaction ↗
               </a>

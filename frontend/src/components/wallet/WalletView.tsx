@@ -30,7 +30,7 @@ export function WalletView() {
         <MonoLabel>Playing balance · NEAR testnet</MonoLabel>
         <span className="font-display text-[56px] font-bold leading-none tracking-[-0.05em] tabular">
           {wallet.wallet ? `${wallet.wallet.balance.toFixed(2)}` : "—"}
-          <span className="ml-2 font-display text-[22px] font-medium">NEAR</span>
+          <span className="ml-2 font-display text-[22px] font-medium">GNEAR</span>
         </span>
         {wallet.signedOut && <p className="text-[14px] text-muted">Sign in to see your balance.</p>}
       </header>
@@ -114,7 +114,7 @@ function AgentCard() {
           <div className="flex flex-col gap-1">
             <code className="break-all font-mono text-[12px]">{onChain.agent.account}</code>
             <span className="font-display text-[32px] font-bold leading-none tracking-[-0.04em] tabular">
-              {amount.toFixed(2)} NEAR
+              {amount.toFixed(2)} GNEAR
             </span>
             <span className="text-[12px] text-muted">On-chain balance in the table contract</span>
             <a href={addressUrl(onChain.agent.account)} target="_blank" rel="noreferrer" className={link}>
@@ -151,7 +151,7 @@ function AgentCard() {
 
       {stop.status === "done" && (
         <p role="status" className="text-[13px] text-muted">
-          Returned {stop.amount.toFixed(2)} NEAR to your playing balance.{" "}
+          Returned {stop.amount.toFixed(2)} GNEAR to your playing balance.{" "}
           <a href={txUrl(stop.tx)} target="_blank" rel="noreferrer" className="underline underline-offset-4">
             View the transaction ↗
           </a>

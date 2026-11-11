@@ -107,9 +107,9 @@ export function DepositPanel({ open }: { open: boolean }) {
   return (
     <div className="flex flex-col gap-4">
       <p className="text-[14px] leading-normal text-muted">
-        Send <strong className="text-fg">NEAR testnet</strong> tokens to your deposit address. Tables use a small
-        scale: 1 NEAR at the table = {1 / TABLE_PER_TESTNET} testnet NEAR, so 0.1 testnet NEAR gives you{" "}
-        {0.1 * TABLE_PER_TESTNET} NEAR to play with.
+        Send <strong className="text-fg">NEAR testnet</strong> tokens to your deposit address. At the tables you
+        play with <strong className="text-fg">GNEAR</strong> (game NEAR), in {TABLE_PER_TESTNET}× multiples: 1 testnet NEAR ={" "}
+        {TABLE_PER_TESTNET} GNEAR, so 0.1 testnet NEAR gives you {0.1 * TABLE_PER_TESTNET} GNEAR to play with.
       </p>
       <p className="text-[13px] leading-normal text-muted">
         This is a <strong className="text-fg">NEAR</strong> address. An EVM wallet like MetaMask can’t send to it — use
@@ -150,10 +150,10 @@ export function DepositPanel({ open }: { open: boolean }) {
         className={cn("flex flex-col gap-1 rounded-card p-4", received ? "bg-sel text-onsel" : "border border-border")}
       >
         <span className="font-mono text-[11px] uppercase tracking-[0.16em]">
-          {received ? `Deposit received · +${received.toFixed(2)} NEAR` : balance ? "Balance · checks for new deposits every 5 s" : "Waiting for funds · checks every 5 s"}
+          {received ? `Deposit received · +${received.toFixed(2)} GNEAR` : balance ? "Balance · checks for new deposits every 5 s" : "Waiting for funds · checks every 5 s"}
         </span>
         <span className="font-display text-[32px] font-bold leading-none tracking-[-0.04em] tabular">
-          {balance === null ? "—" : `${balance.toFixed(2)} NEAR`}
+          {balance === null ? "—" : `${balance.toFixed(2)} GNEAR`}
         </span>
         {balance !== null && (
           <span className="text-[12px] opacity-80">= {toTestnet(balance).toFixed(4)} testnet NEAR</span>
@@ -171,7 +171,7 @@ export function DepositPanel({ open }: { open: boolean }) {
             </p>
           )}
           <span className="text-[12px] text-muted">
-            We’ll send {0.1 * TABLE_PER_TESTNET} NEAR to play with — once, while your wallet is empty.
+            We’ll send {0.1 * TABLE_PER_TESTNET} GNEAR to play with — once, while your wallet is empty.
           </span>
         </div>
       )}
@@ -229,7 +229,7 @@ export function WithdrawPanel() {
         <a href={txUrl(state.tx)} target="_blank" rel="noreferrer" className={link}>
           View the transaction ↗
         </a>
-        <p className="font-mono text-[12px]">Balance · {balance === null ? "—" : `${balance.toFixed(2)} NEAR`}</p>
+        <p className="font-mono text-[12px]">Balance · {balance === null ? "—" : `${balance.toFixed(2)} GNEAR`}</p>
         <Button variant="secondary" size="md" onClick={() => setState({ status: "idle" })}>
           New withdrawal
         </Button>
@@ -243,7 +243,7 @@ export function WithdrawPanel() {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-[14px] text-muted">
-        Send from your balance ({balance === null ? "—" : `${balance.toFixed(2)} NEAR`}) to any NEAR testnet account.
+        Send from your balance ({balance === null ? "—" : `${balance.toFixed(2)} GNEAR`}) to any NEAR testnet account.
       </p>
       <label className="flex flex-col gap-1.5">
         <span className={label}>To testnet account</span>
@@ -259,7 +259,7 @@ export function WithdrawPanel() {
         />
       </label>
       <label className="flex flex-col gap-1.5">
-        <span className={label}>Amount · table NEAR (empty = everything)</span>
+        <span className={label}>Amount · GNEAR (empty = everything)</span>
         <div className="flex gap-2">
           <input
             value={amountText}
