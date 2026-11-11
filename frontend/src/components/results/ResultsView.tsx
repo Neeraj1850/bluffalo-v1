@@ -15,6 +15,7 @@ import { useSetup } from "@/lib/store/setup";
 import { useAgent } from "@/lib/store/useAgent";
 import { useHands } from "@/lib/store/useHands";
 import { CashoutSheet } from "./CashoutSheet";
+import { AttestationCard } from "./AttestationCard";
 import { VerificationCard } from "./VerificationCard";
 
 export function ResultsView() {
@@ -86,6 +87,8 @@ export function ResultsView() {
       )}
 
       <VerificationCard handId={hand.id} proof={live?.proof} chain={live?.chain} />
+
+      <AttestationCard />
 
       <motion.div
         initial="hidden"
