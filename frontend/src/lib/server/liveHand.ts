@@ -21,6 +21,9 @@ export type LiveHandRecord = {
   deal: { seed: string; commitment: string; playerSeed: string };
   status: "active" | "settled" | "cancelled";
   updatedAt: number;
+  /** Real-money hands: the agent account and the commit tx, for the settle record. */
+  agent?: string;
+  commitTx?: string;
 };
 
 export interface LiveHandStore {
@@ -37,7 +40,7 @@ export interface LiveHandStore {
  */
 export type Deps = {
   store: LiveHandStore;
-  /** The house's move for seat 1 (Groq today, a NEAR AI Cloud TEE later). */
+  /** The house's move for seat 1 (NEAR AI Cloud; TEE attestation later). */
   house: (state: HandState) => Promise<Action>;
   onSettle?: (rec: LiveHandRecord, hand: LiveHand) => Promise<void>;
   onCancel?: (rec: LiveHandRecord) => Promise<void>;
@@ -137,6 +140,8 @@ export async function startHand(
     blinds: { small: number; big: number };
     button: Seat;
     deal: LiveHandRecord["deal"];
+    agent?: string;
+    commitTx?: string;
   },
 ): Promise<TurnResult> {
   const now = deps.now ?? Date.now;
@@ -153,6 +158,8 @@ export async function startHand(
     deal: input.deal,
     status: "active",
     updatedAt: now(),
+    agent: input.agent,
+    commitTx: input.commitTx,
   };
   return finish(deps, rec, state, []);
 }

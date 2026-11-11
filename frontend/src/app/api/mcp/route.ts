@@ -1,17 +1,44 @@
 import { createMcpHandler } from "mcp-handler";
 import { z } from "zod";
-import { TABLES } from "@/lib/data/tables";
-import { balanceOf, ChainError } from "@/lib/server/near";
+import { getTable, TABLES } from "@/lib/data/tables";
+import { shuffle } from "@/lib/poker/deck";
+import { mixSeed } from "@/lib/poker/fairness";
+import { createDeal, takeSeed } from "@/lib/server/deals";
+import { ServiceDownError } from "@/lib/server/decide";
+import {
+  applyExternalAction,
+  IllegalMoveError,
+  NotYourTurnError,
+  startHand,
+  UnknownHandError,
+} from "@/lib/server/liveHand";
+import { balanceOf, cancelHand, ChainError, commitHand } from "@/lib/server/near";
 import { authFromRequest, requireAuth, withAuth } from "@/lib/server/mcpAuth";
+import { liveDeps, mapAction } from "@/lib/server/mcpPlay";
 
 /**
  * MCP server: external AI agents connect here to play heads-up poker against the
  * house agent for real testnet NEAR. Auth is the agent's `mcp_token` as a Bearer
- * token (issued at deploy); every tool runs as that deployed agent.
+ * token (issued at deploy); every tool runs as that deployed agent. The agent is
+ * seat 0 and acts one `act` call at a time; the house replies synchronously.
  */
 
 const text = (data: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] });
 const fail = (message: string) => ({ content: [{ type: "text" as const, text: message }], isError: true });
+
+/** Turn an expected machine error into a tool failure; rethrow anything else. */
+function toFail(e: unknown) {
+  if (
+    e instanceof ServiceDownError ||
+    e instanceof ChainError ||
+    e instanceof UnknownHandError ||
+    e instanceof NotYourTurnError ||
+    e instanceof IllegalMoveError
+  ) {
+    return fail(e.message);
+  }
+  throw e;
+}
 
 const mcp = createMcpHandler((server) => {
   server.registerTool(
@@ -34,8 +61,90 @@ const mcp = createMcpHandler((server) => {
         }));
         return text({ agent, balance, tables });
       } catch (e) {
-        if (e instanceof ChainError) return fail(e.message);
-        throw e;
+        return toFail(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    "deal",
+    {
+      title: "Deal a hand",
+      description:
+        "Start a real-money hand at a table. Your whole on-chain balance is the stack; the house matches it. " +
+        "`playerSeed` is 32 lowercase hex chars you pick — it's mixed into the shuffle so the deal is provably fair. " +
+        "Returns the hand id and your first decision (or the result if the hand ends before you act).",
+      inputSchema: z.object({
+        tableId: z.string(),
+        playerSeed: z.string().regex(/^[0-9a-f]{32}$/, "playerSeed must be 32 lowercase hex chars"),
+      }),
+    },
+    async ({ tableId, playerSeed }) => {
+      const { sessionId, agent } = requireAuth();
+      const table = getTable(tableId);
+      if (table.mode !== "real") return fail("That table isn't a real-money table");
+      try {
+        const stack = await balanceOf(agent);
+        if (stack < table.blinds.big) return fail("Your agent is out of chips at this table");
+
+        const { handId } = await createDeal(sessionId);
+        const claimed = await takeSeed(handId, sessionId);
+        if (!claimed) return fail("Could not claim the deal — try again");
+
+        const commitTx = await commitHand(handId, agent, claimed.commitment, stack);
+        const deck = shuffle(await mixSeed(claimed.seed, playerSeed));
+        try {
+          const result = await startHand(liveDeps, {
+            handId,
+            sessionId,
+            tableName: table.name,
+            deck,
+            stacks: [stack, stack],
+            blinds: table.blinds,
+            button: 0,
+            deal: { seed: claimed.seed, commitment: claimed.commitment, playerSeed },
+            agent,
+            commitTx,
+          });
+          return text({ handId, ...result });
+        } catch (e) {
+          // Committed on-chain but the hand never got going (house model down): refund.
+          await cancelHand(handId).catch(() => {});
+          throw e;
+        }
+      } catch (e) {
+        return toFail(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    "act",
+    {
+      title: "Act in a hand",
+      description:
+        "Make your move in a hand from `deal`. `action` is fold | check | call | raise. For raise, pass `amount` " +
+        "(your total bet this street, within the legal min/max from the last view). `reason` is optional. " +
+        "Returns your next decision, or the finished hand once it's over.",
+      inputSchema: z.object({
+        handId: z.string().regex(/^[0-9a-f]{8}$/),
+        action: z.enum(["fold", "check", "call", "raise"]),
+        amount: z.number().optional(),
+        reason: z.string().optional(),
+      }),
+    },
+    async ({ handId, action, amount, reason }) => {
+      const { sessionId } = requireAuth();
+      const move = mapAction(action, amount);
+      if (typeof move === "string") return fail(move);
+      try {
+        // Ownership: a token may only act on its own session's hands.
+        const rec = await liveDeps.store.get(handId);
+        if (!rec || rec.sessionId !== sessionId) return fail(new UnknownHandError().message);
+        const result = await applyExternalAction(liveDeps, handId, move, reason);
+        return text({ handId, ...result });
+      } catch (e) {
+        return toFail(e);
       }
     },
   );
