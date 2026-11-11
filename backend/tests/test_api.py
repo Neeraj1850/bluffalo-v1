@@ -145,6 +145,33 @@ class TestAgents:
         assert client.put(f"/sessions/{session_id}/agent", json={"account_id": bad}).status_code == 422
 
 
+class TestWallets:
+    ACCOUNT = "ab" * 32  # implicit account: 64 hex
+    KEY = "ed25519:" + "4" * 88
+
+    def test_stores_the_wallet(self, client, session_id):
+        url = f"/sessions/{session_id}/wallet"
+        assert client.get(url).json() == {"account_id": None, "private_key": None}
+        wallet = {"account_id": self.ACCOUNT, "private_key": self.KEY}
+        assert client.put(url, json=wallet).status_code == 200
+        assert client.get(url).json() == wallet
+
+    def test_requires_a_key(self, client, session_id):
+        url = f"/sessions/{session_id}/wallet"
+        assert client.put(url, json={"account_id": self.ACCOUNT}).status_code == 422
+
+    def test_rejects_a_malformed_key(self, client, session_id):
+        body = {"account_id": self.ACCOUNT, "private_key": "not-a-key"}
+        assert client.put(f"/sessions/{session_id}/wallet", json=body).status_code == 422
+
+    def test_unknown_session_is_404(self, client):
+        assert client.get("/sessions/00000000-0000-4000-8000-000000000999/wallet").status_code == 404
+
+    def test_requires_the_token(self, client, session_id):
+        res = client.get(f"/sessions/{session_id}/wallet", headers={"Authorization": "Bearer wrong"})
+        assert res.status_code == 401
+
+
 class TestLiveHands:
     def live(self, session_id, **over):
         body = {

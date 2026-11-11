@@ -68,6 +68,11 @@ class AgentIn(BaseModel):
     mcp_token: str | None = Field(default=None, pattern=r"^[0-9a-f]{32,64}$")
 
 
+class WalletIn(BaseModel):
+    account_id: str = Field(pattern=r"^[a-z0-9._-]{2,64}$")
+    private_key: str = Field(pattern=r"^ed25519:[1-9A-HJ-NP-Za-km-z]{32,100}$")
+
+
 class HandIn(BaseModel):
     id: str = Field(pattern=r"^#[0-9a-f]{8}$")
     record: dict
@@ -148,6 +153,20 @@ def session_by_token(token: Annotated[str, Path(pattern=r"^[0-9a-f]{32,64}$")], 
 def get_agent(session_id: uuid.UUID, db: Db) -> dict:
     s = session_or_404(db, session_id)
     return {"account_id": s.agent_account, "private_key": s.agent_key}
+
+
+@app.put("/sessions/{session_id}/wallet", dependencies=Auth)
+def set_wallet(session_id: uuid.UUID, body: WalletIn, db: Db) -> dict:
+    s = session_or_404(db, session_id)
+    s.wallet_account, s.wallet_key = body.account_id, body.private_key
+    db.commit()
+    return {"ok": True}
+
+
+@app.get("/sessions/{session_id}/wallet", dependencies=Auth)
+def get_wallet(session_id: uuid.UUID, db: Db) -> dict:
+    s = session_or_404(db, session_id)
+    return {"account_id": s.wallet_account, "private_key": s.wallet_key}
 
 
 @app.post("/sessions/{session_id}/deals", status_code=201, dependencies=Auth)

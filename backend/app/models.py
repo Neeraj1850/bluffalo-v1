@@ -31,6 +31,10 @@ class Session(Base):
     # The agent's only key: a function-call key limited to the poker contract's withdraw_to.
     # Read by the web server for cash-outs; never sent to a browser.
     agent_key: Mapped[str | None] = mapped_column(String(128))
+    # The player's custodial deposit wallet (implicit testnet account) and its full-access key.
+    # Server-side only; never sent to a browser.
+    wallet_account: Mapped[str | None] = mapped_column(String(64))
+    wallet_key: Mapped[str | None] = mapped_column(String(128))
     # Opaque bearer token an external agent presents to the MCP server; resolves back to this session.
     mcp_token: Mapped[str | None] = mapped_column(String(64), unique=True)
     state: Mapped[dict] = mapped_column(Json, default=dict)
