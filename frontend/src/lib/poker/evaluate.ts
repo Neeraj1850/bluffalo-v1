@@ -1,20 +1,8 @@
 import type { Card, Rank } from "@/lib/cards";
 import { RANKS } from "./deck";
 
-export const CATEGORIES = [
-  "High card",
-  "Pair",
-  "Two pair",
-  "Three of a kind",
-  "Straight",
-  "Flush",
-  "Full house",
-  "Four of a kind",
-  "Straight flush",
-] as const;
-
 export type HandValue = {
-  /** Index into CATEGORIES. */
+  /** 0 = high card … 8 = straight flush. */
   category: number;
   /** Compare lexicographically: [category, ...tiebreak ranks]. */
   score: number[];

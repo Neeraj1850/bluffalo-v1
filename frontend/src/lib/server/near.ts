@@ -5,10 +5,7 @@ import { Account, actions, JsonRpcProvider, KeyPair, type KeyPairString } from "
  * with the operator key, which commits/settles hands and funds agents.
  */
 
-/** Testnet scale: on-chain NEAR = table NEAR ÷ 1000, so the faucet budget goes a long way. */
-export const CHAIN_SCALE = 1000;
-
-/** Table NEAR (2 decimals) → yoctoNEAR on-chain. */
+/** Table NEAR (2 decimals) → yoctoNEAR on-chain. Testnet scale: on-chain NEAR = table NEAR ÷ 1000. */
 export function toYocto(amount: number): bigint {
   // table cents × 10^24 / (100 × 1000) = cents × 10^19
   return BigInt(Math.round(amount * 100)) * 10n ** 19n;
@@ -196,8 +193,4 @@ const ACCOUNT_ID = /^(([a-z\d]+[-_])*[a-z\d]+\.)*([a-z\d]+[-_])*[a-z\d]+$/;
 /** A valid NEAR account id: named (you.testnet) or implicit (64 hex). */
 export function isAccountId(id: unknown): id is string {
   return typeof id === "string" && id.length >= 2 && id.length <= 64 && ACCOUNT_ID.test(id);
-}
-
-export function explorerTx(hash: string) {
-  return `https://testnet.nearblocks.io/txns/${hash}`;
 }

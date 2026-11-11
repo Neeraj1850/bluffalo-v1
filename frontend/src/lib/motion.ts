@@ -38,25 +38,7 @@ export const pressable = {
   transition: spring.press,
 };
 
-/** Headline / block rising into place. */
-export const rise: Variants = {
-  hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0, transition: spring.pop },
-};
-
-/** Simple fade-up used for staggered rows. */
-export const fadeUp: Variants = {
-  hidden: { opacity: 0, y: 10 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: ease.soft } },
-};
-
 export const stagger = (step = timing.rowStagger, delay = 0): Variants => ({
   hidden: {},
   show: { transition: { staggerChildren: step, delayChildren: delay } },
-});
-
-/** A card dealt from above: scale .8 → 1, spring into its resting tilt. */
-export const dealFrom = (rotate = 0, distance = 60) => ({
-  initial: { opacity: 0, y: -distance, scale: 0.8, rotate: rotate - 14 },
-  animate: { opacity: 1, y: 0, scale: 1, rotate },
 });
