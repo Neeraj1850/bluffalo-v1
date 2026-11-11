@@ -55,6 +55,9 @@ describe("deposit wallets", () => {
     expect(await near.walletBalanceYocto("ab")).toBe(0n);
     viewAccount.mockRejectedValueOnce(Object.assign(new Error("nope"), { name: "AccountDoesNotExistError" }));
     expect(await near.walletBalanceYocto("ab")).toBe(0n);
+    // Minified production build: the class name is mangled, only the message survives.
+    viewAccount.mockRejectedValueOnce(new Error("Account ab does not exist at block height 1"));
+    expect(await near.walletBalanceYocto("ab")).toBe(0n);
     viewAccount.mockRejectedValueOnce(new Error("down"));
     await expect(near.walletBalanceYocto("ab")).rejects.toBeInstanceOf(near.ChainError);
   });

@@ -137,6 +137,12 @@ export async function balanceOf(agent: string): Promise<number> {
   return fromYocto(await balanceYocto(agent));
 }
 
+// Class names are minified in production builds, so match the message too.
+function isMissingAccount(e: unknown): boolean {
+  const err = e as Error | undefined;
+  return err?.name === "AccountDoesNotExistError" || /does not exist/i.test(err?.message ?? "");
+}
+
 /** Whether an account exists on the network (a cash-out destination must). */
 export async function accountExists(accountId: string): Promise<boolean> {
   const { account } = operator();
@@ -145,7 +151,7 @@ export async function accountExists(accountId: string): Promise<boolean> {
     return true;
   } catch (e) {
     // "Account doesn't exist" is an answer, not an outage.
-    if ((e as Error)?.name === "AccountDoesNotExistError") return false;
+    if (isMissingAccount(e)) return false;
     throw new ChainError(e);
   }
 }
@@ -228,7 +234,7 @@ export async function walletBalanceYocto(accountId: string): Promise<bigint> {
     const available = BigInt(view.amount) - WALLET_RESERVE;
     return available > 0n ? available : 0n;
   } catch (e) {
-    if ((e as Error)?.name === "AccountDoesNotExistError") return 0n;
+    if (isMissingAccount(e)) return 0n;
     throw new ChainError(e);
   }
 }
