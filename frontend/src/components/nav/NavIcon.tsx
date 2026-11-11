@@ -1,4 +1,4 @@
-export type NavKey = "lobby" | "strategy" | "live" | "history" | "wallet";
+export type NavKey = "strategy" | "practice" | "live" | "wallet";
 
 /** 20px stroke icons for the main navigation. */
 export function NavIcon({ name }: { name: NavKey }) {
@@ -12,14 +12,6 @@ export function NavIcon({ name }: { name: NavKey }) {
       strokeWidth="1.5"
       aria-hidden="true"
     >
-      {name === "lobby" && (
-        <>
-          <rect x="3" y="3" width="6" height="6" />
-          <rect x="11" y="3" width="6" height="6" />
-          <rect x="3" y="11" width="6" height="6" />
-          <rect x="11" y="11" width="6" height="6" />
-        </>
-      )}
       {name === "strategy" && (
         <>
           <path d="M3 5h14M3 10h14M3 15h14" />
@@ -34,10 +26,10 @@ export function NavIcon({ name }: { name: NavKey }) {
           <circle cx="10" cy="10" r="2.5" fill="currentColor" />
         </>
       )}
-      {name === "history" && (
+      {name === "practice" && (
         <>
-          <circle cx="10" cy="10" r="7" />
-          <path d="M10 6v4l3 2" />
+          <circle cx="10" cy="10" r="7" strokeDasharray="2.5 2" />
+          <path d="M8.5 7v6l4.5-3z" fill="currentColor" />
         </>
       )}
       {name === "wallet" && (

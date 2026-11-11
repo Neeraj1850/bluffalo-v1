@@ -30,7 +30,7 @@ function PrivyConnectActions() {
     setEntering(true);
     const ok = await waitForLink();
     setEntering(false);
-    if (ok) router.push("/lobby");
+    if (ok) router.push("/practice");
   };
 
   const { login } = useLogin({

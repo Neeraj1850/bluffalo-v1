@@ -130,16 +130,16 @@ export function ResultsView() {
         <header className="flex flex-col gap-3">
           <h1 className="display text-[54px] leading-[0.88] tracking-[-0.06em]">no real hands yet.</h1>
           <p className="text-[15px] leading-normal text-muted">
-            Results show up here once your agent plays a real-money hand. Practice hands in the sandbox aren&rsquo;t
-            recorded.
+            Results show up here once your agent plays a real-money hand. Practice hands are saved as sessions in the
+            Practice tab.
           </p>
         </header>
         <div className="flex flex-col gap-2.5">
-          <ButtonLink href="/lobby" size="md">
-            Pick a real-money table
+          <ButtonLink href="/live" size="md">
+            Play live
           </ButtonLink>
-          <ButtonLink href="/strategy" variant="secondary" size="md">
-            Test an agent for free
+          <ButtonLink href="/practice" variant="secondary" size="md">
+            Practise free
           </ButtonLink>
         </div>
         <AttestationCard />

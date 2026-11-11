@@ -25,6 +25,7 @@ import {
 } from "@/services/houseApi";
 import { spring } from "@/lib/motion";
 import type { LiveHand } from "@/lib/poker/record";
+import { newRunId, runHref } from "@/lib/poker/runs";
 import { STOP_COPY } from "@/lib/poker/session";
 import { setLiveLock } from "@/lib/store/liveLock";
 import { useSetup } from "@/lib/store/setup";
@@ -60,15 +61,17 @@ function NoAgent() {
       <StatusBadge kind="practice" size="sm" className="self-start">
         No agent at a table
       </StatusBadge>
-      <h1 className="display text-[56px] leading-[0.85] tracking-[-0.06em] lg:text-[80px]">nothing live yet.</h1>
+      <h1 className="display text-[56px] leading-[0.85] tracking-[-0.06em] lg:text-[80px]">
+        nothing live yet.
+      </h1>
       <p className="text-[15px] leading-normal text-muted">
-        Your agent plays here once you send it to a real-money table. Test a strategy for free first, then take it
-        live from the Strategy page.
+        Your agent plays here once you send it to a real-money table. Test a
+        strategy for free first, then take it live from the Strategy page.
       </p>
       <div className="flex flex-col gap-2 sm:flex-row">
-        <ButtonLink href="/strategy">Test an agent · free</ButtonLink>
-        <ButtonLink href="/lobby" variant="secondary">
-          Pick a table
+        <ButtonLink href="/practice">Practise free</ButtonLink>
+        <ButtonLink href="/live" variant="secondary">
+          Play live
         </ButtonLink>
       </div>
     </main>
@@ -84,10 +87,14 @@ function Sitting() {
   );
   const table = getTable(agent?.tableId ?? PRACTICE_TABLE_ID);
   const live = Boolean(agent);
+  // ponytail: one session per sitting; reloading the table starts a new one.
+  // Store the id on setup.agent if sessions should survive a reload.
+  const [runId] = useState(newRunId);
   const loop = useLiveHands({
     tableId: table.id,
     params: setup.params,
     preset: setup.preset,
+    runId,
     startStack: agent?.buyIn ?? PRACTICE_STACK,
     limits: setup.limits,
     bigBlind: table.blinds.big,
@@ -158,7 +165,7 @@ function Sitting() {
           <p className="text-[13px] text-muted">! {returned.error}</p>
         )}
         <Link
-          href="/lobby"
+          href="/live"
           className="font-mono text-[11px] uppercase tracking-[0.12em] underline"
         >
           Pick another table
@@ -200,6 +207,7 @@ function Sitting() {
     <>
       <GameTable
         key={loop.hand.id}
+        sessionHref={runHref("real", runId)}
         hand={loop.hand}
         live={live}
         tableName={table.name}
@@ -300,8 +308,8 @@ type GameTableProps = {
   /** Called once when playback ends; return true to keep playing. */
   onDone: (hand: LiveHand) => boolean;
   onNextHand: () => void;
-  /** Watching a stored hand from History: no session, no next hand, nothing on the line. */
-  replay?: { backHref: string };
+  /** This sitting's saved session: where "See this session" goes once play stops. */
+  sessionHref?: string;
 };
 
 export function GameTable({
@@ -321,7 +329,7 @@ export function GameTable({
   onStop,
   onDone,
   onNextHand,
-  replay,
+  sessionHref,
 }: GameTableProps) {
   const play = useHandPlayback(hand);
   const [keepPlaying, setKeepPlaying] = useState<boolean | null>(null);
@@ -356,11 +364,10 @@ export function GameTable({
     onStop,
     stopRequested,
     onNextHand: keepPlaying && !dealing ? onNextHand : undefined,
-    // Results show the latest real hand: only meaningful straight after a live one.
-    doneLink: replay
-      ? { href: replay.backHref, label: "Back to history" }
-      : live
-        ? { href: "/results", label: "See the result" }
+    // Mid-session the table stays put; once play stops, the session page has every hand.
+    doneLink:
+      stopped && sessionHref
+        ? { href: sessionHref, label: "See this session" }
         : null,
   };
 
@@ -369,26 +376,12 @@ export function GameTable({
       <main className="flex min-h-0 flex-1 flex-col lg:min-w-0 lg:flex-[999_1_560px]">
         <header className="flex items-center justify-between gap-3 border-b border-hair px-5 pb-3 pt-4 lg:flex-wrap lg:gap-4 lg:px-8 lg:py-5">
           <div className="flex min-w-0 flex-col gap-1.5 lg:flex-row lg:items-center lg:gap-4">
-            {replay && (
-              <Link
-                href={replay.backHref}
-                className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted hover:text-fg"
-              >
-                {"←"} History
-              </Link>
-            )}
             <StatusBadge
               kind={live ? "live" : "practice"}
               size="sm"
               className="self-start lg:h-7 lg:self-auto"
             >
-              {replay
-                ? live
-                  ? "Replay · real money"
-                  : "Replay · practice"
-                : live
-                  ? "Live · real money"
-                  : "Practice · simulated"}
+              {live ? "Live · real money" : "Practice · simulated"}
             </StatusBadge>
             <span className="hidden font-display text-[28px] font-bold tracking-[-0.04em] lg:inline">
               {tableName}
@@ -536,126 +529,94 @@ export function GameTable({
           </ol>
         </div>
 
-        {replay ? (
-          <div className="grid grid-cols-2 gap-3 border-t border-hair px-6 py-5">
-            <div className="flex flex-col gap-1">
-              <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
-                This hand
-              </span>
-              <span className="font-display text-[22px] font-medium">
-                {signed(netAfterRake(hand))}
-              </span>
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
-                Played
-              </span>
-              <span className="font-display text-[22px] font-medium">
-                {hand.at
-                  ? new Date(hand.at).toLocaleDateString(undefined, {
-                      month: "short",
-                      day: "numeric",
-                    })
-                  : "—"}
-              </span>
-            </div>
-            {hand.chain && (
+        <div className="grid grid-cols-3 gap-3 border-t border-hair px-6 py-5">
+          <div className="flex flex-col gap-1">
+            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+              Session
+            </span>
+            <span className="font-display text-[22px] font-medium">
+              {signed(session.net)}
+            </span>
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+              Stop loss
+            </span>
+            <span className="font-display text-[22px] font-medium">
+              {"−"}
+              {stopLoss}
+            </span>
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+              Hands
+            </span>
+            <span className="font-display text-[22px] font-medium">
+              {session.hands + (play.done ? 0 : 1)} / {maxHands}
+            </span>
+          </div>
+          {live && onStop && (
+            <button
+              type="button"
+              onClick={onStop}
+              disabled={stopRequested}
+              className="col-span-full h-12 rounded-btn border border-border text-[15px] disabled:opacity-60"
+            >
+              {returned.status === "done"
+                ? "Agent stopped"
+                : returned.status === "returning"
+                  ? "Returning funds…"
+                  : stopRequested
+                    ? "Stopping after this hand…"
+                    : "Stop agent after this hand"}
+            </button>
+          )}
+          {returned.status === "returning" && (
+            <p role="status" className="col-span-full text-[13px] text-muted">
+              Returning your agent’s balance to your playing balance…
+            </p>
+          )}
+          {returned.status === "done" && (
+            <p role="status" className="col-span-full text-[13px] text-muted">
+              Agent stopped. Returned {returned.amount.toFixed(2)} GNEAR to your
+              playing balance.{" "}
               <a
-                href={txUrl(hand.chain.settleTx)}
+                href={txUrl(returned.tx)}
                 target="_blank"
                 rel="noreferrer"
-                className="col-span-full text-[13px] text-muted underline underline-offset-4 hover:text-fg"
+                className="underline underline-offset-4"
               >
-                Settled on NEAR testnet ↗
+                View the transaction ↗
               </a>
-            )}
-          </div>
-        ) : (
-          <div className="grid grid-cols-3 gap-3 border-t border-hair px-6 py-5">
-            <div className="flex flex-col gap-1">
-              <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
-                Session
-              </span>
-              <span className="font-display text-[22px] font-medium">
-                {signed(session.net)}
-              </span>
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
-                Stop loss
-              </span>
-              <span className="font-display text-[22px] font-medium">
-                {"−"}
-                {stopLoss}
-              </span>
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
-                Hands
-              </span>
-              <span className="font-display text-[22px] font-medium">
-                {session.hands + (play.done ? 0 : 1)} / {maxHands}
-              </span>
-            </div>
-            {live && onStop && (
-              <button
-                type="button"
-                onClick={onStop}
-                disabled={stopRequested}
-                className="col-span-full h-12 rounded-btn border border-border text-[15px] disabled:opacity-60"
-              >
-                {returned.status === "done"
-                  ? "Agent stopped"
-                  : returned.status === "returning"
-                    ? "Returning funds…"
-                    : stopRequested
-                      ? "Stopping after this hand…"
-                      : "Stop agent after this hand"}
-              </button>
-            )}
-            {returned.status === "returning" && (
-              <p role="status" className="col-span-full text-[13px] text-muted">
-                Returning your agent’s balance to your playing balance…
-              </p>
-            )}
-            {returned.status === "done" && (
-              <p role="status" className="col-span-full text-[13px] text-muted">
-                Agent stopped. Returned {returned.amount.toFixed(2)} GNEAR to
-                your playing balance.{" "}
-                <a
-                  href={txUrl(returned.tx)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="underline underline-offset-4"
+            </p>
+          )}
+          {returned.status === "failed" && (
+            <p role="alert" className="col-span-full text-[13px] text-muted">
+              ! {returned.error} Your funds are still in the agent’s account.{" "}
+              {onRetryReturn && (
+                <button
+                  type="button"
+                  onClick={onRetryReturn}
+                  className="underline underline-offset-2"
                 >
-                  View the transaction ↗
-                </a>
-              </p>
-            )}
-            {returned.status === "failed" && (
-              <p role="alert" className="col-span-full text-[13px] text-muted">
-                ! {returned.error} Your funds are still in the agent’s account.{" "}
-                {onRetryReturn && (
-                  <button
-                    type="button"
-                    onClick={onRetryReturn}
-                    className="underline underline-offset-2"
-                  >
-                    Try again
-                  </button>
-                )}{" "}
-                <Link href="/wallet" className="underline underline-offset-2">
-                  Open wallet
-                </Link>
-              </p>
-            )}
-            {stopped && (
-              <ButtonLink href="/results" size="md" className="col-span-full">
-                See the result
-              </ButtonLink>
-            )}
-          </div>
-        )}
+                  Try again
+                </button>
+              )}{" "}
+              <Link href="/wallet" className="underline underline-offset-2">
+                Open wallet
+              </Link>
+            </p>
+          )}
+          {stopped && (
+            <ButtonLink
+              href={sessionHref ?? "/live"}
+              size="md"
+              className="col-span-full"
+            >
+              See this session
+            </ButtonLink>
+          )}
+        </div>
       </aside>
     </div>
   );

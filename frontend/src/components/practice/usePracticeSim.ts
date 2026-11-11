@@ -19,13 +19,14 @@ export type PracticeFeedItem = {
  * Real practice hands against the practice bot, revealed one decision per
  * tick. Stats only ever count hands that actually finished.
  */
-export function usePracticeSim() {
+export function usePracticeSim(runId?: string) {
   const { params, preset, limits } = useSetup();
   const table = getTable(PRACTICE_TABLE_ID);
   const loop = useLiveHands({
     tableId: table.id,
     params,
     preset,
+    runId,
     startStack: PRACTICE_STACK,
     limits,
     bigBlind: table.blinds.big,

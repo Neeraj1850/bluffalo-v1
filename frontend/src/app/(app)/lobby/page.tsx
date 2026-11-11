@@ -1,8 +1,6 @@
-import type { Metadata } from "next";
-import { LobbyView } from "@/components/lobby/LobbyView";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "Tables" };
-
+/** Tables are picked when you go live now. */
 export default function LobbyPage() {
-  return <LobbyView />;
+  redirect("/live");
 }

@@ -3,22 +3,24 @@
 import { AnimatePresence } from "framer-motion";
 import { useEffect } from "react";
 import { DecisionFeedRow } from "@/components/game/DecisionFeedRow";
-import { PracticeTable } from "@/components/sandbox/PracticeTable";
-import { usePracticeSim } from "@/components/sandbox/usePracticeSim";
+import { PracticeTable } from "@/components/practice/PracticeTable";
+import { usePracticeSim } from "@/components/practice/usePracticeSim";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 import { StatBox, StatGroup } from "@/components/ui/StatBox";
 import { percent, signed } from "@/lib/format";
 import { STOP_COPY } from "@/lib/poker/session";
 
 type TestBenchProps = {
+  /** This practice session: every hand dealt here is saved under it. */
+  runId: string;
   onStop: () => void;
   /** After each finished practice hand (it's already archived by then). */
   onHand: () => void;
 };
 
 /** Free practice hands for the strategy on screen, right next to its sliders. */
-export function TestBench({ onStop, onHand }: TestBenchProps) {
-  const sim = usePracticeSim();
+export function TestBench({ runId, onStop, onHand }: TestBenchProps) {
+  const sim = usePracticeSim(runId);
   const hands = sim.stats.hands;
 
   useEffect(() => {
@@ -71,7 +73,7 @@ export function TestBench({ onStop, onHand }: TestBenchProps) {
               onClick={onStop}
               className="h-9 rounded-chip border border-border px-3 font-mono text-[11px] uppercase"
             >
-              Stop test
+              Stop
             </button>
           </div>
         </div>
