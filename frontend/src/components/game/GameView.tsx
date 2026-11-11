@@ -341,7 +341,7 @@ function GameTable({
             <AnimatePresence>{play.potGrew && <ChipBurst key={play.step} />}</AnimatePresence>
           </div>
 
-          <div className="mt-auto flex flex-col items-center gap-2 pb-4 [--hole-card:92px] lg:mt-0 lg:pb-0 lg:[--hole-card:124px]">
+          <div className="mt-auto flex flex-col items-center gap-5 pb-4 [--hole-card:92px] lg:mt-0 lg:gap-6 lg:pb-0 lg:[--hole-card:124px]">
             <div className="flex">
               <PlayingCard card={hand.hole[0]} width="var(--hole-card)" tilt={-8} deal="deal" style={{ translate: "10px 0" }} />
               <PlayingCard

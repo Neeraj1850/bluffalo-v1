@@ -38,9 +38,9 @@ export function HistoryRow({ hand, expanded, onToggle, index = 0 }: HistoryRowPr
         onClick={onToggle}
         aria-expanded={expanded}
         aria-controls={id}
-        className="grid min-h-16 w-full grid-cols-[50px_62px_1fr_auto] items-center gap-2.5 px-1 py-3.5 text-left transition-colors hover:bg-surface"
+        className="grid min-h-16 w-full grid-cols-[72px_62px_1fr_auto] items-center gap-3 px-1 py-3.5 text-left transition-colors hover:bg-surface"
       >
-        <span className="font-mono text-[11px] text-muted">{hand.id}</span>
+        <span className="whitespace-nowrap font-mono text-[11px] text-muted">{hand.id}</span>
         <span className="flex gap-[3px]" aria-label={hand.hole.map(cardName).join(", ")}>
           <PlayingCard card={hand.hole[0]} size="xs" tilt={-4} decorative className="shadow-none ring-1 ring-border" />
           <PlayingCard card={hand.hole[1]} size="xs" tilt={4} decorative className="shadow-none ring-1 ring-border" />
@@ -79,7 +79,7 @@ export function HistoryRow({ hand, expanded, onToggle, index = 0 }: HistoryRowPr
             transition={{ duration: 0.28, ease: [0.2, 0.8, 0.2, 1] }}
             className="overflow-hidden"
           >
-            <ol className="mb-3.5 ml-[60px] flex flex-col gap-3 border-l border-fg pl-3.5">
+            <ol className="mb-3.5 ml-[88px] flex flex-col gap-3 border-l border-fg pl-3.5">
               {hand.steps.map((s, j) => (
                 <motion.li
                   key={s.street + j}
