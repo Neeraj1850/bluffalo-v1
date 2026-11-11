@@ -17,7 +17,13 @@ describe("chatJson", () => {
     await expect(chatJson({ ...base, fetch: f })).resolves.toEqual({ action: "call" });
     const [, init] = f.mock.calls[0];
     expect(init.headers.Authorization).toBe("Bearer test-key");
-    expect(JSON.parse(init.body)).toMatchObject({ model: "m", response_format: { type: "json_object" } });
+    expect(JSON.parse(init.body)).toMatchObject({
+      model: "m",
+      response_format: { type: "json_object" },
+      chat_template_kwargs: { enable_thinking: false }, // thinking made moves 10x slower and truncated JSON
+    });
+    // A hung request must not hold a real-money hand (and its stakes) forever.
+    expect(init.signal).toBeInstanceOf(AbortSignal);
   });
 
   it("retries rate limits, honouring retry-after", async () => {

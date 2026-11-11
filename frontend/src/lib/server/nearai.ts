@@ -7,11 +7,15 @@
 
 const URL = "https://cloud-api.near.ai/v1/chat/completions";
 
+// TEE-attested and fast with thinking off: ~1 s a move on a real prompt, vs 12 s
+// (up to 28 s) for glm-5.3-flash, whose long reasoning also truncated JSON replies.
+const DEFAULT_MODEL = "Qwen/Qwen3.6-35B-A3B-FP8";
+
 export const MODELS = {
   /** The player's agent. */
-  agent: process.env.NEAR_AI_AGENT_MODEL || "Qwen/Qwen3.6-35B-A3B-FP8",
-  /** The house — smaller and faster. */
-  house: process.env.NEAR_AI_HOUSE_MODEL || "z-ai/glm-5.3-flash",
+  agent: process.env.NEAR_AI_AGENT_MODEL || DEFAULT_MODEL,
+  /** The house. */
+  house: process.env.NEAR_AI_HOUSE_MODEL || DEFAULT_MODEL,
 } as const;
 
 export type Message = { role: "system" | "user"; content: string };
@@ -37,6 +41,8 @@ type Options = {
   sleep?: (ms: number) => Promise<void>;
 };
 
+// A healthy move takes 1–3 s with thinking off; this only catches a reply that never comes.
+const TIMEOUT_MS = 30_000;
 const RETRYABLE = new Set([429, 500, 502, 503]);
 
 /** One JSON-mode completion, parsed. Retries rate limits and server errors with backoff. */
@@ -69,7 +75,13 @@ export async function chatJsonId<T = unknown>({
         response_format: { type: "json_object" },
         max_tokens: maxTokens,
         temperature: 0.7,
+        // Poker moves need a short JSON answer, not a reasoning trace: thinking
+        // made replies 10x slower and often cut the JSON off at max_tokens.
+        chat_template_kwargs: { enable_thinking: false },
       }),
+      // A reply that never comes would hang the hand with stakes locked on-chain;
+      // timing out turns it into "service down" and the hand gets cancelled.
+      signal: AbortSignal.timeout(TIMEOUT_MS),
     });
 
     if (res.ok) {
