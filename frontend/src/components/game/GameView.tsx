@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { PlayingCard } from "@/components/cards/PlayingCard";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
@@ -11,16 +12,25 @@ import { ThinkingDots } from "@/components/ui/ThinkingDots";
 import { getPreset } from "@/lib/data/strategy";
 import { blindsLabel, getTable, PRACTICE_STACK, PRACTICE_TABLE_ID } from "@/lib/data/tables";
 import { signed } from "@/lib/format";
+import { netAfterRake, rakeLabel, rakeOf, stackAfterRake } from "@/services/houseApi";
 import { spring } from "@/lib/motion";
 import type { LiveHand } from "@/lib/poker/record";
 import { STOP_COPY } from "@/lib/poker/session";
+import { setLiveLock } from "@/lib/store/liveLock";
 import { useSetup } from "@/lib/store/setup";
+import { stopAgent, txUrl } from "@/services/agentApi";
 import { ActionPanel } from "./ActionPanel";
 import { Board } from "./Board";
 import { ChipBurst } from "./ChipBurst";
 import { OpponentSeat } from "./OpponentSeat";
 import { useHandPlayback } from "./useHandPlayback";
 import { useLiveHands } from "./useLiveHands";
+
+type ReturnState =
+  | { status: "idle" }
+  | { status: "returning" }
+  | { status: "done"; tx: string; amount: number }
+  | { status: "failed"; error: string };
 
 /** Pause on a finished hand before dealing the next. */
 const NEXT_HAND_MS = 4500;
@@ -47,8 +57,58 @@ function Sitting() {
     bigBlind: table.blinds.big,
   });
   const [stopRequested, setStopRequested] = useState(false);
+  const [confirmStop, setConfirmStop] = useState(false);
+  const [returned, setReturned] = useState<ReturnState>({ status: "idle" });
+
+  // Lock the nav while a live hand is in play — the agent has real stake committed,
+  // so the player can't wander off mid-hand. Releases once the agent stops.
+  useEffect(() => {
+    setLiveLock(live && !loop.stopped);
+    return () => setLiveLock(false);
+  }, [live, loop.stopped]);
+
+  // Take the agent off the table for real: return its on-chain balance to the wallet.
+  const returnFunds = async () => {
+    setReturned({ status: "returning" });
+    try {
+      const r = await stopAgent();
+      setReturned({ status: "done", tx: r.tx, amount: r.amount });
+    } catch (e) {
+      setReturned({ status: "failed", error: e instanceof Error ? e.message : "Couldn’t return the agent’s funds." });
+    }
+  };
 
   // Also mid-session: if the service goes down, say so instead of leaving the last hand up.
+  if (loop.closed) {
+    return (
+      <main role="alert" className="flex h-dvh flex-col items-center justify-center gap-4 px-5 text-center">
+        <span className="font-mono text-[11px] uppercase tracking-[0.16em]">Table closed</span>
+        <p className="max-w-sm text-[15px] text-muted">
+          The house bankroll is too low to cover this table, so it isn&rsquo;t dealing new hands right now. Your
+          agent&rsquo;s funds are safe in its account.
+        </p>
+        {live && returned.status !== "done" && (
+          <button
+            type="button"
+            onClick={() => {
+              setup.stopAgent();
+              void returnFunds();
+            }}
+            disabled={returned.status === "returning"}
+            className="h-11 rounded-btn border border-border px-4"
+          >
+            {returned.status === "returning" ? "Returning…" : "Return funds to my balance"}
+          </button>
+        )}
+        {returned.status === "done" && <p className="text-[13px] text-muted">{returned.amount} NEAR returned.</p>}
+        {returned.status === "failed" && <p className="text-[13px] text-muted">! {returned.error}</p>}
+        <Link href="/lobby" className="font-mono text-[11px] uppercase tracking-[0.12em] underline">
+          Pick another table
+        </Link>
+      </main>
+    );
+  }
+
   if (!loop.hand || loop.error) {
     return (
       <main className="flex h-dvh flex-col items-center justify-center gap-4 px-5 text-center">
@@ -75,28 +135,80 @@ function Sitting() {
   }
 
   return (
-    <GameTable
-      key={loop.hand.id}
-      hand={loop.hand}
-      live={live}
-      tableName={table.name}
-      blinds={blindsLabel(table)}
-      presetLabel={getPreset(setup.preset).label}
-      session={loop.session}
-      maxHands={setup.limits.maxHands}
-      stopLoss={setup.limits.stopLoss}
-      stopRequested={stopRequested}
-      stopped={loop.stopped ? STOP_COPY[loop.stopped] : null}
-      dealing={loop.loading}
-      onStop={live ? () => setStopRequested(true) : undefined}
-      onDone={(hand) => {
-        const reason = loop.finish(hand);
-        const leaving = reason || stopRequested;
-        if (live && leaving) setup.stopAgent(hand.stackAfter);
-        return !leaving;
-      }}
-      onNextHand={loop.next}
-    />
+    <>
+      <GameTable
+        key={loop.hand.id}
+        hand={loop.hand}
+        live={live}
+        tableName={table.name}
+        blinds={blindsLabel(table)}
+        presetLabel={getPreset(setup.preset).label}
+        session={loop.session}
+        maxHands={setup.limits.maxHands}
+        stopLoss={setup.limits.stopLoss}
+        stopRequested={stopRequested}
+        returned={returned}
+        onRetryReturn={() => void returnFunds()}
+        stopped={loop.stopped ? STOP_COPY[loop.stopped] : null}
+        dealing={loop.loading}
+        onStop={live ? () => setConfirmStop(true) : undefined}
+        onDone={(hand) => {
+          const reason = loop.finish(hand);
+          const leaving = reason || stopRequested;
+          if (live && leaving) {
+            setup.stopAgent();
+            if (stopRequested) void returnFunds();
+          }
+          return !leaving;
+        }}
+        onNextHand={loop.next}
+      />
+      {confirmStop && (
+        <ConfirmStop
+          onCancel={() => setConfirmStop(false)}
+          onConfirm={() => {
+            setConfirmStop(false);
+            setStopRequested(true);
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+/** Confirm stopping the agent: it keeps playing to the end of the current hand first. */
+function ConfirmStop({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: () => void }) {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Stop the agent"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-bg/80 px-5 backdrop-blur-sm"
+    >
+      <div className="flex w-full max-w-sm flex-col gap-4 rounded-card border border-border bg-surface p-6">
+        <span className="font-display text-[20px] font-bold tracking-[-0.03em]">Stop the agent?</span>
+        <p className="text-[14px] leading-normal text-muted">
+          The agent won’t stop mid-hand. It finishes the hand it’s playing now, then sits out and returns its balance to
+          your playing wallet. Proceed?
+        </p>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="h-11 flex-1 rounded-btn border border-border text-[15px]"
+          >
+            Keep playing
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="h-11 flex-1 rounded-btn border border-fg bg-fg text-[15px] text-bg"
+          >
+            Stop after this hand
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -110,6 +222,8 @@ type GameTableProps = {
   maxHands: number;
   stopLoss: number;
   stopRequested: boolean;
+  returned?: ReturnState;
+  onRetryReturn?: () => void;
   stopped: string | null;
   dealing: boolean;
   onStop?: () => void;
@@ -128,6 +242,8 @@ function GameTable({
   maxHands,
   stopLoss,
   stopRequested,
+  returned = { status: "idle" },
+  onRetryReturn,
   stopped,
   dealing,
   onStop,
@@ -154,7 +270,7 @@ function GameTable({
   }, [keepPlaying, onNextHand]);
 
   const s = play.current;
-  const stack = play.done ? hand.stackAfter : session.stack;
+  const stack = play.done ? stackAfterRake(hand) : session.stack;
   const panel = {
     street: s.street,
     stepLabel: `${play.step + 1} / ${hand.steps.length}`,
@@ -198,6 +314,11 @@ function GameTable({
               <span className="text-[14px] font-medium tracking-normal lg:hidden"> NEAR</span>
             </motion.span>
             <span className="hidden font-display text-[18px] font-medium lg:inline">NEAR</span>
+            {play.done && rakeOf(hand) > 0 && (
+              <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted lg:text-[11px]">
+                {rakeLabel(rakeOf(hand))} · Net {signed(netAfterRake(hand))}
+              </span>
+            )}
           </div>
         </header>
 
@@ -264,7 +385,20 @@ function GameTable({
                 >
                   <span className="pt-[3px] font-mono text-[11px] text-muted">{d.street}</span>
                   <span className="flex flex-col gap-[3px]">
-                    <span className="font-display text-[17px] font-bold">{d.action}</span>
+                    <span className="flex items-center gap-2">
+                      <span className="font-display text-[17px] font-bold">{d.action}</span>
+                      {d.chatId && (
+                        <a
+                          href={`/verify/${encodeURIComponent(d.chatId)}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          title="Check this decision ran in a NEAR AI TEE"
+                          className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted underline underline-offset-2 hover:text-fg"
+                        >
+                          TEE ↗
+                        </a>
+                      )}
+                    </span>
                     <span className="text-[13px] leading-[1.45] text-muted">
                       {d.opponent !== "—" && `${live ? "house agent" : "practice bot"} ${d.opponent}`}
                     </span>
@@ -297,8 +431,40 @@ function GameTable({
               disabled={stopRequested}
               className="col-span-full h-12 rounded-btn border border-border text-[15px] disabled:opacity-60"
             >
-              {stopRequested ? "Stopping after this hand…" : "Stop agent after this hand"}
+              {returned.status === "done"
+                ? "Agent stopped"
+                : returned.status === "returning"
+                  ? "Returning funds…"
+                  : stopRequested
+                    ? "Stopping after this hand…"
+                    : "Stop agent after this hand"}
             </button>
+          )}
+          {returned.status === "returning" && (
+            <p role="status" className="col-span-full text-[13px] text-muted">
+              Returning your agent’s balance to your playing balance…
+            </p>
+          )}
+          {returned.status === "done" && (
+            <p role="status" className="col-span-full text-[13px] text-muted">
+              Agent stopped. Returned {returned.amount.toFixed(2)} NEAR to your playing balance.{" "}
+              <a href={txUrl(returned.tx)} target="_blank" rel="noreferrer" className="underline underline-offset-4">
+                View the transaction ↗
+              </a>
+            </p>
+          )}
+          {returned.status === "failed" && (
+            <p role="alert" className="col-span-full text-[13px] text-muted">
+              ! {returned.error} Your funds are still in the agent’s account.{" "}
+              {onRetryReturn && (
+                <button type="button" onClick={onRetryReturn} className="underline underline-offset-2">
+                  Try again
+                </button>
+              )}{" "}
+              <Link href="/wallet" className="underline underline-offset-2">
+                Open wallet
+              </Link>
+            </p>
           )}
           {stopped && (
             <ButtonLink href="/results" size="md" className="col-span-full">

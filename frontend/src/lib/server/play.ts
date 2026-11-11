@@ -55,11 +55,15 @@ export async function playHand(
   });
 
   const reasons: string[] = [];
+  const chatIds: (string | undefined)[] = [];
   // A heads-up hand can't take more than a few dozen actions; this guards a bad loop.
   for (let n = 0; !isOver(s) && n < 200; n++) {
     const agent = s.toAct === 0;
     const d = await decide(s, agent ? req.params : null, { ...opts, offline: !agent && practice });
-    if (agent) reasons.push(d.reason);
+    if (agent) {
+      reasons.push(d.reason);
+      chatIds.push(d.chatId);
+    }
     s = apply(s, d.action);
   }
 
@@ -67,6 +71,7 @@ export async function playHand(
     id: req.handId,
     table: table.name,
     reasons,
+    chatIds,
     opponent: practice ? "practice bot" : "house agent",
     proof: { seed: deal.seed, commitment: deal.commitment, playerSeed: req.playerSeed, hole: s.hole, board: s.board },
   });

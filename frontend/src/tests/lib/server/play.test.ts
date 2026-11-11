@@ -12,7 +12,7 @@ import { fakeNearAi } from "@/tests/helpers/nearai";
 import { ChainError } from "@/lib/server/near";
 
 // The testnet contract is mocked; its client is tested in near.test.ts and live on testnet.
-const chain = vi.hoisted(() => ({ balanceOf: vi.fn(), commitHand: vi.fn(), settleHand: vi.fn() }));
+const chain = vi.hoisted(() => ({ balanceOf: vi.fn(), commitHand: vi.fn(), settleHand: vi.fn(), houseBalance: vi.fn() }));
 vi.mock("@/lib/server/near", async (orig) => ({ ...(await orig<object>()), ...chain }));
 
 const params = getPreset("shark").params!;
@@ -35,6 +35,7 @@ beforeEach(async () => {
   chain.balanceOf.mockReset().mockResolvedValue(50);
   chain.commitHand.mockReset().mockResolvedValue("COMMIT_TX");
   chain.settleHand.mockReset().mockResolvedValue("SETTLE_TX");
+  chain.houseBalance.mockReset().mockResolvedValue(10000); // 1% exposure cap = 100
 });
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -112,7 +113,14 @@ describe("POST /api/play", () => {
     const deal = await createDeal(ME);
     const hand = await (await post({ ...valid, handId: deal.handId })).json();
     expect(chain.commitHand).toHaveBeenCalledWith(deal.handId, "ame.op.testnet", deal.commitment, 50);
-    expect(chain.settleHand).toHaveBeenCalledWith(deal.handId, hand.proof.seed, valid.playerSeed, hand.stackAfter);
+    // the payout is the ending stack less the disclosed rake
+    expect(hand.rake).toBeGreaterThanOrEqual(0);
+    expect(chain.settleHand).toHaveBeenCalledWith(
+      deal.handId,
+      hand.proof.seed,
+      valid.playerSeed,
+      Math.round((hand.stackAfter - hand.rake) * 100) / 100,
+    );
     expect(chain.commitHand.mock.invocationCallOrder[0]).toBeLessThan(chain.settleHand.mock.invocationCallOrder[0]);
     expect(hand.chain).toEqual({ contract: "poker.testnet", agent: "ame.op.testnet", commitTx: "COMMIT_TX", settleTx: "SETTLE_TX" });
   });
@@ -122,6 +130,32 @@ describe("POST /api/play", () => {
     const deal = await createDeal(ME);
     await post({ ...valid, stack: 9999, handId: deal.handId });
     expect(chain.commitHand.mock.calls[0][3]).toBe(37.5);
+  });
+
+  it("stakes at most the house's exposure cap, leaving the rest of the balance unlocked", async () => {
+    chain.balanceOf.mockResolvedValueOnce(90);
+    chain.houseBalance.mockResolvedValueOnce(5000); // 1% = 50
+    const deal = await createDeal(ME);
+    await post({ ...valid, handId: deal.handId });
+    expect(chain.commitHand.mock.calls[0][3]).toBe(50);
+  });
+
+  it("answers 503 table_closed below the house floor, before committing", async () => {
+    chain.houseBalance.mockResolvedValueOnce(1999);
+    const deal = await createDeal(ME);
+    const res = await post({ ...valid, handId: deal.handId });
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: "Table closed — the house is rebalancing", code: "table_closed" });
+    expect(chain.commitHand).not.toHaveBeenCalled();
+  });
+
+  it("asks the agent to cash out once it reaches the session payout cap", async () => {
+    chain.balanceOf.mockResolvedValueOnce(300); // 3 × max buy-in 100
+    const deal = await createDeal(ME);
+    const res = await post({ ...valid, handId: deal.handId });
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("session_cap");
+    expect(chain.commitHand).not.toHaveBeenCalled();
   });
 
   it("needs a deployed agent with chips for real money", async () => {
