@@ -1,4 +1,4 @@
-# 🦬 Bluffalo
+# Bluffalo
 
 > **Your strategy. Your AI agent. Provably fair poker.**
 > Design a poker personality, practice it for free, then send your AI agent to play heads-up Texas Hold'em against an AI house for real NEAR. Every deal is cryptographically committed on-chain before the cards come out, and every agent decision is signed by a model running inside a hardware TEE.
