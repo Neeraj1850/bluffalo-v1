@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Limits, StrategyParams } from "@/lib/data/strategy";
+import type { Limits, PresetKey, StrategyParams } from "@/lib/data/strategy";
 import type { LiveHand } from "@/lib/poker/record";
 import { addHand, stopReason, type Session, type StopReason } from "@/lib/poker/session";
 import { fetchLiveHand } from "@/services/agentApi";
@@ -10,6 +10,8 @@ import { fetchTables, isTableClosed, looksTableClosed, netAfterRake, stackAfterR
 type Options = {
   tableId: string;
   params: StrategyParams;
+  /** Labels the recorded hand with the preset that played it. */
+  preset?: PresetKey;
   startStack: number;
   limits: Limits;
   bigBlind: number;
@@ -20,7 +22,7 @@ type Options = {
  * play it back, then — once the screen calls `finish` — updates the session
  * and either deals the next one or says why the agent stopped.
  */
-export function useLiveHands({ tableId, params, startStack, limits, bigBlind }: Options) {
+export function useLiveHands({ tableId, params, preset, startStack, limits, bigBlind }: Options) {
   const [hand, setHand] = useState<LiveHand | null>(null);
   const [session, setSession] = useState<Session>({ hands: 0, net: 0, stack: startStack });
   const [stopped, setStopped] = useState<StopReason | null>(null);
@@ -29,8 +31,8 @@ export function useLiveHands({ tableId, params, startStack, limits, bigBlind }: 
   /** The server closed this table (house bankroll low). Non-null = reason text. */
   const [closed, setClosed] = useState<string | null>(null);
   // Latest values for the async loader without re-creating it every render.
-  const latest = useRef({ tableId, params, session });
-  latest.current = { tableId, params, session };
+  const latest = useRef({ tableId, params, preset, session });
+  latest.current = { tableId, params, preset, session };
 
   // One hand in flight at a time: each real hand locks the agent's whole stack on-chain.
   const dealing = useRef(false);
@@ -38,12 +40,12 @@ export function useLiveHands({ tableId, params, startStack, limits, bigBlind }: 
   const deal = useCallback(async () => {
     if (dealing.current) return;
     dealing.current = true;
-    const { tableId, params, session } = latest.current;
+    const { tableId, params, preset, session } = latest.current;
     setLoading(true);
     setError(null);
     setClosed(null);
     try {
-      setHand(await fetchLiveHand({ tableId, params, stack: session.stack, button: (session.hands % 2) as 0 | 1 }));
+      setHand(await fetchLiveHand({ tableId, params, preset, stack: session.stack, button: (session.hands % 2) as 0 | 1 }));
     } catch (e) {
       const message = e instanceof Error ? e.message : "Couldn’t deal the next hand.";
       // /api/play answers 503 {code:"table_closed"}; the code may be lost in transit, so confirm with /api/tables.

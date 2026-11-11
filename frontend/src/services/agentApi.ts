@@ -1,6 +1,7 @@
 import type { Limits, PresetKey, StrategyParams } from "@/lib/data/strategy";
 import { newSeed } from "@/lib/poker/fairness";
-import type { LiveHand } from "@/lib/poker/record";
+import type { HandMode, LiveHand } from "@/lib/poker/record";
+import type { TestedAgent } from "@/lib/poker/tested";
 
 /**
  * The frontend talks to the agent backend only through this interface.
@@ -84,6 +85,7 @@ export class ApiError extends Error {
 export type HandRequest = {
   tableId: string;
   params: StrategyParams;
+  preset?: PresetKey;
   stack: number;
   button: 0 | 1;
 };
@@ -111,11 +113,18 @@ export async function fetchLiveHand(req: HandRequest, f: typeof fetch = fetch): 
   return hand;
 }
 
-/** This player's real-money hands, newest first (recorded by the server). */
-export async function fetchHands(f: typeof fetch = fetch): Promise<LiveHand[]> {
-  const res = await f("/api/hands");
+/** This player's hands of one mode, newest first (recorded by the server). */
+export async function fetchHands(mode: HandMode = "real", f: typeof fetch = fetch): Promise<LiveHand[]> {
+  const res = await f(`/api/hands?mode=${mode}`);
   if (!res.ok) throw new Error(`Request failed (${res.status})`);
   return (await res.json()).hands;
+}
+
+/** Strategies this player has tested in practice, with their record (most recent first). */
+export async function fetchTestedAgents(f: typeof fetch = fetch): Promise<TestedAgent[]> {
+  const res = await f("/api/agents/tested");
+  if (!res.ok) throw new Error(`Request failed (${res.status})`);
+  return (await res.json()).agents;
 }
 
 /** Live TEE attestation of the agent model (NEAR AI Cloud). */

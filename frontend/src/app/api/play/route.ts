@@ -46,7 +46,13 @@ export async function POST(request: Request) {
     const deal = await takeSeed(req.handId, session.id);
     if (!deal) return reply({ error: "Unknown, expired or already played hand" }, 404);
 
-    if (!agent) return reply(await playHand(req, deal));
+    if (!agent) {
+      const hand = await playHand(req, deal);
+      // Practice hands are archived too (History → Practice, tested agents). Best effort:
+      // a free hand shouldn't fail because the archive hiccuped.
+      await recordHand(session.id, hand).catch((e) => console.error("[play] practice record failed", hand.id, e));
+      return reply(hand);
+    }
 
     // One real hand per agent at a time: a hand stakes the agent's balance (up to the exposure cap).
     if (inFlight.has(agent)) return reply({ error: "Your agent is already playing a hand" }, 409);

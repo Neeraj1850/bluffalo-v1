@@ -57,13 +57,15 @@ describe("fetchLiveHand", () => {
 
 describe("fetchHands", () => {
   it("returns the recorded hands", async () => {
-    const f = vi.fn().mockResolvedValue(json({ hands: [{ id: "#a" }] }));
-    expect(await fetchHands(f)).toEqual([{ id: "#a" }]);
-    expect(f).toHaveBeenCalledWith("/api/hands");
+    const f = vi.fn().mockImplementation(async () => json({ hands: [{ id: "#a" }] }));
+    expect(await fetchHands("real", f)).toEqual([{ id: "#a" }]);
+    expect(f).toHaveBeenCalledWith("/api/hands?mode=real");
+    await fetchHands("practice", f);
+    expect(f).toHaveBeenLastCalledWith("/api/hands?mode=practice");
   });
 
   it("throws when the archive can't be loaded", async () => {
-    await expect(fetchHands(vi.fn().mockResolvedValue(json({}, 500)))).rejects.toThrow("500");
+    await expect(fetchHands("real", vi.fn().mockResolvedValue(json({}, 500)))).rejects.toThrow("500");
   });
 });
 

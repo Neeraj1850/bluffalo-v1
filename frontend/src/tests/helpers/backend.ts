@@ -32,7 +32,7 @@ export function useFakeBackend(fallthrough?: typeof fetch) {
       return fallthrough(input, init);
     }
     if ((init?.headers as Record<string, string>)?.Authorization !== "Bearer test-token") return json({}, 401);
-    const path = url.slice(BACKEND.length);
+    const [path, query = ""] = url.slice(BACKEND.length).split("?");
     const method = init?.method ?? "GET";
     const body = init?.body ? JSON.parse(String(init.body)) : undefined;
     const [, , sid, kind, handId, action] = path.split("/");
@@ -120,7 +120,11 @@ export function useFakeBackend(fallthrough?: typeof fetch) {
       if (!hands.some((h) => h.id === body.id)) hands.unshift({ session: sid, id: body.id, record: body.record });
       return json({ ok: true }, 201);
     }
-    if (kind === "hands") return json({ hands: hands.filter((h) => h.session === sid).map((h) => h.record) });
+    if (kind === "hands") {
+      const mode = new URLSearchParams(query).get("mode");
+      const records = hands.filter((h) => h.session === sid).map((h) => h.record as { mode?: string });
+      return json({ hands: records.filter((r) => !mode || (r.mode ?? "real") === mode) });
+    }
     return json({ detail: "Not found" }, 404);
   });
 

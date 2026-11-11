@@ -88,6 +88,18 @@ class TestHands:
         ]
         assert client.get(f"/sessions/{other}/hands").json() == {"hands": []}
 
+    def test_filters_by_mode_treating_unmarked_hands_as_real(self, client, session_id):
+        records = {"#0000000a": {}, "#0000000b": {"mode": "practice"}, "#0000000c": {"mode": "real"}}
+        for n, extra in records.items():
+            client.post(f"/sessions/{session_id}/hands", json={"id": n, "record": {"id": n, **extra}})
+        ids = lambda q: [h["id"] for h in client.get(f"/sessions/{session_id}/hands{q}").json()["hands"]]  # noqa: E731
+        assert ids("?mode=real") == ["#0000000c", "#0000000a"]
+        assert ids("?mode=practice") == ["#0000000b"]
+        assert len(ids("")) == 3
+        assert client.get(f"/sessions/{session_id}/hands?mode=bogus").status_code == 422
+        assert ids("?mode=real&limit=1") == ["#0000000c"]
+        assert client.get(f"/sessions/{session_id}/hands?limit=501").status_code == 422
+
     def test_recording_twice_keeps_one(self, client, session_id):
         for _ in range(2):
             assert (

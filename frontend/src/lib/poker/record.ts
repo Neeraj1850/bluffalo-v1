@@ -1,5 +1,6 @@
 import { cardShort } from "@/lib/cards";
 import type { HandStep, HistoryHand, ScriptedHand } from "@/lib/data/hands";
+import type { PresetKey, StrategyParams } from "@/lib/data/strategy";
 import type { DealProof } from "./fairness";
 import { settle, type HandState, type LogEntry } from "./game";
 
@@ -10,7 +11,18 @@ export type LiveHand = ScriptedHand & {
   chain?: { contract: string; agent: string; commitTx: string; settleTx: string };
   /** Real-money hands: rake the house kept from the agent's winnings (table NEAR). */
   rake?: number;
+  /** Practice (free chips vs the practice bot) or real money. Older records lack it: real. */
+  mode?: HandMode;
+  tableId?: string;
+  /** The strategy that played the hand, so tested agents can be compared. */
+  agent?: { preset?: PresetKey; params: StrategyParams };
+  /** When the hand was played (ms since epoch). */
+  at?: number;
 };
+
+export type HandMode = "practice" | "real";
+
+export const handMode = (h: Pick<LiveHand, "mode">): HandMode => h.mode ?? "real";
 
 const BOARD: Record<LogEntry["street"], HandStep["boardCount"]> = {
   "PRE-FLOP": 0,

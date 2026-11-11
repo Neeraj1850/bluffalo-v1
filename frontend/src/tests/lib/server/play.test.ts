@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET as hands } from "@/app/api/hands/route";
+import { GET as tested } from "@/app/api/agents/tested/route";
 import { POST } from "@/app/api/play/route";
 import { getPreset } from "@/lib/data/strategy";
 import { commitment, verifyDeal } from "@/lib/poker/fairness";
@@ -23,7 +24,8 @@ const headers = (id = ME) => ({ cookie: `${SESSION_COOKIE}=${id}` });
 const post = (body: unknown, id = ME) =>
   POST(new Request("http://x/api/play", { method: "POST", headers: headers(id), body: JSON.stringify(body) }));
 let backend: ReturnType<typeof useFakeBackend>;
-const archive = async (id = ME) => (await (await hands(new Request("http://x/api/hands", { headers: headers(id) }))).json()).hands;
+const archive = async (id = ME, mode = "") =>
+  (await (await hands(new Request(`http://x/api/hands${mode && `?mode=${mode}`}`, { headers: headers(id) }))).json()).hands;
 
 // NEAR AI is faked: every model answers "call" (a check when nothing is owed), so hands reach showdown.
 beforeEach(async () => {
@@ -196,10 +198,29 @@ describe("POST /api/play", () => {
     expect(await archive(OTHER)).toEqual([]);
   });
 
-  it("doesn't archive practice hands", async () => {
+  it("archives practice hands separately, tagged with mode, table and strategy", async () => {
     const deal = await createDeal(ME);
-    await post({ ...valid, tableId: "kitchen", handId: deal.handId });
-    expect(await archive()).toEqual([]);
+    const hand = await (await post({ ...valid, preset: "shark", tableId: "kitchen", handId: deal.handId })).json();
+    expect(await archive()).toEqual([]); // the real-money list stays real
+    const [practice] = await archive(ME, "practice");
+    expect(practice).toMatchObject({ id: hand.id, mode: "practice", tableId: "kitchen", agent: { preset: "shark", params: valid.params } });
+    expect(typeof practice.at).toBe("number");
+  });
+
+  it("summarises tested agents from practice hands only", async () => {
+    for (const tableId of ["kitchen", "kitchen", "back-room"]) {
+      const deal = await createDeal(ME);
+      await post({ ...valid, preset: "shark", tableId, handId: deal.handId });
+    }
+    const { agents } = await (await tested(new Request("http://x/api/agents/tested", { headers: headers() }))).json();
+    expect(agents).toHaveLength(1);
+    expect(agents[0]).toMatchObject({ preset: "shark", params: valid.params, hands: 2 });
+  });
+
+  it("tags real-money hands as real", async () => {
+    const deal = await createDeal(ME);
+    await post({ ...valid, handId: deal.handId });
+    expect((await archive())[0]).toMatchObject({ mode: "real", tableId: valid.tableId });
   });
 
   it("answers 503 service_down when NEAR AI is unavailable, and records nothing", async () => {

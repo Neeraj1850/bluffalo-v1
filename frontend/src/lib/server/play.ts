@@ -1,4 +1,4 @@
-import { PARAMS, type StrategyParams } from "@/lib/data/strategy";
+import { PARAMS, PRESETS, type PresetKey, type StrategyParams } from "@/lib/data/strategy";
 import { TABLES } from "@/lib/data/tables";
 import { shuffle } from "@/lib/poker/deck";
 import { mixSeed } from "@/lib/poker/fairness";
@@ -10,6 +10,8 @@ export type PlayRequest = {
   handId: string;
   tableId: string;
   params: StrategyParams;
+  /** Which preset the params came from (labels tested agents; not used to play). */
+  preset?: PresetKey;
   /** The agent's stack going into the hand; the house sits with the same. */
   stack: number;
   button: Seat;
@@ -36,7 +38,16 @@ export function parsePlayRequest(body: unknown): PlayRequest | string {
     if (typeof v !== "number" || !(v >= 0 && v <= 100)) return `Invalid ${key}`;
     params[key] = v;
   }
-  return { handId: b.handId, tableId: b.tableId, params, stack: b.stack, button: b.button, playerSeed: b.playerSeed };
+  const preset = PRESETS.find((x) => x.key === b.preset)?.key;
+  return {
+    handId: b.handId,
+    tableId: b.tableId,
+    params,
+    ...(preset ? { preset } : {}),
+    stack: b.stack,
+    button: b.button,
+    playerSeed: b.playerSeed,
+  };
 }
 
 /** Play a committed hand to the end. The house is the practice bot (no model) on practice tables. */
@@ -67,7 +78,7 @@ export async function playHand(
     s = apply(s, d.action);
   }
 
-  return toRecord(s, {
+  const record = toRecord(s, {
     id: req.handId,
     table: table.name,
     reasons,
@@ -75,4 +86,11 @@ export async function playHand(
     opponent: practice ? "practice bot" : "house agent",
     proof: { seed: deal.seed, commitment: deal.commitment, playerSeed: req.playerSeed, hole: s.hole, board: s.board },
   });
+  return {
+    ...record,
+    mode: practice ? "practice" : "real",
+    tableId: table.id,
+    agent: { ...(req.preset ? { preset: req.preset } : {}), params: req.params },
+    at: Date.now(),
+  };
 }
