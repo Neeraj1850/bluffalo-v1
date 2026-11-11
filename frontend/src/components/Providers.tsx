@@ -10,8 +10,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <MotionConfig reducedMotion="user">
       <AuthProvider>
         <SetupProvider>
-          <SessionLink />
-          {children}
+          <SessionLink>{children}</SessionLink>
         </SetupProvider>
       </AuthProvider>
     </MotionConfig>
