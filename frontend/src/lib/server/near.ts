@@ -23,6 +23,8 @@ export class ChainError extends Error {
   constructor(cause?: unknown) {
     super(CHAIN_DOWN_MESSAGE, { cause });
     this.name = "ChainError";
+    // The player sees a generic message; operators need the real reason.
+    if (process.env.NODE_ENV !== "test") console.error("[near]", cause instanceof Error ? cause.message : cause);
   }
 }
 
@@ -193,4 +195,188 @@ const ACCOUNT_ID = /^(([a-z\d]+[-_])*[a-z\d]+\.)*([a-z\d]+[-_])*[a-z\d]+$/;
 /** A valid NEAR account id: named (you.testnet) or implicit (64 hex). */
 export function isAccountId(id: unknown): id is string {
   return typeof id === "string" && id.length >= 2 && id.length <= 64 && ACCOUNT_ID.test(id);
+}
+
+// ----- Player deposit wallets ---------------------------------------------
+
+/**
+ * Kept back in every deposit wallet: its storage (~0.002 NEAR for an implicit
+ * account with one key) plus prepaid gas for its own deposits and withdrawals.
+ */
+// Kept back for storage and gas: NEAR checks the balance against prepaid gas at a pessimistic
+// price (~0.01 NEAR for a 10 Tgas call), so the reserve must cover more than the gas burnt.
+export const WALLET_RESERVE = 15n * 10n ** 21n; // 0.015 NEAR
+/** Gas an operator createAgentAccount + a wallet deposit_for burn, together, with headroom. */
+export const DEPLOY_GAS = 10_000_000_000_000n; // 10 Tgas
+
+/**
+ * A new custodial deposit wallet: an ed25519 keypair whose implicit account id
+ * is the hex of its public key. No transaction — the account comes into being
+ * the first time someone sends NEAR to it. The key must never reach a browser.
+ */
+export function createWallet(): { accountId: string; privateKey: string } {
+  const key = KeyPair.fromRandom("ed25519");
+  const accountId = Buffer.from(key.getPublicKey().data).toString("hex");
+  return { accountId, privateKey: key.toString() };
+}
+
+/** What a wallet can spend, in yoctoNEAR: its balance less the reserve. 0 if it was never funded. */
+export async function walletBalanceYocto(accountId: string): Promise<bigint> {
+  const { account } = operator();
+  try {
+    const view = await account.provider.viewAccount({ accountId });
+    const available = BigInt(view.amount) - WALLET_RESERVE;
+    return available > 0n ? available : 0n;
+  } catch (e) {
+    if ((e as Error)?.name === "AccountDoesNotExistError") return 0n;
+    throw new ChainError(e);
+  }
+}
+
+function walletAccount(wallet: string, key: string) {
+  return new Account(wallet, operator().account.provider, key as KeyPairString);
+}
+
+/** The wallet funds an agent's playing balance in the contract (table NEAR). Returns the tx hash. */
+export async function depositFromWallet(wallet: string, key: string, agent: string, amount: number): Promise<string> {
+  const { contract } = operator();
+  try {
+    const res = await walletAccount(wallet, key).callFunctionRaw({
+      contractId: contract,
+      methodName: "deposit_for",
+      args: { account_id: agent },
+      deposit: toYocto(amount),
+      gas: DEPLOY_GAS,
+      waitUntil: WAIT,
+    });
+    return res.transaction.hash;
+  } catch (e) {
+    throw new ChainError(e);
+  }
+}
+
+/**
+ * Operator seeds a deposit wallet with testnet NEAR, creating the implicit
+ * account on first transfer. A testnet-only faucet for players without tokens.
+ * Returns the tx hash.
+ */
+export async function fundFromOperator(receiver: string, yocto: bigint): Promise<string> {
+  const { account } = operator();
+  try {
+    const res = await account.signAndSendTransaction({
+      receiverId: receiver,
+      actions: [actions.transfer(yocto)],
+      waitUntil: WAIT,
+    });
+    return res.transaction.hash;
+  } catch (e) {
+    throw new ChainError(e);
+  }
+}
+
+/** Plain NEAR transfer out of a wallet (yoctoNEAR). Returns the tx hash. */
+export async function sendFromWallet(wallet: string, key: string, receiver: string, yocto: bigint): Promise<string> {
+  try {
+    const res = await walletAccount(wallet, key).signAndSendTransaction({
+      receiverId: receiver,
+      actions: [actions.transfer(yocto)],
+      waitUntil: WAIT,
+    });
+    return res.transaction.hash;
+  } catch (e) {
+    throw new ChainError(e);
+  }
+}
+
+/** The network's current gas price, in yoctoNEAR per gas unit. */
+export async function gasPriceYocto(): Promise<bigint> {
+  const { account } = operator();
+  try {
+    const res = await (account.provider as JsonRpcProvider).viewGasPrice();
+    return BigInt(res.gas_price);
+  } catch (e) {
+    throw new ChainError(e);
+  }
+}
+
+export type ChainHand = {
+  player: string;
+  commitment: string;
+  status: "Committed" | "Settled" | "Cancelled";
+  server_seed: string | null;
+  player_seed: string | null;
+};
+
+/** A hand's on-chain record (commitment, status, revealed seeds), or null if the contract has none. */
+export async function getHand(handId: string): Promise<ChainHand | null> {
+  const { account, contract } = operator();
+  try {
+    const raw = await account.provider.callFunction({ contractId: contract, method: "get_hand", args: { hand_id: handId } });
+    return (raw as ChainHand | null | undefined) ?? null;
+  } catch (e) {
+    throw new ChainError(e);
+  }
+}
+
+// ----- House treasury -----------------------------------------------------
+
+/** House money in the contract, exactly, in yoctoNEAR. */
+export async function houseBalanceYocto(): Promise<bigint> {
+  const { account, contract } = operator();
+  try {
+    const raw = await account.provider.callFunction({ contractId: contract, method: "house_balance", args: {} });
+    return BigInt(String(raw ?? "0"));
+  } catch (e) {
+    throw new ChainError(e);
+  }
+}
+
+/** House money in the contract (table NEAR). */
+export async function houseBalance(): Promise<number> {
+  return fromYocto(await houseBalanceYocto());
+}
+
+/** The operator account's own NEAR (pays gas and funds agent accounts), in yoctoNEAR. */
+export async function operatorBalanceYocto(): Promise<bigint> {
+  const { account, operatorId } = operator();
+  try {
+    const view = await account.provider.viewAccount({ accountId: operatorId });
+    return BigInt(view.amount);
+  } catch (e) {
+    throw new ChainError(e);
+  }
+}
+
+/** The deployed contract predates a method we called (e.g. `withdraw_house`). */
+export class ContractOutdatedError extends Error {
+  constructor(readonly method: string) {
+    super(`The deployed contract has no ${method} method`);
+    this.name = "ContractOutdatedError";
+  }
+}
+
+function isMethodNotFound(e: unknown): boolean {
+  for (let x: unknown = e, i = 0; x && i < 5; x = (x as { cause?: unknown }).cause, i++) {
+    const err = x as Error;
+    if (err.name === "ContractMethodNotFoundError" || /MethodNotFound/.test(String(err.message ?? ""))) return true;
+  }
+  return false;
+}
+
+/** Move `amount` yoctoNEAR of house profit from the contract to the operator. Returns the tx hash. */
+export async function withdrawHouse(amount: bigint): Promise<string> {
+  const { account, contract } = operator();
+  try {
+    const res = await account.callFunctionRaw({
+      contractId: contract,
+      methodName: "withdraw_house",
+      args: { amount: amount.toString() },
+      gas: GAS,
+      waitUntil: WAIT,
+    });
+    return res.transaction.hash;
+  } catch (e) {
+    if (isMethodNotFound(e)) throw new ContractOutdatedError("withdraw_house");
+    throw new ChainError(e);
+  }
 }

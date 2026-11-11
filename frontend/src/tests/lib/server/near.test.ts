@@ -165,3 +165,24 @@ describe("isAccountId", () => {
     expect(near.isAccountId(id)).toBe(false);
   });
 });
+
+describe("house treasury", () => {
+  it("reads the house balance from the contract", async () => {
+    callFunction.mockResolvedValueOnce("5000000000000000000000000");
+    expect(await near.houseBalance()).toBe(5000);
+    expect(callFunction).toHaveBeenCalledWith(expect.objectContaining({ method: "house_balance" }));
+  });
+
+  it("calls withdraw_house as the operator for the exact amount", async () => {
+    expect(await near.withdrawHouse(7n)).toBe("TX1");
+    expect(callFunctionRaw).toHaveBeenCalledWith(expect.objectContaining({ methodName: "withdraw_house", args: { amount: "7" } }));
+  });
+
+  it("tells an outdated contract from an outage", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    callFunctionRaw.mockRejectedValueOnce(Object.assign(new Error("x"), { name: "ContractMethodNotFoundError" }));
+    await expect(near.withdrawHouse(1n)).rejects.toBeInstanceOf(near.ContractOutdatedError);
+    callFunctionRaw.mockRejectedValueOnce(new Error("timeout"));
+    await expect(near.withdrawHouse(1n)).rejects.toBeInstanceOf(near.ChainError);
+  });
+});
