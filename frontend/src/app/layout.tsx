@@ -6,8 +6,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "Near Poker Agent — play the house.",
-    template: "%s · Near Poker Agent",
+    default: "Bluffalo — play the house.",
+    template: "%s · Bluffalo",
   },
   description: "AI poker agent with real stakes. Provably fair. Cross-chain.",
 };

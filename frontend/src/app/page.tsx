@@ -13,7 +13,7 @@ export default function ConnectPage() {
           distance={8}
           className="flex items-center justify-between font-mono text-[11px] uppercase tracking-[0.24em] text-muted lg:text-[12px]"
         >
-          <span>Near Poker Agent</span>
+          <span>Bluffalo</span>
           <span aria-hidden="true" className="lg:hidden">
             {SUITS}
           </span>

@@ -20,5 +20,5 @@ COPY --from=build --chown=app:app /app/.next/standalone ./
 COPY --from=build --chown=app:app /app/.next/static ./.next/static
 USER app
 EXPOSE 3000
-# Server-only secrets (GROQ_API_KEY, BACKEND_URL, BACKEND_TOKEN, PRIVY_APP_SECRET) come from the environment at run time.
+# Server-only secrets (NEAR_AI_API_KEY, BACKEND_URL, BACKEND_TOKEN, PRIVY_APP_SECRET) come from the environment at run time.
 CMD ["node", "server.js"]

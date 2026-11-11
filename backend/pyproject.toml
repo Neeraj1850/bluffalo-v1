@@ -1,7 +1,7 @@
 [project]
 name = "near-poker-backend"
 version = "0.1.0"
-description = "Storage service for NEAR Poker Agent: sessions, deal commitments, hands."
+description = "Storage service for Bluffalo: sessions, deal commitments, hands."
 requires-python = ">=3.13"
 dependencies = [
     "alembic>=1.20.1",
