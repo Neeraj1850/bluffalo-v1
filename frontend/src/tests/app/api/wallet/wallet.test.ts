@@ -18,6 +18,7 @@ const chain = vi.hoisted(() => ({
   balanceYocto: vi.fn(),
   withdrawTo: vi.fn(),
   houseBalance: vi.fn(),
+  operatorBalanceYocto: vi.fn(),
 }));
 vi.mock("@/lib/server/near", async (orig) => ({
   ...(await orig<object>()),
@@ -98,17 +99,50 @@ describe("GET /api/wallet", () => {
 });
 
 describe("POST /api/wallet/fund", () => {
-  it("seeds an empty wallet from the operator", async () => {
-    chain.accountExists.mockResolvedValueOnce(false); // wallet not created on-chain yet
+  // The faucet's cooldown is wall-clock based: start every case well past it.
+  let clock = Date.parse("2026-11-11T00:00:00Z");
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    clock += 60 * 60_000;
+    vi.setSystemTime(clock);
+    chain.walletBalanceYocto.mockResolvedValue(0n);
+    chain.operatorBalanceYocto.mockResolvedValue(10n ** 25n); // 10 testnet NEAR
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("tops up an empty wallet from the operator", async () => {
     const res = await post(fund, {});
-    expect(await res.json()).toEqual({ tx: "FUND_TX" });
+    expect(await res.json()).toEqual({ tx: "FUND_TX", amount: 100 });
     expect(chain.fundFromOperator).toHaveBeenCalledWith(WALLET, 10n ** 23n);
   });
 
-  it("refuses a wallet that already exists, without sending", async () => {
-    chain.accountExists.mockResolvedValueOnce(true);
+  it("tops up a returning wallet that already exists on-chain but is low", async () => {
+    chain.accountExists.mockResolvedValue(true);
+    chain.walletBalanceYocto.mockResolvedValueOnce(toYocto(3));
+    expect((await post(fund, {})).status).toBe(200);
+  });
+
+  it("refuses a wallet that already has enough GNEAR, saying how much", async () => {
+    chain.walletBalanceYocto.mockResolvedValueOnce(toYocto(85));
     const res = await post(fund, {});
     expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ code: "enough_funds", error: expect.stringContaining("85.00 GNEAR") });
+    expect(chain.fundFromOperator).not.toHaveBeenCalled();
+  });
+
+  it("allows one top-up per cooldown, then points to the public faucet", async () => {
+    expect((await post(fund, {})).status).toBe(200);
+    const again = await post(fund, {});
+    expect(again.status).toBe(429);
+    expect(await again.json()).toMatchObject({ code: "cooldown" });
+    expect(chain.fundFromOperator).toHaveBeenCalledTimes(1);
+  });
+
+  it("says the faucet is empty instead of draining the operator", async () => {
+    chain.operatorBalanceYocto.mockResolvedValueOnce(10n ** 24n); // exactly the reserve
+    const res = await post(fund, {});
+    expect(res.status).toBe(503);
+    expect(await res.json()).toMatchObject({ code: "faucet_empty" });
     expect(chain.fundFromOperator).not.toHaveBeenCalled();
   });
 
@@ -116,12 +150,12 @@ describe("POST /api/wallet/fund", () => {
     expect((await post(fund, {}, GUEST)).status).toBe(401);
   });
 
-  it("answers 503 chain_down when testnet fails", async () => {
-    chain.accountExists.mockResolvedValueOnce(false);
+  it("answers 503 chain_down when testnet fails, and doesn't start the cooldown", async () => {
     chain.fundFromOperator.mockRejectedValueOnce(new ChainError());
     const res = await post(fund, {});
     expect(res.status).toBe(503);
     expect((await res.json()).code).toBe("chain_down");
+    expect((await post(fund, {})).status).toBe(200);
   });
 });
 

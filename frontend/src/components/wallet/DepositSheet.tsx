@@ -9,7 +9,7 @@ import { ThinkingDots } from "@/components/ui/ThinkingDots";
 import { cn } from "@/lib/cn";
 import { spring } from "@/lib/motion";
 import { useWallet } from "@/lib/store/useWallet";
-import { depositReceived, FAUCET_URL, TABLE_PER_TESTNET, toTestnet, withdrawProblem } from "@/lib/wallet";
+import { depositReceived, FAUCET_LOW_GNEAR, FAUCET_URL, TABLE_PER_TESTNET, toTestnet, withdrawProblem } from "@/lib/wallet";
 import { addressUrl, fundWallet, txUrl, withdrawFromWallet } from "@/services/agentApi";
 
 export type WalletTab = "deposit" | "withdraw";
@@ -160,10 +160,10 @@ export function DepositPanel({ open }: { open: boolean }) {
         )}
       </div>
 
-      {wallet && balance === 0 && (
+      {wallet && balance !== null && balance < FAUCET_LOW_GNEAR && (
         <div className="flex flex-col gap-1.5">
           <Button onClick={fund} pending={funding.pending} pendingLabel="Sending testnet NEAR…">
-            Fund my wallet with testnet NEAR
+            {balance === 0 ? "Fund my wallet with testnet NEAR" : "Top up my wallet with testnet NEAR"}
           </Button>
           {funding.error && (
             <p role="alert" className="text-[13px] text-muted">
@@ -171,7 +171,7 @@ export function DepositPanel({ open }: { open: boolean }) {
             </p>
           )}
           <span className="text-[12px] text-muted">
-            We’ll send {0.1 * TABLE_PER_TESTNET} GNEAR to play with — once, while your wallet is empty.
+            We’ll send {0.1 * TABLE_PER_TESTNET} GNEAR to play with whenever you’re under {FAUCET_LOW_GNEAR} GNEAR.
           </span>
         </div>
       )}

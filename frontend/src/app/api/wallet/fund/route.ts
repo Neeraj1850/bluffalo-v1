@@ -1,30 +1,52 @@
 import { NextResponse } from "next/server";
-import { accountExists, ChainError, fundFromOperator } from "@/lib/server/near";
+import { ChainError, fromYocto, fundFromOperator, operatorBalanceYocto, walletBalanceYocto } from "@/lib/server/near";
+import { FAUCET_LOW_GNEAR as LOW_GNEAR } from "@/lib/wallet";
 import { ensureSessionWallet, sessionFrom, sessionUser, withSession } from "@/lib/server/sessions";
 
 /**
- * Testnet faucet: the operator seeds the player's empty deposit wallet with a
- * little NEAR so they can play without finding tokens elsewhere. Only for a
- * wallet that doesn't exist on-chain yet, so it can't be milked by repeat calls.
+ * Testnet faucet: the operator tops up a player's deposit wallet so they can
+ * play without finding tokens elsewhere. Any wallet below LOW qualifies — new
+ * or returning — with a per-session cooldown so it can't be milked in a loop.
  */
-// ponytail: fixed one-off top-up of an empty wallet. A player who withdraws can
-// trigger it again; fine on testnet. Track "funded once" per session if the operator drains.
-const FUND_YOCTO = 10n ** 23n; // 0.1 testnet NEAR = 100 table NEAR
+const FUND_YOCTO = 10n ** 23n; // 0.1 testnet NEAR = 100 GNEAR
+/** The operator keeps this much for gas, agent accounts and settling hands. */
+const OPERATOR_RESERVE = 10n ** 24n; // 1 testnet NEAR
+const COOLDOWN_MS = 10 * 60_000;
+
+// ponytail: in-memory cooldown, resets on restart and isn't shared across instances.
+// Move to the session row if the operator gets drained.
+const lastFunded = new Map<string, number>();
 
 export async function POST(request: Request) {
   const session = await sessionFrom(request);
   const reply = (body: unknown, status = 200) => withSession(NextResponse.json(body, { status }), session);
   if (!(await sessionUser(session.id))) return reply({ error: "Sign in to get testnet NEAR" }, 401);
 
+  const since = Date.now() - (lastFunded.get(session.id) ?? 0);
+  if (since < COOLDOWN_MS) {
+    const mins = Math.ceil((COOLDOWN_MS - since) / 60_000);
+    return reply({ error: `You just got a top-up. Try again in ${mins} min, or use the public faucet.`, code: "cooldown" }, 429);
+  }
+
   const wallet = await ensureSessionWallet(session.id);
   try {
-    if (await accountExists(wallet.account)) {
-      return reply({ error: "Your wallet already has testnet NEAR" }, 409);
+    const balance = fromYocto(await walletBalanceYocto(wallet.account));
+    if (balance >= LOW_GNEAR) {
+      return reply(
+        { error: `You already have ${balance.toFixed(2)} GNEAR. The faucet tops up wallets under ${LOW_GNEAR} GNEAR.`, code: "enough_funds" },
+        409,
+      );
+    }
+    if ((await operatorBalanceYocto()) < FUND_YOCTO + OPERATOR_RESERVE) {
+      return reply({ error: "Our faucet is out of testnet NEAR right now. Use the public faucet link below.", code: "faucet_empty" }, 503);
     }
     const tx = await fundFromOperator(wallet.account, FUND_YOCTO);
-    return reply({ tx });
+    lastFunded.set(session.id, Date.now());
+    return reply({ tx, amount: fromYocto(FUND_YOCTO) });
   } catch (e) {
-    if (e instanceof ChainError) return reply({ error: e.message, code: "chain_down" }, 503);
+    if (e instanceof ChainError) {
+      return reply({ error: "The faucet couldn't reach NEAR testnet. Try again in a minute, or use the public faucet.", code: "chain_down" }, 503);
+    }
     throw e;
   }
 }

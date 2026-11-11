@@ -1,5 +1,7 @@
 /** 1 table NEAR = 0.001 testnet NEAR. */
 export const TABLE_PER_TESTNET = 1000;
+/** The in-app faucet tops up wallets holding less than this (GNEAR) — below any buy-in. */
+export const FAUCET_LOW_GNEAR = 10;
 
 export const FAUCET_URL = "https://near-faucet.io/";
 
