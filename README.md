@@ -133,6 +133,11 @@ npm run dev
 Agent decisions use [NEAR AI Cloud](https://cloud.near.ai) (TEE-attested models, OpenAI-compatible). If NEAR AI is
 unavailable (no key, rate limit, outage) the hand stops and the app says the agent service is down — it never swaps in a different strategy.
 
+The Results screen verifies the TEE live: it runs a fresh completion and checks the response signature recovers to a
+signer the model's hardware attestation vouches for (`GET /api/verify`, `lib/server/nearaiAttest.ts`) — proving the model,
+not the host, produced and signed the inference. The full hardware quote (Intel TDX / NVIDIA GPU) is checked at NEAR's
+[Verification Center](https://cloud.near.ai/verify). Deal fairness is separate: commit-reveal, verified on-chain.
+
 ## Smart contract
 
 `contracts/poker` (Rust, near-sdk 5) holds the money and makes every hand auditable; the game and the AI stay off-chain.
