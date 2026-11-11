@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { Wallet } from "ethers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { verifyModel } from "@/lib/server/nearaiAttest";
+import { verifyChat, verifyModel } from "@/lib/server/nearaiAttest";
 
 const sha = (s: string) => createHash("sha256").update(s, "utf8").digest("hex");
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
@@ -73,5 +73,47 @@ describe("verifyModel", () => {
     const att = await verifyModel(MODEL, { fetch: fakeCloud(), sleep: noSleep });
     expect(att.verified).toBe(false);
     expect(att.detail).toMatch(/NEAR_AI_API_KEY/);
+  });
+});
+
+/** The attestation report vouches for a signer; the signature is over that chat's text. */
+function sigCloud({ signWith = wallet as Signer, attested = true } = {}) {
+  return vi.fn<typeof fetch>(async (url) => {
+    const u = String(url);
+    if (u.includes("/attestation/report")) {
+      return json({ model_attestations: attested ? [{ signing_address: wallet.address }] : [] });
+    }
+    if (u.includes("/signature/")) {
+      const text = `${MODEL}:${sha("req")}:${sha("resp")}`;
+      return json({ text, signature: await signWith.signMessage(text), signing_address: signWith.address, signature_kind: "provider_tee" });
+    }
+    throw new Error(`unexpected ${u}`);
+  });
+}
+
+describe("verifyChat", () => {
+  beforeEach(() => vi.stubEnv("NEAR_AI_API_KEY", "test-key"));
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("verifies a past decision signed by an attested TEE signer", async () => {
+    const att = await verifyChat("chatcmpl-1", MODEL, { fetch: sigCloud(), sleep: noSleep });
+    expect(att.verified).toBe(true);
+    expect(att.chatId).toBe("chatcmpl-1");
+    expect(att.signer).toBe(wallet.address.toLowerCase());
+    expect(att.signedResponseHash).toBe(sha("resp"));
+  });
+
+  it("rejects a signer the attestation does not vouch for", async () => {
+    const att = await verifyChat("chatcmpl-1", MODEL, { fetch: sigCloud({ signWith: Wallet.createRandom() }), sleep: noSleep });
+    expect(att.verified).toBe(false);
+    expect(att.detail).toMatch(/attested/);
+  });
+
+  it("reports when the decision has no published signature", async () => {
+    const f: typeof fetch = async (url) =>
+      String(url).includes("/signature/") ? new Response("{}", { status: 404 }) : json({ model_attestations: [] });
+    const att = await verifyChat("chatcmpl-x", MODEL, { fetch: f, sleep: noSleep });
+    expect(att.verified).toBe(false);
+    expect(att.detail).toMatch(/signature/);
   });
 });

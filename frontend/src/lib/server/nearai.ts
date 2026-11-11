@@ -40,14 +40,22 @@ type Options = {
 const RETRYABLE = new Set([429, 500, 502, 503]);
 
 /** One JSON-mode completion, parsed. Retries rate limits and server errors with backoff. */
-export async function chatJson<T = unknown>({
+export async function chatJson<T = unknown>(opts: Options): Promise<T> {
+  return (await chatJsonId<T>(opts)).value;
+}
+
+/**
+ * Like `chatJson`, but also returns the completion `id` — the chat id NEAR AI
+ * signs, so a decision can later be checked against the model's TEE attestation.
+ */
+export async function chatJsonId<T = unknown>({
   model,
   messages,
   maxTokens = 400,
   retries = 2,
   fetch: f = fetch,
   sleep = (ms) => new Promise((r) => setTimeout(r, ms)),
-}: Options): Promise<T> {
+}: Options): Promise<{ value: T; id: string }> {
   const key = process.env.NEAR_AI_API_KEY;
   if (!key) throw new NearAiError("NEAR_AI_API_KEY is not set", 401);
 
@@ -68,7 +76,7 @@ export async function chatJson<T = unknown>({
       const data = await res.json();
       const content = data?.choices?.[0]?.message?.content;
       try {
-        return JSON.parse(content) as T;
+        return { value: JSON.parse(content) as T, id: String(data?.id ?? "") };
       } catch {
         throw new NearAiError("Model returned invalid JSON", 422);
       }

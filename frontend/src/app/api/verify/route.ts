@@ -14,7 +14,7 @@ export async function GET(): Promise<Response> {
       verified: false,
       model: MODELS.agent,
       detail: "NEAR AI attestation service is unreachable",
-      verifyUrl: "https://cloud.near.ai/verify",
+      verifyUrl: `https://cloud.near.ai/verify?model=${encodeURIComponent(MODELS.agent)}`,
     };
     return Response.json(body, { status: 200 });
   }
