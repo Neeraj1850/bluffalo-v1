@@ -1,5 +1,6 @@
 import type { NextResponse } from "next/server";
 import { backend } from "./backend";
+import { createWallet } from "./near";
 
 export const SESSION_COOKIE = "np_session";
 const MAX_STATE_BYTES = 16_000;
@@ -99,4 +100,25 @@ export async function sessionByToken(token: string): Promise<TokenSession | null
 
 export async function saveState(id: string, state: Record<string, unknown>) {
   await backend(`/sessions/${id}`, { method: "PUT", body: { state } });
+}
+
+export type Wallet = { account: string; key: string };
+
+/** The player's custodial deposit wallet (account + full-access key). Server-side only. */
+export async function sessionWallet(id: string): Promise<Wallet | null> {
+  const r = await backend<{ account_id: string | null; private_key: string | null }>(`/sessions/${id}/wallet`);
+  return r?.account_id && r.private_key ? { account: r.account_id, key: r.private_key } : null;
+}
+
+export async function setSessionWallet(id: string, accountId: string, privateKey: string) {
+  await backend(`/sessions/${id}/wallet`, { method: "PUT", body: { account_id: accountId, private_key: privateKey } });
+}
+
+/** The session's wallet, creating and storing a fresh one on first use. */
+export async function ensureSessionWallet(id: string): Promise<Wallet> {
+  const existing = await sessionWallet(id);
+  if (existing) return existing;
+  const { accountId, privateKey } = createWallet();
+  await setSessionWallet(id, accountId, privateKey);
+  return { account: accountId, key: privateKey };
 }

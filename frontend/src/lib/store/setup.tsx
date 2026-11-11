@@ -28,8 +28,6 @@ import { defaultBuyIn, DEFAULT_TABLE_ID, getTable } from "@/lib/data/tables";
  * new tab doesn't lose it.
  */
 export type SetupState = {
-  /** Demo starting balance until the account service is wired. */
-  balance: number;
   tableId: string;
   preset: PresetKey;
   params: StrategyParams;
@@ -42,13 +40,19 @@ export type SetupState = {
 const SAVE_DEBOUNCE_MS = 300;
 
 const initialState: SetupState = {
-  balance: 120,
   tableId: DEFAULT_TABLE_ID,
   preset: DEFAULT_PRESET,
   params: { ...getPreset(DEFAULT_PRESET).params! },
   limits: { ...DEFAULT_LIMITS },
   agent: { status: "idle" },
 };
+
+/** Older saves carry a `balance`; it was never real, so drop it. */
+export function fromSaved(saved: unknown): SetupState {
+  const { balance: _stale, ...rest } = (saved ?? {}) as Partial<SetupState> & { balance?: unknown };
+  void _stale;
+  return { ...initialState, ...rest };
+}
 
 type SetupContextValue = SetupState & {
   hydrated: boolean;
@@ -61,10 +65,9 @@ type SetupContextValue = SetupState & {
   choosePreset: (key: PresetKey) => void;
   setParam: (key: ParamKey, value: number) => void;
   setLimit: (key: LimitKey, value: number) => void;
-  markDeployed: (account: string) => void;
-  stopAgent: (returnedStack?: number) => void;
-  /** Funds confirmed as sent out of the app: agent stack first, then balance. */
-  withdraw: (source: "agent" | "balance", amount: number) => void;
+  markDeployed: (account: string, buyIn?: number) => void;
+  /** The agent left the table. Its funds are on chain; see useWallet/useAgent. */
+  stopAgent: () => void;
 };
 
 const SetupContext = createContext<SetupContextValue | null>(null);
@@ -80,7 +83,7 @@ export function SetupProvider({ children }: { children: ReactNode }) {
     fetch("/api/session")
       .then((r) => (r.ok ? r.json() : { state: {} }))
       .then(({ state: saved }) => {
-        if (!adopted.current) setState({ ...initialState, ...(saved as Partial<SetupState>) });
+        if (!adopted.current) setState(fromSaved(saved));
       })
       .catch(() => {
         // Server unreachable: start fresh; saving retries on the next change.
@@ -107,7 +110,7 @@ export function SetupProvider({ children }: { children: ReactNode }) {
 
   const adopt = useCallback((saved: Partial<SetupState>) => {
     adopted.current = true;
-    setState({ ...initialState, ...saved });
+    setState(fromSaved(saved));
     setHydrated(true);
   }, []);
   const reset = useCallback(() => setState(initialState), []);
@@ -130,38 +133,22 @@ export function SetupProvider({ children }: { children: ReactNode }) {
     [],
   );
   const markDeployed = useCallback(
-    (account: string) =>
+    (account: string, buyIn?: number) =>
       setState((s) => ({
         ...s,
-        balance: s.balance - defaultBuyIn(getTable(s.tableId)),
         agent: {
           status: "deployed",
           account,
-          buyIn: defaultBuyIn(getTable(s.tableId)),
+          buyIn: buyIn ?? defaultBuyIn(getTable(s.tableId)),
           tableId: s.tableId,
           at: Date.now(),
         },
       })),
     [],
   );
-  /** Agent leaves the table; whatever stack it has left returns to the playing balance. */
+  /** Agent leaves the table. Balances live on chain, so nothing to adjust here. */
   const stopAgent = useCallback(
-    (returnedStack = 0) =>
-      setState((s) =>
-        s.agent.status === "deployed"
-          ? { ...s, balance: s.balance + returnedStack, agent: { status: "idle" } }
-          : s,
-      ),
-    [],
-  );
-
-  const withdraw = useCallback(
-    (source: "agent" | "balance", amount: number) =>
-      setState((s) =>
-        source === "agent"
-          ? { ...s, agent: { status: "idle" } }
-          : { ...s, balance: Math.max(0, s.balance - amount) },
-      ),
+    () => setState((s) => (s.agent.status === "deployed" ? { ...s, agent: { status: "idle" } } : s)),
     [],
   );
 
@@ -178,9 +165,8 @@ export function SetupProvider({ children }: { children: ReactNode }) {
       setLimit,
       markDeployed,
       stopAgent,
-      withdraw,
     }),
-    [state, hydrated, buyIn, adopt, reset, selectTable, choosePreset, setParam, setLimit, markDeployed, stopAgent, withdraw],
+    [state, hydrated, buyIn, adopt, reset, selectTable, choosePreset, setParam, setLimit, markDeployed, stopAgent],
   );
 
   return <SetupContext.Provider value={value}>{children}</SetupContext.Provider>;

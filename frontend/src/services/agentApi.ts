@@ -4,9 +4,9 @@ import type { LiveHand } from "@/lib/poker/record";
 
 /**
  * The frontend talks to the agent backend only through this interface.
- * `mockAgentApi` stands in until the real service exists — swap the export
- * at the bottom of this file. Each step that moves money has its own call
- * and its own state, so the UI can never show "confirmed" for a quote.
+ * Every call hits the real server (NEAR testnet). Each step that moves money
+ * has its own call and its own state, so the UI can never show "confirmed"
+ * for a quote.
  */
 
 export type DeployRequest = {
@@ -17,11 +17,26 @@ export type DeployRequest = {
   limits: Limits;
 };
 
-export type FeeQuote = { fee: number; currency: "NEAR"; expiresAt: number };
+/** `buyIn` is what the server will move from the wallet to the agent (table NEAR). */
+export type FeeQuote = {
+  fee: number;
+  currency: "NEAR";
+  expiresAt: number;
+  buyIn: number;
+  /** Flat table fee charged at deploy (TABLE_FEE_PCT of the buy-in). */
+  tableFee?: number;
+  /** Most the house will take as a buy-in right now (exposure cap). */
+  maxBuyIn?: number;
+};
 
 export type DeployResult = {
   /** The agent's own account that now holds the buy-in. */
   agentAccount: string;
+  depositTx?: string;
+  buyIn?: number;
+  tableFee?: number;
+  /** The table-fee transfer to the treasury (null if it couldn't be charged). */
+  feeTx?: string | null;
   confirmedAt: number;
 };
 
@@ -53,6 +68,8 @@ export class ApiError extends Error {
     message: string,
     /** Whether any funds moved. The UI must say so either way. */
     readonly fundsMoved: boolean,
+    /** Machine-readable reason from the server, e.g. "insufficient_funds". */
+    readonly code?: string,
   ) {
     super(message);
     this.name = "ApiError";
@@ -121,88 +138,93 @@ export async function fetchAttestation(f: typeof fetch = fetch): Promise<Attesta
   }
 }
 
-// ---------------------------------------------------------------------------
-// Mock implementation — demo only. Add ?fail=deploy, ?fail=quote,
-// ?fail=cashout or ?verify=pending|unavailable to the URL to try other paths.
-// ---------------------------------------------------------------------------
-
-const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-function flag(name: string): string | null {
-  if (typeof window === "undefined") return null;
-  return new URLSearchParams(window.location.search).get(name);
+async function getJson<T>(f: typeof fetch, url: string): Promise<T> {
+  const res = await f(url);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`);
+  return data as T;
 }
 
-const cashouts = new Map<string, number>();
+/** Network fee and server-set buy-in for a table. */
+export function getFeeQuote(req: Pick<DeployRequest, "tableId">, f: typeof fetch = fetch): Promise<FeeQuote> {
+  return getJson<FeeQuote>(f, `/api/agent/quote?tableId=${encodeURIComponent(req.tableId)}`);
+}
 
-export const mockAgentApi: AgentApi = {
-  async getFeeQuote() {
-    await wait(900);
-    if (flag("fail") === "quote") throw new ApiError("Fee quote unavailable", false);
-    // On testnet the operator funds the agent account and its gas — the player pays nothing.
-    return { fee: 0, currency: "NEAR", expiresAt: Date.now() + 60_000 };
-  },
-
-  async deployAgent() {
-    await wait(1800);
-    if (flag("fail") === "deploy") {
-      throw new ApiError("The network didn’t accept the request.", false);
-    }
-    return { agentAccount: "agent-7f3a.poker.near", confirmedAt: Date.now() };
-  },
-
-  async getVerification() {
-    await wait(1200);
-    const v = flag("verify");
-    if (v === "pending" || v === "unavailable") return v;
-    return "verified";
-  },
-
-  async getCashoutQuote(receiver) {
-    await wait(800);
-    return {
-      id: receiver,
-      send: 50,
-      fee: 0.001,
-      receive: 49.999,
-      receiveAsset: "NEAR",
-      expiresAt: Date.now() + 30_000,
-    };
-  },
-
-  async submitCashout() {
-    await wait(1200);
-    if (flag("fail") === "cashout") {
-      throw new ApiError("The transfer couldn’t be submitted.", false);
-    }
-    const id = `co_${Date.now()}`;
-    cashouts.set(id, Date.now());
-    return { id };
-  },
-
-  async getCashoutStatus(id) {
-    await wait(600);
-    const started = cashouts.get(id);
-    if (!started) return "failed";
-    return Date.now() - started > 1800 ? "confirmed" : "submitted";
-  },
-};
-
-/** Real today: a funded NEAR testnet sub-account for the agent. */
-export async function deployAgent(req: DeployRequest, f: typeof fetch = fetch): Promise<DeployResult> {
+/** Moves the buy-in from the player's wallet to a new agent account on NEAR testnet. */
+export async function deployAgent(req: Pick<DeployRequest, "tableId">, f: typeof fetch = fetch): Promise<DeployResult> {
   const res = await f("/api/agent/deploy", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ tableId: req.tableId }),
   });
   const data = await res.json().catch(() => ({}));
-  // The player's own money never moves here — the testnet operator funds the agent.
-  if (!res.ok) throw new ApiError(data.error ?? "The network didn’t accept the request.", false);
-  return { agentAccount: data.agentAccount, confirmedAt: data.confirmedAt };
+  if (!res.ok) {
+    const code = data.code ?? (res.status === 402 ? "insufficient_funds" : undefined);
+    // The server only answers with an error before any transfer is signed.
+    throw new ApiError(data.error ?? "The network didn’t accept the request.", false, code);
+  }
+  return data as DeployResult;
 }
 
+/** Server-side fair-deal check for a hand without a local proof. */
+export async function getVerification(handId: string, f: typeof fetch = fetch): Promise<Verification> {
+  const data = await getJson<{ status: Verification }>(f, `/api/hands/verify?id=${encodeURIComponent(handId)}`);
+  return data.status === "verified" || data.status === "pending" ? data.status : "unavailable";
+}
+
+/** The player's deposit wallet on NEAR testnet and its balance (table NEAR). */
+export type Wallet = { account: string; balance: number };
+
+export class SignedOutError extends Error {
+  constructor() {
+    super("Sign in to see your balance.");
+    this.name = "SignedOutError";
+  }
+}
+
+export async function fetchWallet(f: typeof fetch = fetch): Promise<Wallet> {
+  const res = await f("/api/wallet");
+  if (res.status === 401) throw new SignedOutError();
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`);
+  return data as Wallet;
+}
+
+/** Testnet faucet: have the operator seed an empty deposit wallet with a little NEAR. */
+export function fundWallet(f: typeof fetch = fetch): Promise<{ tx: string }> {
+  return post<{ tx: string }>(f, "/api/wallet/fund");
+}
+
+/** Send wallet funds to a testnet account; omit `amount` to send everything. */
+export function withdrawFromWallet(
+  req: { receiver: string; amount?: number },
+  f: typeof fetch = fetch,
+): Promise<{ tx: string }> {
+  return post<{ tx: string }>(f, "/api/wallet/withdraw", req);
+}
+
+/** Take the agent off the table and return its on-chain balance to the wallet. */
+export function stopAgent(f: typeof fetch = fetch): Promise<{ tx: string; amount: number }> {
+  return post<{ tx: string; amount: number }>(f, "/api/agent/stop");
+}
+
+/** Which real-money tables are open, and their current max buy-in (table NEAR). */
+export type TablesStatus = {
+  tables: { id: string; open: boolean; reason?: string; maxBuyIn: number }[];
+  house: { balance: number };
+};
+
+export function fetchTables(f: typeof fetch = fetch): Promise<TablesStatus> {
+  return getJson<TablesStatus>(f, "/api/tables");
+}
+
+export const txUrl = (tx: string) => `https://testnet.nearblocks.io/txns/${tx}`;
+export const addressUrl = (account: string) => `https://testnet.nearblocks.io/address/${account}`;
+
 /** The agent's account and real balance in the contract (table NEAR). */
-export async function fetchAgent(f: typeof fetch = fetch): Promise<{ account: string | null; balance: number }> {
+export async function fetchAgent(
+  f: typeof fetch = fetch,
+): Promise<{ account: string | null; balance: number; inHand?: boolean }> {
   const res = await f("/api/agent");
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`);
@@ -229,5 +251,9 @@ export const testnetCashout = {
   },
 };
 
-// Fee quotes and verification are still mocked; deploying and cash-out are real (testnet).
-export const agentApi: AgentApi = { ...mockAgentApi, deployAgent: (req) => deployAgent(req), ...testnetCashout };
+export const agentApi: AgentApi = {
+  getFeeQuote: (req) => getFeeQuote(req),
+  deployAgent: (req) => deployAgent(req),
+  getVerification: (id) => getVerification(id),
+  ...testnetCashout,
+};

@@ -42,7 +42,7 @@ export const TABLES: PokerTable[] = [
     buyIn: { min: 20, max: 100 },
     level: 1,
     levelLabel: "Friendly · good first real table",
-    blurb: "The most played table. Friendly stakes for a first real game.",
+    blurb: "Friendly stakes for a first real game.",
     featured: true,
   },
   {

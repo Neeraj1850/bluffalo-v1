@@ -1,6 +1,19 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getPreset } from "@/lib/data/strategy";
-import { ApiError, deployAgent, fetchAgent, fetchHands, fetchLiveHand, testnetCashout } from "@/services/agentApi";
+import {
+  ApiError,
+  deployAgent,
+  fetchAgent,
+  fetchHands,
+  fetchLiveHand,
+  fetchWallet,
+  getFeeQuote,
+  getVerification,
+  SignedOutError,
+  stopAgent,
+  testnetCashout,
+  withdrawFromWallet,
+} from "@/services/agentApi";
 
 const req = { tableId: "back-room", params: getPreset("shark").params!, stack: 50, button: 0 as const };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
@@ -68,6 +81,18 @@ describe("deployAgent", () => {
     await expect(deployAgent(dreq, f)).rejects.toMatchObject({ message: "NEAR testnet isn't reachable right now.", fundsMoved: false });
     await expect(deployAgent(dreq, vi.fn().mockResolvedValue(json({}, 500)))).rejects.toBeInstanceOf(ApiError);
   });
+
+  it("flags a 402 as insufficient funds", async () => {
+    const f = vi.fn().mockResolvedValue(json({ error: "Not enough balance", code: "insufficient_funds" }, 402));
+    await expect(deployAgent(dreq, f)).rejects.toMatchObject({ code: "insufficient_funds", fundsMoved: false });
+    const bare = vi.fn().mockResolvedValue(json({}, 402));
+    await expect(deployAgent(dreq, bare)).rejects.toMatchObject({ code: "insufficient_funds" });
+  });
+
+  it("passes through the deposit tx and buy-in", async () => {
+    const body = { agentAccount: "a1.op.testnet", depositTx: "TX", buyIn: 50, confirmedAt: 2 };
+    expect(await deployAgent(dreq, vi.fn().mockResolvedValue(json(body)))).toEqual(body);
+  });
 });
 
 describe("testnet cash-out", () => {
@@ -98,5 +123,71 @@ describe("fetchAgent", () => {
   it("returns the agent account and on-chain balance", async () => {
     const f = vi.fn().mockResolvedValue(json({ account: "a1.op.testnet", balance: 49 }));
     expect(await fetchAgent(f)).toEqual({ account: "a1.op.testnet", balance: 49 });
+  });
+});
+
+describe("getFeeQuote", () => {
+  it("asks the server for the table's fee and buy-in", async () => {
+    const quote = { fee: 0, currency: "NEAR", expiresAt: 5, buyIn: 50 };
+    const f = vi.fn().mockResolvedValue(json(quote));
+    expect(await getFeeQuote({ tableId: "back room" }, f)).toEqual(quote);
+    expect(f).toHaveBeenCalledWith("/api/agent/quote?tableId=back%20room");
+  });
+
+  it("throws when no quote is available", async () => {
+    await expect(getFeeQuote({ tableId: "x" }, vi.fn().mockResolvedValue(json({ error: "Unknown table" }, 400)))).rejects.toThrow(
+      "Unknown table",
+    );
+  });
+});
+
+describe("getVerification", () => {
+  it("reads the server's status", async () => {
+    const f = vi.fn().mockResolvedValue(json({ status: "verified" }));
+    expect(await getVerification("#ab", f)).toBe("verified");
+    expect(f).toHaveBeenCalledWith("/api/hands/verify?id=%23ab");
+  });
+
+  it("never reports verified for an unknown answer", async () => {
+    expect(await getVerification("#ab", vi.fn().mockResolvedValue(json({ status: "yes" })))).toBe("unavailable");
+    await expect(getVerification("#ab", vi.fn().mockResolvedValue(json({}, 500)))).rejects.toThrow();
+  });
+});
+
+describe("wallet", () => {
+  it("reads the deposit account and balance", async () => {
+    const f = vi.fn().mockResolvedValue(json({ account: "ab".repeat(32), balance: 12.5 }));
+    expect(await fetchWallet(f)).toEqual({ account: "ab".repeat(32), balance: 12.5 });
+    expect(f).toHaveBeenCalledWith("/api/wallet");
+  });
+
+  it("tells signed-out apart from errors", async () => {
+    await expect(fetchWallet(vi.fn().mockResolvedValue(json({}, 401)))).rejects.toBeInstanceOf(SignedOutError);
+    await expect(fetchWallet(vi.fn().mockResolvedValue(json({ error: "RPC down" }, 503)))).rejects.toThrow("RPC down");
+  });
+
+  it("withdraws to a receiver", async () => {
+    const f = vi.fn().mockResolvedValue(json({ tx: "TX1" }));
+    expect(await withdrawFromWallet({ receiver: "you.testnet", amount: 5 }, f)).toEqual({ tx: "TX1" });
+    expect(f.mock.calls[0][0]).toBe("/api/wallet/withdraw");
+    expect(JSON.parse(f.mock.calls[0][1].body)).toEqual({ receiver: "you.testnet", amount: 5 });
+    await expect(withdrawFromWallet({ receiver: "x.testnet" }, vi.fn().mockResolvedValue(json({ error: "Nope" }, 400)))).rejects.toThrow("Nope");
+  });
+
+  it("stops the agent and returns its balance", async () => {
+    const f = vi.fn().mockResolvedValue(json({ tx: "TX2", amount: 48 }));
+    expect(await stopAgent(f)).toEqual({ tx: "TX2", amount: 48 });
+    expect(f.mock.calls[0][0]).toBe("/api/agent/stop");
+    expect(f.mock.calls[0][1].method).toBe("POST");
+  });
+});
+
+describe("fetchTables", () => {
+  it("reads /api/tables", async () => {
+    const { fetchTables } = await import("@/services/agentApi");
+    const body = { tables: [{ id: "back-room", open: true, maxBuyIn: 100 }], house: { balance: 5000 } };
+    const f = vi.fn().mockResolvedValue(new Response(JSON.stringify(body)));
+    expect(await fetchTables(f)).toEqual(body);
+    expect(f).toHaveBeenCalledWith("/api/tables");
   });
 });
