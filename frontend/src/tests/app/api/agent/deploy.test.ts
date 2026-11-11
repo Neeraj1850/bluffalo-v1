@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST } from "@/app/api/agent/deploy/route";
 import { ChainError, toYocto } from "@/lib/server/near";
-import { SESSION_COOKIE, sessionAgent, sessionAgentKey } from "@/lib/server/sessions";
+import { SESSION_COOKIE, sessionAgent, sessionAgentKey, sessionFrom } from "@/lib/server/sessions";
 import { useFakeBackend } from "@/tests/helpers/backend";
 
 const chain = vi.hoisted(() => ({
@@ -51,6 +51,9 @@ describe("POST /api/agent/deploy", () => {
     expect(chain.depositFromWallet).toHaveBeenCalledWith(WALLET, "ed25519:walletkey", "a1b2c3d4.op.testnet", 50);
     expect(await sessionAgent(ME)).toBe("a1b2c3d4.op.testnet");
     expect(await sessionAgentKey(ME)).toBe("ed25519:agentkey");
+    // saved server-side, so a reload right after deploying still opens the live table
+    const { state } = await sessionFrom(new Request("http://x", { headers: { cookie: `${SESSION_COOKIE}=${ME}` } }));
+    expect(state.agent).toMatchObject({ status: "deployed", account: "a1b2c3d4.op.testnet", buyIn: 50, tableId: "back-room" });
   });
 
   it("charges the 2% table fee to the treasury after the agent is funded", async () => {

@@ -11,7 +11,7 @@ import {
   toYocto,
   walletBalanceYocto,
 } from "@/lib/server/near";
-import { sessionFrom, sessionUser, sessionWallet, setSessionAgent, withSession } from "@/lib/server/sessions";
+import { saveState, sessionFrom, sessionUser, sessionWallet, setSessionAgent, withSession } from "@/lib/server/sessions";
 
 /**
  * Deploy an agent for real money: a fresh NEAR testnet sub-account (created by
@@ -45,6 +45,14 @@ export async function POST(request: Request) {
     // The token the player's external agent uses to connect to the MCP server as this agent.
     const mcpToken = newSeed() + newSeed(); // 64 hex
     await setSessionAgent(session.id, agentAccount, privateKey, mcpToken);
+    // Record "deployed" server-side too: the browser's debounced save can be lost
+    // if the player navigates or reloads right away, which put the game in practice mode.
+    const confirmedAt = Date.now();
+    await saveState(session.id, {
+      ...session.state,
+      tableId: table.id,
+      agent: { status: "deployed", account: agentAccount, buyIn, tableId: table.id, at: confirmedAt },
+    });
     // The fee is charged only once the agent holds its buy-in (and is saved). If it
     // fails, the house forgoes it rather than leave the funded agent unrecorded.
     let feeTx: string | null = null;
@@ -53,7 +61,7 @@ export async function POST(request: Request) {
         (err) => (console.error("[deploy] table fee failed", agentAccount, err), null),
       );
     }
-    return reply({ agentAccount, depositTx, buyIn, tableFee, feeTx, mcpToken, confirmedAt: Date.now() });
+    return reply({ agentAccount, depositTx, buyIn, tableFee, feeTx, mcpToken, confirmedAt });
   } catch (e) {
     if (e instanceof ChainError) return reply({ error: e.message, code: "chain_down" }, 503);
     throw e;
