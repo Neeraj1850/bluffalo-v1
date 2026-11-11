@@ -9,9 +9,11 @@ import { cn } from "@/lib/cn";
 import type { HistoryHand } from "@/lib/data/hands";
 import { signed } from "@/lib/format";
 import { spring } from "@/lib/motion";
+import { rakeLabel, rakeOf } from "@/services/houseApi";
 
 type HistoryRowProps = {
-  hand: HistoryHand;
+  /** `net` is after rake; `rake` is what the house kept from the pot. */
+  hand: HistoryHand & { rake?: number };
   expanded: boolean;
   onToggle: () => void;
   /** Position in the list, for the entry stagger. */
@@ -61,6 +63,9 @@ export function HistoryRow({ hand, expanded, onToggle, index = 0 }: HistoryRowPr
           >
             {won ? "Won" : "Lost"}
           </span>
+          {rakeOf(hand) > 0 && (
+            <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted">{rakeLabel(rakeOf(hand))}</span>
+          )}
         </span>
       </button>
 

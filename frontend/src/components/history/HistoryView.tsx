@@ -8,11 +8,13 @@ import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 import { MonoLabel } from "@/components/ui/MonoLabel";
 import { Rise } from "@/components/ui/Rise";
 import { cn } from "@/lib/cn";
-import { HISTORY, type HistoryHand } from "@/lib/data/hands";
+import type { HistoryHand } from "@/lib/data/hands";
+import { ButtonLink } from "@/components/ui/Button";
 import { signed } from "@/lib/format";
 import { spring } from "@/lib/motion";
 import { toHistory } from "@/lib/poker/record";
 import { useHands } from "@/lib/store/useHands";
+import { netAfterRake, rakeOf } from "@/services/houseApi";
 import { HistoryRow } from "./HistoryRow";
 
 type Filter = "session" | "week" | "all";
@@ -29,8 +31,8 @@ function inScope(scope: HistoryHand["scope"], filter: Filter) {
 
 export function HistoryView() {
   const played = useHands();
-  // Real hands once the agent has played; the demo archive until then.
-  const archive = played?.length ? played.map(toHistory) : HISTORY;
+  // Only real, recorded hands — never demo data.
+  const archive = played ? played.map((h) => ({ ...toHistory(h), net: netAfterRake(h), rake: rakeOf(h) })) : [];
   const [filter, setFilter] = useState<Filter>("session");
   const [chosen, setOpen] = useState<string | null | undefined>(undefined);
   // Open the newest hand until the player picks one (hands load after first render).
@@ -126,6 +128,25 @@ export function HistoryView() {
           </h2>
           <MonoLabel tracking="tight">{hands.length} hands · tap to open</MonoLabel>
         </div>
+        {played === null && <p className="py-4 text-[14px] text-muted">Loading your hands…</p>}
+        {played && archive.length === 0 && (
+          <div className="flex flex-col gap-3 py-4">
+            <p className="text-[15px] text-muted">
+              No real hands yet. Deploy your agent to a real-money table and its hands show up here.
+            </p>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <ButtonLink href="/lobby" size="sm">
+                Pick a table
+              </ButtonLink>
+              <ButtonLink href="/sandbox" variant="secondary" size="sm">
+                Practice first
+              </ButtonLink>
+            </div>
+          </div>
+        )}
+        {played && archive.length > 0 && hands.length === 0 && (
+          <p className="py-4 text-[14px] text-muted">No hands in this range — try “All”.</p>
+        )}
         <ul className="flex flex-col">
           {hands.map((h, i) => (
             <HistoryRow

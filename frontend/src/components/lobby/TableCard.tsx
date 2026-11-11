@@ -6,13 +6,18 @@ import { PlayingCard } from "@/components/cards/PlayingCard";
 import { parseCard } from "@/lib/cards";
 import { blindsLabel, buyInLabel, type PokerTable } from "@/lib/data/tables";
 import { spring } from "@/lib/motion";
+import type { TableStatus } from "@/services/houseApi";
 import { ExperiencePips } from "./ExperiencePips";
 
 type TableCardProps = {
   table: PokerTable;
   onSelect: (id: string) => void;
   href?: string;
+  /** Server status; closed tables render disabled with the reason. */
+  status?: TableStatus;
 };
+
+const HOUSE_TERMS = "5% rake · 2% fee";
 
 const card: Variants = {
   rest: { y: 0, rotate: 0 },
@@ -27,14 +32,34 @@ const peek = (rotate: number): Variants => ({
 const MotionLink = motion.create(Link);
 
 function seatsLabel(t: PokerTable) {
-  return t.seated === null ? "∞ seats" : `${t.seated} / ${t.seats} seated`;
+  // Every hand is heads-up against the house agent; there is no live seat count to show.
+  return t.mode === "practice" ? "vs practice bot" : "heads-up vs house agent";
 }
 
 /**
  * One table in the lobby. The whole card is a single link.
  * Each table gets its own typographic personality — no color involved.
  */
-export function TableCard({ table: t, onSelect, href = "/strategy" }: TableCardProps) {
+export function TableCard({ table: t, onSelect, href = "/strategy", status }: TableCardProps) {
+  if (t.mode === "real" && status && !status.open) {
+    return (
+      <div
+        role="group"
+        aria-disabled="true"
+        aria-label={`${t.name}. Closed${`: ${closedReason(status.reason)}`}.`}
+        className="flex flex-col gap-2 rounded-card border border-dashed border-border p-5 opacity-60"
+      >
+        <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted">Real money · closed</span>
+        <span className="font-display text-[28px] font-medium tracking-[-0.03em]">{t.name}</span>
+        <span className="text-[14px] leading-[1.45] text-muted">
+          {closedReason(status.reason)}
+        </span>
+        <span className="font-mono text-[11px] uppercase text-muted">
+          Blinds {blindsLabel(t)} · {HOUSE_TERMS}
+        </span>
+      </div>
+    );
+  }
   const common = {
     href,
     onClick: () => onSelect(t.id),
@@ -80,7 +105,7 @@ export function TableCard({ table: t, onSelect, href = "/strategy" }: TableCardP
         className="relative flex flex-col gap-3.5 overflow-hidden rounded-card bg-sel px-5 py-6 text-onsel"
       >
         <div className="flex justify-between gap-3 font-mono text-[11px] uppercase tracking-[0.1em]">
-          <span>{"★"} Most played · real money</span>
+          <span>{"★"} Recommended first table · real money</span>
           <span className="whitespace-nowrap">{seatsLabel(t)}</span>
         </div>
         <span className="max-w-[230px] font-display text-[56px] font-bold leading-[0.84] tracking-[-0.06em]">
@@ -96,6 +121,7 @@ export function TableCard({ table: t, onSelect, href = "/strategy" }: TableCardP
             <span className="font-display text-[20px] font-medium">{buyInLabel(t)}</span>
           </div>
         </div>
+        <span className="font-mono text-[11px] uppercase tracking-[0.1em]">{HOUSE_TERMS}</span>
         <ExperiencePips level={t.level} label={t.levelLabel} />
         <motion.div
           variants={peek(16)}
@@ -130,6 +156,7 @@ export function TableCard({ table: t, onSelect, href = "/strategy" }: TableCardP
         <div className="flex flex-col items-end gap-1 text-right font-mono text-[12px] uppercase">
           <span>Blinds {blindsLabel(t)}</span>
           <span className="text-muted">Buy-in {buyInLabel(t)}</span>
+          <span className="text-muted">{HOUSE_TERMS}</span>
         </div>
         <ExperiencePips level={t.level} label={t.levelLabel} className="col-span-full text-muted" />
       </MotionLink>
@@ -157,6 +184,7 @@ export function TableCard({ table: t, onSelect, href = "/strategy" }: TableCardP
         <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[12px] uppercase">
           <span>Blinds {blindsLabel(t)}</span>
           <span className="text-muted">Buy-in {buyInLabel(t)}</span>
+          <span className="text-muted">{HOUSE_TERMS}</span>
         </div>
         <ExperiencePips level={t.level} label={t.levelLabel} className="text-muted" />
       </div>
@@ -165,4 +193,10 @@ export function TableCard({ table: t, onSelect, href = "/strategy" }: TableCardP
       </motion.div>
     </MotionLink>
   );
+}
+
+/** Server reason codes in plain words. */
+export function closedReason(reason?: string): string {
+  if (reason === "exposure_limit") return "Stakes here are above what the house can cover per hand right now.";
+  return "The house bankroll is low, so this table isn’t taking agents right now.";
 }

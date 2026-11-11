@@ -10,39 +10,57 @@ import { IconButton } from "@/components/ui/IconButton";
 import { MonoLabel } from "@/components/ui/MonoLabel";
 import { getPreset } from "@/lib/data/strategy";
 import { blindsLabel, getTable } from "@/lib/data/tables";
+import { buyInMoveCopy } from "@/lib/agentStatus";
 import { useSetup } from "@/lib/store/setup";
+import { useWallet } from "@/lib/store/useWallet";
+import { DepositSheet } from "@/components/wallet/DepositSheet";
+import { HouseRules } from "@/components/house/HouseRules";
+import { clampBuyIn, deployTotal, TABLE_CLOSED } from "@/services/houseApi";
 import { useDeploy } from "./useDeploy";
 
 export function DeployView() {
   const setup = useSetup();
   const table = getTable(setup.tableId);
   const preset = getPreset(setup.preset);
-  const buyIn = setup.buyIn;
+  const wallet = useWallet();
+  const [depositOpen, setDepositOpen] = useState(false);
   const [agreed, setAgreed] = useState(false);
 
   const request = useMemo(
     () => ({
       tableId: setup.tableId,
-      buyIn,
+      buyIn: setup.buyIn,
       preset: setup.preset,
       params: setup.params,
       limits: setup.limits,
     }),
-    [setup.tableId, buyIn, setup.preset, setup.params, setup.limits],
+    [setup.tableId, setup.buyIn, setup.preset, setup.params, setup.limits],
   );
-  const { fee, phase, deploy, retryFee } = useDeploy(request);
+  const { fee, phase, deploy, retryFee, clearFailure } = useDeploy(request);
+  // The server sets the buy-in; until its quote loads, show the table's default.
+  // tableFee / maxBuyIn are newer quote fields: read defensively.
+  const extra = fee.status === "quoted" ? (fee.quote as { tableFee?: number; maxBuyIn?: number }) : {};
+  const tableFee = extra.tableFee ?? 0;
+  const buyIn = clampBuyIn(fee.status === "quoted" ? fee.quote.buyIn : setup.buyIn, extra.maxBuyIn ?? 0);
+  const total = deployTotal(buyIn, tableFee);
 
   // Balance at the moment of submitting, so the copy stays correct after it drops.
   const [committedFrom, setCommittedFrom] = useState<number | null>(null);
-  const startBalance = committedFrom ?? setup.balance;
+  const liveBalance = wallet.wallet?.balance ?? null;
+  const startBalance = committedFrom ?? liveBalance;
 
   // Coming back here with an agent already seated must never allow a second deploy.
   const alreadyDeployed = setup.agent.status === "deployed" && phase.status === "idle";
   const isPractice = table.mode === "practice";
   const pending = phase.status === "pending";
   const done = phase.status === "done" || alreadyDeployed;
-  const insufficient = !isPractice && !done && startBalance < buyIn;
-  const canSubmit = agreed && fee.status === "quoted" && !insufficient && !isPractice;
+  const refused = phase.status === "failed" && phase.code === "insufficient_funds";
+  const closed = phase.status === "failed" && phase.code === TABLE_CLOSED;
+  const insufficient =
+    !isPractice && !done && !pending && !closed && (refused || (startBalance !== null && startBalance < total));
+  const canSubmit =
+    agreed && fee.status === "quoted" && startBalance !== null && !insufficient && !isPractice && !closed;
+  const fmt = (n: number) => n.toFixed(2);
 
   const feeRow: SummaryRow =
     fee.status === "loading"
@@ -62,7 +80,7 @@ export function DeployView() {
           : { label: "Network fee", value: `≈ ${fee.quote.fee} NEAR`, note: "Network’s cost, not ours" };
 
   const rows: SummaryRow[] = [
-    { label: "Table", value: table.name, note: table.seated !== null ? `${table.seated} / ${table.seats} seated` : undefined },
+    { label: "Table", value: table.name, note: "heads-up vs the house agent" },
     { label: "Blinds", value: `${blindsLabel(table)} NEAR`, note: "two small forced bets per hand" },
     { label: "Agent balance", value: `${buyIn} NEAR`, note: "its whole stack" },
     { label: "Strategy", value: preset.label, note: preset.tag.split("·").pop()?.trim().toLowerCase() },
@@ -70,13 +88,22 @@ export function DeployView() {
     { label: "Take profit", value: `${setup.limits.takeProfit} NEAR`, note: "stops after winning this" },
     { label: "Max hands", value: String(setup.limits.maxHands), note: "then leaves the table" },
     feeRow,
+    {
+      label: "Table fee",
+      value: fee.status === "quoted" ? (tableFee > 0 ? `${fmt(tableFee)} NEAR` : "None") : "—",
+      note: "2% of the buy-in, kept by the house",
+    },
+    { label: "House rake", value: "5% of won pots", note: "only pots that see a flop · max 3 big blinds" },
+    { label: "Total from balance", value: `${fmt(total)} NEAR`, note: "buy-in + table fee" },
   ];
 
   const onSubmit = async () => {
     if (!canSubmit || pending) return;
-    setCommittedFrom(setup.balance);
+    setCommittedFrom(liveBalance);
     const result = await deploy();
-    if (result) setup.markDeployed(result.agentAccount);
+    if (result) setup.markDeployed(result.agentAccount, result.buyIn ?? buyIn);
+    else setCommittedFrom(null);
+    void wallet.refresh();
   };
 
   return (
@@ -109,7 +136,13 @@ export function DeployView() {
           <span className="text-[13px] leading-[1.4]">
             {alreadyDeployed
               ? "Already moved from your playing balance to your agent’s account."
-              : `Moved from your playing balance (${startBalance} → ${startBalance - buyIn}) to your agent’s account.`}
+              : startBalance === null
+                ? wallet.signedOut
+                  ? "Sign in to see your playing balance."
+                  : wallet.error
+                    ? `Couldn’t read your playing balance: ${wallet.error}`
+                    : "Reading your playing balance…"
+                : buyInMoveCopy(startBalance, total, done)}
           </span>
         </div>
         <div
@@ -123,7 +156,16 @@ export function DeployView() {
       <ConfirmationSummary rows={rows} />
 
       <AnimatePresence mode="popLayout">
-        {phase.status === "failed" && (
+        {closed && (
+          <motion.div key="closed" role="alert" className="flex flex-col gap-1.5 rounded-card border-2 border-fg p-4">
+            <span className="font-mono text-[11px] uppercase tracking-[0.16em]">! Table closed</span>
+            <span className="text-[14px] leading-normal text-muted">
+              The house bankroll is too low to cover this table right now, so it isn&rsquo;t taking new agents. No
+              funds moved. Try another table or come back later.
+            </span>
+          </motion.div>
+        )}
+        {phase.status === "failed" && !refused && !closed && (
           <motion.div
             key="failed"
             role="alert"
@@ -151,7 +193,9 @@ export function DeployView() {
               {alreadyDeployed ? "Your agent is already seated" : "Confirmed · your agent is seated"}
             </span>
             <span className="text-[14px] leading-normal text-muted">
-              {buyIn} NEAR moved to your agent&rsquo;s account. You can stop it anytime from the game screen.
+              {buyIn} NEAR moved to your agent&rsquo;s account{tableFee > 0 ? ` (plus a ${fmt(tableFee)} NEAR table fee)` : ""}
+              {phase.status === "done" && phase.account ? ` (${phase.account})` : ""}. You can stop it anytime from the
+              game screen.
             </span>
           </motion.div>
         )}
@@ -159,8 +203,9 @@ export function DeployView() {
           <motion.div key="funds" role="alert" className="flex flex-col gap-1.5 rounded-card border-2 border-fg p-4">
             <span className="font-mono text-[11px] uppercase tracking-[0.16em]">! Not enough playing balance</span>
             <span className="text-[14px] leading-normal text-muted">
-              This table needs at least {buyIn} NEAR and you have {startBalance}. Add funds from another network, or pick
-              a table with a smaller buy-in.
+              This table needs {fmt(total)} NEAR (buy-in plus table fee)
+              {startBalance !== null ? ` and you have ${fmt(startBalance)}` : ""}. Deposit testnet NEAR to your
+              playing balance, or pick a table with a smaller buy-in.
             </span>
           </motion.div>
         )}
@@ -185,10 +230,21 @@ export function DeployView() {
           <ButtonLink href="/game" trailing={<Arrow />}>
             Watch your agent play
           </ButtonLink>
-        ) : isPractice || insufficient ? (
+        ) : isPractice ? (
           <ButtonLink href="/lobby" trailing={<Arrow />}>
             Pick a table
           </ButtonLink>
+        ) : insufficient || closed ? (
+          <>
+            {!closed && (
+              <Button onClick={() => setDepositOpen(true)} trailing={<Arrow />}>
+                Deposit
+              </Button>
+            )}
+            <ButtonLink href="/lobby" variant="secondary" size="md">
+              Pick a table
+            </ButtonLink>
+          </>
         ) : (
           <Button onClick={onSubmit} disabled={!canSubmit} pending={pending} pendingLabel="Waiting for confirmation…">
             {phase.status === "failed" ? "Try again" : "Put my agent in play"}
@@ -200,6 +256,17 @@ export function DeployView() {
           </ButtonLink>
         )}
       </div>
+
+      <DepositSheet
+        open={depositOpen}
+        onClose={() => {
+          setDepositOpen(false);
+          void wallet.refresh();
+          clearFailure();
+        }}
+      />
+
+      <HouseRules className="border-t border-hair pt-1.5" />
 
       <Disclosure
         hint="How?"

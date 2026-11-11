@@ -6,11 +6,14 @@ import { MonoLabel } from "@/components/ui/MonoLabel";
 import { Rise } from "@/components/ui/Rise";
 import { TABLES } from "@/lib/data/tables";
 import { useSetup } from "@/lib/store/setup";
+import { useTables } from "@/lib/store/useTables";
+import { HouseRules } from "@/components/house/HouseRules";
 import { BalanceChip } from "./BalanceChip";
 import { TableCard } from "./TableCard";
 
 export function LobbyView() {
   const { selectTable } = useSetup();
+  const status = useTables();
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-5 pt-6 lg:px-10 lg:pt-10">
@@ -59,6 +62,8 @@ export function LobbyView() {
         </dl>
       </Disclosure>
 
+      <HouseRules className="-mt-4 border-b border-hair pb-1.5" />
+
       <motion.ul
         className="grid gap-6 md:grid-cols-2 md:items-start"
         initial="hidden"
@@ -73,7 +78,7 @@ export function LobbyView() {
               show: { opacity: 1, y: 0, transition: { duration: 0.42, ease: [0.2, 0.8, 0.2, 1] } },
             }}
           >
-            <TableCard table={t} onSelect={selectTable} />
+            <TableCard table={t} onSelect={selectTable} status={status?.[t.id]} />
           </motion.li>
         ))}
       </motion.ul>
