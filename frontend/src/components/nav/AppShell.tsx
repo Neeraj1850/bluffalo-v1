@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useRequireSignIn } from "@/lib/auth";
 import { cn } from "@/lib/cn";
+import { AgentReconciler } from "./AgentReconciler";
 import { BottomNav } from "./BottomNav";
 import { NavRail } from "./NavRail";
 import { activeNavKey, BOTTOM_NAV_ROUTES } from "./navItems";
@@ -18,6 +19,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="lg:flex">
+      <AgentReconciler pathname={pathname} />
       <NavRail active={active} />
       <div className={cn("min-w-0 flex-1", showBottom && "pb-28 lg:pb-0")}>{children}</div>
       {showBottom && <BottomNav active={active} />}

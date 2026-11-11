@@ -20,3 +20,13 @@ export function buyInMoveCopy(start: number, buyIn: number, moved: boolean): str
     ? `Moved from your playing balance ${range} to your agent’s account.`
     : `Will move from your playing balance ${range} to your agent’s account when you confirm.`;
 }
+
+/**
+ * The saved "deployed" flag says an agent is seated, but the chain is the truth.
+ * It's stale when there's no agent account, or the agent can't cover a big blind
+ * and isn't mid-hand (busted, or its chips already went back to the balance).
+ */
+export function deploymentIsStale(onChain: AgentStatus, bigBlind: number): boolean {
+  if (!onChain.account) return true;
+  return !onChain.inHand && onChain.balance < bigBlind;
+}
