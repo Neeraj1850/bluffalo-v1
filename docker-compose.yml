@@ -1,5 +1,5 @@
 # Whole stack: docker compose --env-file .env.deploy up --build
-# .env.deploy (gitignored) holds POSTGRES_PASSWORD, BACKEND_TOKEN, GROQ_API_KEY,
+# .env.deploy (gitignored) holds POSTGRES_PASSWORD, BACKEND_TOKEN, NEAR_AI_API_KEY,
 # NEXT_PUBLIC_PRIVY_APP_ID, PRIVY_APP_SECRET and NEAR_OPERATOR_KEY — see .env.deploy.example.
 services:
   db:
@@ -37,7 +37,9 @@ services:
     environment:
       BACKEND_URL: http://backend:8000
       BACKEND_TOKEN: ${BACKEND_TOKEN}
-      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      NEAR_AI_API_KEY: ${NEAR_AI_API_KEY:-}
+      NEAR_AI_AGENT_MODEL: ${NEAR_AI_AGENT_MODEL:-}
+      NEAR_AI_HOUSE_MODEL: ${NEAR_AI_HOUSE_MODEL:-}
       PRIVY_APP_SECRET: ${PRIVY_APP_SECRET:-}
       NEAR_RPC_URL: ${NEAR_RPC_URL:-https://test.rpc.fastnear.com}
       NEAR_CONTRACT_ID: ${NEAR_CONTRACT_ID:-npoker-43b602.testnet}

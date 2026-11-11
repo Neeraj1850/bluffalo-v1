@@ -125,13 +125,13 @@ uv run uvicorn app.main:app --port 8000
 
 # Web app on :3000 (another terminal, from the repo root)
 cd frontend
-cp .env.example .env.local        # GROQ_API_KEY, BACKEND_URL, same BACKEND_TOKEN, Privy keys
+cp .env.example .env.local        # NEAR_AI_API_KEY, BACKEND_URL, same BACKEND_TOKEN, Privy keys
 npm install
 npm run dev
 ```
 
-Agent decisions use [Groq](https://console.groq.com) (free tier). If Groq is unavailable (no key, rate limit,
-outage) the hand stops and the app says the agent service is down — it never swaps in a different strategy.
+Agent decisions use [NEAR AI Cloud](https://cloud.near.ai) (TEE-attested models, OpenAI-compatible). If NEAR AI is
+unavailable (no key, rate limit, outage) the hand stops and the app says the agent service is down — it never swaps in a different strategy.
 
 ## Smart contract
 
@@ -155,7 +155,7 @@ cargo near build           # wasm for deployment (needs cargo-near)
 ## Deploy with Docker
 
 ```bash
-cp .env.deploy.example .env.deploy   # POSTGRES_PASSWORD, BACKEND_TOKEN, GROQ_API_KEY, Privy keys
+cp .env.deploy.example .env.deploy   # POSTGRES_PASSWORD, BACKEND_TOKEN, NEAR_AI_API_KEY, Privy keys
 docker compose --env-file .env.deploy up --build -d
 # web on :3000 · backend and Postgres stay on the internal network
 ```
