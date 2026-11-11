@@ -2,7 +2,7 @@
 name = "poker"
 version = "0.1.0"
 edition = "2021"
-description = "NEAR Poker Agent: escrow and on-chain deal commitments"
+description = "Bluffalo: escrow and on-chain deal commitments"
 
 [lib]
 crate-type = ["cdylib", "rlib"]

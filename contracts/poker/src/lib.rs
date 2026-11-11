@@ -1,4 +1,4 @@
-//! NEAR Poker Agent — escrow and on-chain deal commitments.
+//! Bluffalo — escrow and on-chain deal commitments.
 //!
 //! The game engine and the AI run off-chain. This contract holds the money and
 //! makes every hand auditable:
@@ -120,6 +120,15 @@ impl Poker {
         self.only_operator();
         self.house += env::attached_deposit().as_yoctonear();
         U128(self.house)
+    }
+
+    /// Operator takes house profit out (to the operator account). Only free house
+    /// money can go: stakes locked in committed hands aren't part of `house`.
+    pub fn withdraw_house(&mut self, amount: U128) -> Promise {
+        self.only_operator();
+        require!(amount.0 > 0 && amount.0 <= self.house, "Not enough house balance");
+        self.house -= amount.0;
+        Promise::new(self.operator.clone()).transfer(NearToken::from_yoctonear(amount.0))
     }
 
     // ----- hands ---------------------------------------------------------

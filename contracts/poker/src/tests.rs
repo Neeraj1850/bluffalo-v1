@@ -317,3 +317,55 @@ mod hands {
         c.cancel_hand("0123abcd".into());
     }
 }
+
+mod treasury {
+    use super::*;
+
+    #[test]
+    fn operator_withdraws_house_profit_and_keeps_player_balances() {
+        let mut c = setup();
+        let _ = c.withdraw_house(U128(30 * NEAR));
+        assert_eq!(c.house_balance().0, 70 * NEAR);
+        assert_eq!(c.balance_of(alice()).0, 10 * NEAR);
+    }
+
+    #[test]
+    fn locked_stakes_cannot_be_withdrawn() {
+        let mut c = setup();
+        commit(&mut c, 10 * NEAR);
+        assert_eq!(c.house_balance().0, 90 * NEAR);
+        let _ = c.withdraw_house(U128(90 * NEAR));
+        assert_eq!(c.house_balance().0, 0);
+        // the hand can still settle out of its own locked pot
+        c.settle_hand(
+            "0123abcd".into(),
+            SEED.into(),
+            PLAYER_SEED.into(),
+            U128(15 * NEAR),
+        );
+        assert_eq!(c.balance_of(alice()).0, 15 * NEAR);
+        assert_eq!(c.house_balance().0, 5 * NEAR);
+    }
+
+    #[test]
+    #[should_panic(expected = "Not enough house balance")]
+    fn cannot_withdraw_more_than_the_house_holds() {
+        let mut c = setup();
+        let _ = c.withdraw_house(U128(101 * NEAR));
+    }
+
+    #[test]
+    #[should_panic(expected = "Not enough house balance")]
+    fn zero_withdraw_is_rejected() {
+        let mut c = setup();
+        let _ = c.withdraw_house(U128(0));
+    }
+
+    #[test]
+    #[should_panic(expected = "Only the operator")]
+    fn only_the_operator_can_withdraw() {
+        let mut c = setup();
+        call(alice(), 0);
+        let _ = c.withdraw_house(U128(NEAR));
+    }
+}
