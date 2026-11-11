@@ -1,8 +1,6 @@
-import type { Metadata } from "next";
-import { SandboxView } from "@/components/sandbox/SandboxView";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "Practice mode" };
-
+/** Practice now lives on the Strategy page, next to the settings it tests. */
 export default function SandboxPage() {
-  return <SandboxView />;
+  redirect("/strategy?test=1");
 }

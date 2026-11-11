@@ -138,8 +138,8 @@ export function ResultsView() {
           <ButtonLink href="/lobby" size="md">
             Pick a real-money table
           </ButtonLink>
-          <ButtonLink href="/sandbox" variant="secondary" size="md">
-            Practice in the sandbox
+          <ButtonLink href="/strategy" variant="secondary" size="md">
+            Test an agent for free
           </ButtonLink>
         </div>
         <AttestationCard />

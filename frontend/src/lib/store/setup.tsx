@@ -64,6 +64,8 @@ type SetupContextValue = SetupState & {
   selectTable: (id: string) => void;
   choosePreset: (key: PresetKey) => void;
   setParam: (key: ParamKey, value: number) => void;
+  /** Load a whole saved strategy (e.g. a tested agent). */
+  applyAgent: (preset: PresetKey, params: StrategyParams) => void;
   setLimit: (key: LimitKey, value: number) => void;
   markDeployed: (account: string, buyIn?: number) => void;
   /** The agent left the table. Its funds are on chain; see useWallet/useAgent. */
@@ -128,6 +130,10 @@ export function SetupProvider({ children }: { children: ReactNode }) {
       setState((s) => ({ ...s, preset: "custom", params: { ...s.params, [key]: value } })),
     [],
   );
+  const applyAgent = useCallback(
+    (key: PresetKey, values: StrategyParams) => setState((s) => ({ ...s, preset: key, params: { ...values } })),
+    [],
+  );
   const setLimit = useCallback(
     (key: LimitKey, value: number) => setState((s) => ({ ...s, limits: { ...s.limits, [key]: value } })),
     [],
@@ -162,11 +168,12 @@ export function SetupProvider({ children }: { children: ReactNode }) {
       selectTable,
       choosePreset,
       setParam,
+      applyAgent,
       setLimit,
       markDeployed,
       stopAgent,
     }),
-    [state, hydrated, buyIn, adopt, reset, selectTable, choosePreset, setParam, setLimit, markDeployed, stopAgent],
+    [state, hydrated, buyIn, adopt, reset, selectTable, choosePreset, setParam, applyAgent, setLimit, markDeployed, stopAgent],
   );
 
   return <SetupContext.Provider value={value}>{children}</SetupContext.Provider>;
