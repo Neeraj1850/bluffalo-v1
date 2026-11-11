@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "house:topup": "node --env-file=.env.local scripts/house-topup.mjs"
   },
   "dependencies": {
     "@privy-io/node": "^0.36.0",
