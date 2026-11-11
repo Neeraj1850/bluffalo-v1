@@ -3,7 +3,7 @@ import { freshDeck } from "@/lib/poker/deck";
 import { type Action, type Legal } from "@/lib/poker/game";
 import { listHands } from "@/lib/server/hands";
 import { applyExternalAction, startHand } from "@/lib/server/liveHand";
-import { liveDeps, mapAction } from "@/lib/server/mcpPlay";
+import { liveDeps, mapAction, sweepStaleHands } from "@/lib/server/mcpPlay";
 import { useFakeBackend } from "@/tests/helpers/backend";
 import { fakeNearAi } from "@/tests/helpers/nearai";
 
@@ -67,6 +67,25 @@ describe("liveDeps (MCP play wiring)", () => {
         settleTx: "SETTLE_TX",
       });
     }
+    expect(await listHands(SID)).toHaveLength(1);
+  });
+
+  it("sweeps an abandoned hand: acts for the idle agent and settles it", async () => {
+    await startHand(liveDeps, {
+      handId: "0123abcd",
+      sessionId: SID,
+      tableName: "the back room",
+      deck: freshDeck(),
+      stacks: [50, 50],
+      blinds: { small: 0.5, big: 1 },
+      button: 0, // agent owes the small blind and must act — it's now idle on seat 0
+      deal: DEAL,
+      agent: "ame.op.testnet",
+      commitTx: "COMMIT_TX",
+    });
+    const swept = await sweepStaleHands(Date.now() + 5000);
+    expect(swept).toBe(1);
+    expect(chain.settleHand).toHaveBeenCalledOnce();
     expect(await listHands(SID)).toHaveLength(1);
   });
 

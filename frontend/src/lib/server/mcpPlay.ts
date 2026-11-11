@@ -1,7 +1,7 @@
 import type { Action } from "@/lib/poker/game";
 import { decide } from "./decide";
 import { recordHand } from "./hands";
-import { type Deps } from "./liveHand";
+import { type Deps, timeoutHand } from "./liveHand";
 import { backendStore } from "./liveHandStore";
 import { cancelHand, settleHand } from "./near";
 
@@ -30,6 +30,24 @@ export const liveDeps: Deps = {
     await cancelHand(rec.handId);
   },
 };
+
+/**
+ * Act for every hand left idle on the external agent since before `cutoff`,
+ * settling or refunding each so its on-chain stakes never stay locked. One bad
+ * hand (model/chain down) is skipped, not fatal — the next sweep retries it.
+ * Returns the number swept. Call it from a cron via POST /api/mcp/sweep.
+ */
+export async function sweepStaleHands(cutoff: number): Promise<number> {
+  const stale = await liveDeps.store.stale(cutoff);
+  for (const rec of stale) {
+    try {
+      await timeoutHand(liveDeps, rec.handId);
+    } catch {
+      /* leave it for the next sweep */
+    }
+  }
+  return stale.length;
+}
 
 /** Map an external agent's `act` input to a game action, or an error message. */
 export function mapAction(action: string, amount?: number): Action | string {
