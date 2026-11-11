@@ -101,6 +101,26 @@ export async function fetchHands(f: typeof fetch = fetch): Promise<LiveHand[]> {
   return (await res.json()).hands;
 }
 
+/** Live TEE attestation of the agent model (NEAR AI Cloud). */
+export type Attestation = {
+  verified: boolean;
+  model: string;
+  signer?: string;
+  signatureKind?: "provider_tee" | "gateway";
+  detail?: string;
+  verifyUrl: string;
+};
+
+/** Verify that the agent's decisions run in an attested TEE. Never throws. */
+export async function fetchAttestation(f: typeof fetch = fetch): Promise<Attestation> {
+  try {
+    const res = await f("/api/verify");
+    return (await res.json()) as Attestation;
+  } catch {
+    return { verified: false, model: "", detail: "unreachable", verifyUrl: "https://cloud.near.ai/verify" };
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Mock implementation — demo only. Add ?fail=deploy, ?fail=quote,
 // ?fail=cashout or ?verify=pending|unavailable to the URL to try other paths.
