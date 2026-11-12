@@ -6,6 +6,7 @@
 // `fund_house`. Testnet only.
 //
 //   node --env-file=.env.local scripts/house-topup.mjs [rounds=3]   (max 5)
+//   ... house-topup.mjs [rounds] operator   keep the NEAR on the operator (it pays gas and the in-app faucet)
 //
 // Be a good citizen: the faucet is shared by every NEAR developer. Run it when
 // the house is actually low, not on a loop.
@@ -19,6 +20,7 @@ const yocto = (n) => Number(n / 10n ** 20n) / 1e4;
 const { NEAR_RPC_URL: rpc = "https://test.rpc.fastnear.com", NEAR_CONTRACT_ID: contract, NEAR_OPERATOR_ID: operator, NEAR_OPERATOR_KEY: opKey } = process.env;
 if (!contract || !operator || !opKey) throw new Error("Set NEAR_CONTRACT_ID, NEAR_OPERATOR_ID and NEAR_OPERATOR_KEY (run with --env-file=.env.local)");
 if (!rpc.includes("test")) throw new Error("Refusing to run against a non-testnet RPC");
+const toOperator = process.argv[3] === "operator";
 const rounds = Math.min(MAX_ROUNDS, Math.max(1, Number(process.argv[2] ?? 3)));
 const provider = new JsonRpcProvider({ url: rpc });
 const op = new Account(operator, provider, opKey);
@@ -52,6 +54,10 @@ for (let i = 1; i <= rounds; i++) {
   const acct = new Account(id, provider, key.toString());
   const del = await acct.signAndSendTransaction({ receiverId: id, actions: [actions.deleteAccount(operator)], waitUntil: "FINAL" });
   const deposit = balance - GAS_MARGIN;
+  if (toOperator) {
+    console.log(`round ${i}: +${yocto(deposit)} NEAR to the operator via ${id}  delete ${del.transaction.hash}`);
+    continue;
+  }
   const fund = await op.callFunctionRaw({ contractId: contract, methodName: "fund_house", args: {}, deposit, gas: GAS, waitUntil: "FINAL" });
   console.log(`round ${i}: +${yocto(deposit)} NEAR via ${id}  delete ${del.transaction.hash}  fund_house ${fund.transaction.hash}`);
 }
