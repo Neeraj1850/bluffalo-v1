@@ -20,6 +20,15 @@ describe("MCP auth", () => {
     expect(auth).toEqual({ sessionId: sid, agent: "a1.op.testnet", agentKey: KEY });
   });
 
+  it("refuses an agent bound to a market strategy", async () => {
+    const { seedSession, seedAgentStrategy } = useFakeBackend();
+    const sid = crypto.randomUUID();
+    seedSession(sid);
+    await setSessionAgent(sid, "a1.op.testnet", KEY, TOKEN);
+    seedAgentStrategy(sid, "s1");
+    expect(await authFromRequest(req(`Bearer ${TOKEN}`))).toBeNull();
+  });
+
   it("rejects a missing, malformed, or unknown token", async () => {
     useFakeBackend();
     expect(await authFromRequest(req())).toBeNull();

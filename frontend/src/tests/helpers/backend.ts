@@ -17,6 +17,10 @@ export function useFakeBackend(fallthrough?: typeof fetch) {
   const users = new Map<string, string>(); // session id → Privy user id
   const agents = new Map<string, string>(); // session id → agent NEAR account
   const agentKeys = new Map<string, string>(); // session id → agent key
+  const agentStrategies = new Map<string, string>(); // session id → licensed strategy
+  const strategies = new Map<string, Record<string, unknown>>(); // market strategies (with params)
+  const events: Record<string, unknown>[] = []; // market events, newest first
+  const stats: Record<string, unknown>[] = []; // /strategies/stats rows
   const mcpTokens = new Map<string, string>(); // mcp token → session id
   const wallets = new Map<string, { account_id: string; private_key: string }>(); // session id → deposit wallet
   const deals = new Map<string, { session: string; seed: string; commitment: string; played: boolean }>();
@@ -65,6 +69,27 @@ export function useFakeBackend(fallthrough?: typeof fetch) {
       }
     }
 
+    if (path === "/strategies" && method === "POST") {
+      if (strategies.has(body.id) || [...strategies.values()].some((x) => x.name === body.name)) return json({}, 409);
+      strategies.set(body.id, body);
+      return json({ ok: true }, 201);
+    }
+    if (path === "/strategies/stats") return json({ stats });
+    if (path.startsWith("/strategies/") && path.endsWith("/params")) {
+      const st = strategies.get(sid);
+      return st ? json({ params: st.params, salt: st.salt, params_hash: st.params_hash }) : json({}, 404);
+    }
+    if (path === "/market/events" && method === "POST") {
+      const e = { id: events.length + 1, created_at: new Date().toISOString(), counterparty: null, price_yocto: null, amount: null, reason: null, chat_id: null, tx: null, ...body };
+      events.unshift(e);
+      return json({ id: e.id }, 201);
+    }
+    if (path === "/market/events") {
+      const sidQ = new URLSearchParams(query).get("strategy_id");
+      return json({ events: events.filter((e) => !sidQ || e.strategy_id === sidQ) });
+    }
+    if (path === "/market/prune") return json({ deleted: 0 });
+
     if (sid === "by-token") {
       const owner = mcpTokens.get(kind);
       if (!owner) return json({ detail: "Unknown token" }, 404);
@@ -90,12 +115,14 @@ export function useFakeBackend(fallthrough?: typeof fetch) {
       return json({ id, state: sessions.get(id) });
     }
     if (kind === "agent" && method === "GET") {
-      return json({ account_id: agents.get(sid) ?? null, private_key: agentKeys.get(sid) ?? null });
+      return json({ account_id: agents.get(sid) ?? null, private_key: agentKeys.get(sid) ?? null, strategy_id: agentStrategies.get(sid) ?? null });
     }
     if (kind === "agent" && method === "PUT") {
       agents.set(sid, body.account_id);
       if (body.private_key) agentKeys.set(sid, body.private_key);
       if (body.mcp_token) mcpTokens.set(body.mcp_token, sid);
+      if (body.strategy_id) agentStrategies.set(sid, body.strategy_id);
+      else agentStrategies.delete(sid);
       return json({ ok: true });
     }
     if (kind === "wallet" && method === "GET") return json(wallets.get(sid) ?? { account_id: null, private_key: null });
@@ -139,5 +166,8 @@ export function useFakeBackend(fallthrough?: typeof fetch) {
   /** Give a session a deposit wallet directly. */
   const seedWallet = (id: string, account: string, key: string) =>
     wallets.set(id, { account_id: account, private_key: key });
-  return { fake, seedSession, seedWallet };
+  /** Bind a session's agent to a market strategy, or give it an MCP token. */
+  const seedAgentStrategy = (id: string, strategyId: string) => agentStrategies.set(id, strategyId);
+  const seedMcpToken = (id: string, token: string) => mcpTokens.set(token, id);
+  return { fake, seedSession, seedWallet, seedAgentStrategy, seedMcpToken, strategies, events, stats };
 }

@@ -10,7 +10,9 @@ import { claimExpired, parkUnsettled } from "@/lib/server/timeouts";
 import { claimTable } from "@/lib/server/activeTable";
 import { inFlight } from "@/lib/server/inFlight";
 import { parsePlayRequest, playHand } from "@/lib/server/play";
-import { sessionAgent, sessionFrom, sessionUser, withSession } from "@/lib/server/sessions";
+import { backend } from "@/lib/server/backend";
+import type { StrategyParams } from "@/lib/data/strategy";
+import { sessionAgent, sessionAgentStrategy, sessionFrom, sessionUser, withSession } from "@/lib/server/sessions";
 
 
 /**
@@ -34,6 +36,15 @@ export async function POST(request: Request) {
       if (!(await sessionUser(session.id))) return reply({ error: "Sign in to play for real money" }, 401);
       agent = await sessionAgent(session.id);
       if (!agent) return reply({ error: "Deploy an agent first" }, 409);
+      // A licensed market strategy: the server's sealed params play, whatever the browser sent.
+      const strategy = await sessionAgentStrategy(session.id);
+      if (strategy) {
+        const sealed = await backend<{ params: StrategyParams }>(`/strategies/${strategy}/params`);
+        if (!sealed) return reply({ error: "This strategy is unavailable", code: "service_down" }, 503);
+        req.params = sealed.params;
+        req.strategy = strategy;
+        delete req.preset;
+      }
       // The contract holds the truth about the agent's stack, not the browser.
       const [balance, house] = await Promise.all([balanceOf(agent), houseBalance()]);
       // Disclosed bankroll limits: the table closes when the house runs low, and

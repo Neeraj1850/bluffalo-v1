@@ -126,3 +126,36 @@ describe("POST /api/agent/deploy", () => {
     expect(await sessionAgent(ME)).toBeNull();
   });
 });
+
+describe("POST /api/agent/deploy with a licensed strategy", () => {
+  const market = vi.hoisted(() => ({ balances: vi.fn(), applyLicense: vi.fn(), recordEvent: vi.fn() }));
+  vi.mock("@/lib/server/market", async (orig) => ({ ...(await orig<object>()), ...market }));
+  beforeEach(() => {
+    vi.stubEnv("NEAR_RPC_URL", "http://rpc.test");
+    vi.stubEnv("NEAR_CONTRACT_ID", "poker.testnet");
+    vi.stubEnv("NEAR_OPERATOR_KEY", "ed25519:op");
+    market.balances.mockReset().mockResolvedValue([1]);
+    market.applyLicense.mockReset().mockResolvedValue("USE_TX");
+    market.recordEvent.mockReset().mockResolvedValue(undefined);
+    chain.createAgentAccount.mockImplementation(async (id: string) => ({ accountId: id, privateKey: "ed25519:agentkey" }));
+  });
+
+  it("needs a seat", async () => {
+    market.balances.mockResolvedValue([0]);
+    const res = await deploy({ tableId: "back-room", strategyId: "s1" });
+    expect(res.status).toBe(403);
+    expect(market.applyLicense).not.toHaveBeenCalled();
+    expect(chain.createAgentAccount).not.toHaveBeenCalled();
+  });
+
+  it("binds the license before creating the agent and issues no MCP token", async () => {
+    const res = await deploy({ tableId: "back-room", strategyId: "s1" });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.mcpToken).toBeNull();
+    const agentId = market.applyLicense.mock.calls[0][2];
+    expect(agentId).toMatch(/^a[0-9a-f]{8}\.op\.testnet$/);
+    expect(chain.createAgentAccount).toHaveBeenCalledWith(agentId);
+    expect(market.applyLicense.mock.invocationCallOrder[0]).toBeLessThan(chain.createAgentAccount.mock.invocationCallOrder[0]);
+  });
+});

@@ -51,7 +51,7 @@ export function runsOf(hands: LiveHand[]): Run[] {
     r.startedAt = Math.min(r.startedAt || at, at || r.startedAt);
     if (at >= r.endedAt) {
       r.endedAt = at;
-      if (h.agent) r.agent = { preset: h.agent.preset ?? "custom", params: h.agent.params };
+      if (h.agent?.params) r.agent = { preset: h.agent.preset ?? "custom", params: h.agent.params };
     }
     byId.set(id, r);
   }

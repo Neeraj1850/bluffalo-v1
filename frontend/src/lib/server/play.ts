@@ -12,6 +12,8 @@ export type PlayRequest = {
   params: StrategyParams;
   /** Which preset the params came from (labels sessions; not used to play). */
   preset?: PresetKey;
+  /** A licensed market strategy: params come from the server, the record names only the token. */
+  strategy?: string;
   /** The play session this hand belongs to (chosen by the client per run/sitting). */
   runId?: string;
   /** The agent's stack going into the hand; the house sits with the same. */
@@ -23,6 +25,18 @@ export type PlayRequest = {
 
 const MAX_STACK = 10_000;
 
+/** Validate untrusted strategy params (each 0–100). Returns them in PARAMS order, or an error message. */
+export function parseParams(p: unknown): StrategyParams | string {
+  if (!p || typeof p !== "object") return "Missing params";
+  const params = {} as StrategyParams;
+  for (const { key } of PARAMS) {
+    const v = (p as Record<string, unknown>)[key];
+    if (typeof v !== "number" || !(v >= 0 && v <= 100)) return `Invalid ${key}`;
+    params[key] = v;
+  }
+  return params;
+}
+
 /** Validate untrusted input. Returns the request, or an error message. */
 export function parsePlayRequest(body: unknown): PlayRequest | string {
   if (!body || typeof body !== "object") return "Body must be a JSON object";
@@ -32,14 +46,8 @@ export function parsePlayRequest(body: unknown): PlayRequest | string {
   if (b.button !== 0 && b.button !== 1) return "button must be 0 or 1";
   if (typeof b.playerSeed !== "string" || !/^[0-9a-f]{32}$/.test(b.playerSeed)) return "Invalid playerSeed";
   if (typeof b.stack !== "number" || !(b.stack > 0 && b.stack <= MAX_STACK)) return "Invalid stack";
-  const p = b.params as Record<string, unknown> | undefined;
-  if (!p || typeof p !== "object") return "Missing params";
-  const params = {} as StrategyParams;
-  for (const { key } of PARAMS) {
-    const v = p[key];
-    if (typeof v !== "number" || !(v >= 0 && v <= 100)) return `Invalid ${key}`;
-    params[key] = v;
-  }
+  const params = parseParams(b.params);
+  if (typeof params === "string") return params;
   const preset = PRESETS.find((x) => x.key === b.preset)?.key;
   if (b.runId !== undefined && (typeof b.runId !== "string" || !/^[0-9a-f]{8,32}$/.test(b.runId))) return "Invalid runId";
   return {
@@ -76,7 +84,8 @@ export async function playHand(
     const agent = s.toAct === 0;
     const d = await decide(s, agent ? req.params : null, { ...opts, offline: !agent && practice });
     if (agent) {
-      reasons.push(d.reason);
+      // A sealed strategy's numbers must not leak through the agent's own words.
+      reasons.push(req.strategy ? d.reason.replace(/\d+\s*\/\s*100/g, "—") : d.reason);
       chatIds.push(d.chatId);
     }
     s = apply(s, d.action);
@@ -94,7 +103,7 @@ export async function playHand(
     ...record,
     mode: practice ? "practice" : "real",
     tableId: table.id,
-    agent: { ...(req.preset ? { preset: req.preset } : {}), params: req.params },
+    agent: req.strategy ? { strategy: req.strategy } : { ...(req.preset ? { preset: req.preset } : {}), params: req.params },
     at: Date.now(),
     ...(req.runId ? { run: req.runId } : {}),
   };

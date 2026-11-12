@@ -81,10 +81,15 @@ export async function sessionAgentKey(id: string): Promise<string | null> {
   return (await backend<{ private_key: string | null }>(`/sessions/${id}/agent`))?.private_key ?? null;
 }
 
-export async function setSessionAgent(id: string, accountId: string, privateKey: string, mcpToken?: string) {
+/** The market strategy the session's agent is licensed to, if any (its params stay server-side). */
+export async function sessionAgentStrategy(id: string): Promise<string | null> {
+  return (await backend<{ strategy_id?: string | null }>(`/sessions/${id}/agent`))?.strategy_id ?? null;
+}
+
+export async function setSessionAgent(id: string, accountId: string, privateKey: string, mcpToken?: string, strategyId?: string) {
   await backend(`/sessions/${id}/agent`, {
     method: "PUT",
-    body: { account_id: accountId, private_key: privateKey, mcp_token: mcpToken },
+    body: { account_id: accountId, private_key: privateKey, mcp_token: mcpToken, strategy_id: strategyId },
   });
 }
 

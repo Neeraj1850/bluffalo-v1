@@ -269,3 +269,16 @@ describe("POST /api/play", () => {
     expect((await post({ ...valid, stack: "lots" })).status).toBe(400);
   });
 });
+
+describe("POST /api/play with a licensed strategy", () => {
+  it("plays the sealed params and records only the token", async () => {
+    backend.seedAgentStrategy(ME, "s1");
+    backend.strategies.set("s1", { params: { aggression: 1, bluff: 2, position: 3, sizing: 4 }, salt: "x", params_hash: "y" });
+    const { handId } = await createDeal(ME);
+    const res = await post({ ...valid, handId, tableId: "back-room", preset: "shark" });
+    expect(res.status).toBe(200);
+    const hand = await res.json();
+    expect(hand.agent).toEqual({ strategy: "s1" });
+    expect(JSON.stringify(hand.steps)).not.toMatch(/\d+\s*\/\s*100/);
+  });
+});

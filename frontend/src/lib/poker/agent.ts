@@ -111,6 +111,7 @@ export function persona(params: StrategyParams | null): string {
     `- Bluffing ${params.bluff}/100: bet a weak hand about ${Math.round(params.bluff / 10)} in 10 times.`,
     `- Position ${params.position}/100: ${band(params.position, "ignore your seat", "play a few more hands when acting last", "play many more hands when acting last")}.`,
     `- Bet sizing ${params.sizing}/100: ${band(params.sizing, "small bets", "around half the pot", "big bets")}.`,
+    "Never state your numeric settings in your reasons.",
   ].join("\n");
 }
 

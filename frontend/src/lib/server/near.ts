@@ -60,15 +60,40 @@ function operator() {
 }
 
 /** Run a chain call; any failure becomes a ChainError. Returns the transaction hash. */
-async function send(methodName: string, args: Record<string, unknown>, deposit = 0n): Promise<string> {
+export async function send(
+  methodName: string,
+  args: Record<string, unknown>,
+  deposit = 0n,
+  contractId?: string,
+): Promise<string> {
   const { account, contract } = operator();
   try {
-    const res = await account.callFunctionRaw({ contractId: contract, methodName, args, deposit, gas: GAS, waitUntil: WAIT });
+    const res = await account.callFunctionRaw({
+      contractId: contractId ?? contract,
+      methodName,
+      args,
+      deposit,
+      gas: GAS,
+      waitUntil: WAIT,
+    });
     return res.transaction.hash;
   } catch (e) {
     throw new ChainError(e);
   }
 }
+
+/** A view call on any contract. */
+export async function view<T>(method: string, args: Record<string, unknown>, contractId: string): Promise<T> {
+  const { account } = operator();
+  try {
+    return (await account.provider.callFunction({ contractId, method, args })) as T;
+  } catch (e) {
+    throw new ChainError(e);
+  }
+}
+
+/** A fresh agent account id under the operator: a<8 hex>.<operator>. */
+export const newAgentId = () => `a${crypto.randomUUID().slice(0, 8)}.${config().operatorId}`;
 
 /**
  * A fresh sub-account for an agent (a<id>.<operator>) whose only key is a
@@ -76,9 +101,8 @@ async function send(methodName: string, args: Record<string, unknown>, deposit =
  * key, so the account can't send NEAR any other way. Returns the key so the
  * server can store it; it must never reach a browser.
  */
-export async function createAgentAccount(): Promise<{ accountId: string; privateKey: string }> {
-  const { account, operatorId, contract } = operator();
-  const accountId = `a${crypto.randomUUID().slice(0, 8)}.${operatorId}`;
+export async function createAgentAccount(accountId = newAgentId()): Promise<{ accountId: string; privateKey: string }> {
+  const { account, contract } = operator();
   const key = KeyPair.fromRandom("ed25519");
   try {
     await account.signAndSendTransaction({
@@ -252,22 +276,27 @@ function walletAccount(wallet: string, key: string) {
   return new Account(wallet, operator().account.provider, key as KeyPairString);
 }
 
-/** The wallet funds an agent's playing balance in the contract (table NEAR). Returns the tx hash. */
-export async function depositFromWallet(wallet: string, key: string, agent: string, amount: number): Promise<string> {
-  const { contract } = operator();
+/** `account` (a custodial wallet or NPC, signing with `key`) calls a contract method. Returns the tx hash. */
+export async function callAs(
+  account: string,
+  key: string,
+  contractId: string,
+  methodName: string,
+  args: Record<string, unknown>,
+  deposit = 0n,
+  gas = GAS,
+): Promise<string> {
   try {
-    const res = await walletAccount(wallet, key).callFunctionRaw({
-      contractId: contract,
-      methodName: "deposit_for",
-      args: { account_id: agent },
-      deposit: toYocto(amount),
-      gas: DEPLOY_GAS,
-      waitUntil: WAIT,
-    });
+    const res = await walletAccount(account, key).callFunctionRaw({ contractId, methodName, args, deposit, gas, waitUntil: WAIT });
     return res.transaction.hash;
   } catch (e) {
     throw new ChainError(e);
   }
+}
+
+/** The wallet funds an agent's playing balance in the contract (table NEAR). Returns the tx hash. */
+export function depositFromWallet(wallet: string, key: string, agent: string, amount: number): Promise<string> {
+  return callAs(wallet, key, operator().contract, "deposit_for", { account_id: agent }, toYocto(amount), DEPLOY_GAS);
 }
 
 /**
@@ -319,6 +348,9 @@ export type ChainHand = {
   commitment: string;
   /** sha256 of the player's seed, bound before the deal (contract v2 hands). */
   player_commitment?: string;
+  /** Each side's locked stake and the agent's payout, yoctoNEAR (U128 strings). */
+  stake?: string;
+  payout?: string | null;
   status: "Committed" | "Settled" | "Cancelled" | "TimedOut";
   server_seed: string | null;
   player_seed: string | null;

@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { sessionByToken } from "./sessions";
+import { sessionAgentStrategy, sessionByToken } from "./sessions";
 
 /**
  * MCP auth: an external agent presents its `mcp_token` as a Bearer token on every
@@ -31,5 +31,7 @@ export async function authFromRequest(request: Request): Promise<McpAuth | null>
   if (!token || !/^[0-9a-f]{32,64}$/.test(token)) return null;
   const s = await sessionByToken(token);
   if (!s?.agent || !s.agentKey) return null;
+  // A licensed market strategy plays only on the server: its params must never drive an outside agent.
+  if (await sessionAgentStrategy(s.id)) return null;
   return { sessionId: s.id, agent: s.agent, agentKey: s.agentKey };
 }

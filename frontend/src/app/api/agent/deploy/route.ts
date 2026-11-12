@@ -7,10 +7,12 @@ import {
   createAgentAccount,
   depositFromWallet,
   houseBalance,
+  newAgentId,
   sendFromWallet,
   toYocto,
   walletBalanceYocto,
 } from "@/lib/server/near";
+import { balances, recordEvent, TOKEN_ID, applyLicense } from "@/lib/server/market";
 import { saveState, sessionFrom, sessionUser, sessionWallet, setSessionAgent, withSession } from "@/lib/server/sessions";
 
 /**
@@ -28,6 +30,10 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const table = TABLES.find((t) => t.id === body?.tableId);
   if (!table || table.mode !== "real") return reply({ error: "Pick a real-money table" }, 400);
+  const strategyId: string | undefined = body?.strategyId ?? undefined;
+  if (strategyId !== undefined && (typeof strategyId !== "string" || !TOKEN_ID.test(strategyId))) {
+    return reply({ error: "Unknown strategy" }, 400);
+  }
 
   const wallet = await sessionWallet(session.id);
   const insufficient = () =>
@@ -40,11 +46,24 @@ export async function POST(request: Request) {
     const buyIn = Math.min(defaultBuyIn(table), status.maxBuyIn);
     const tableFee = tableFeeFor(buyIn);
     if ((await walletBalanceYocto(wallet.account)) < toYocto(buyIn) + toYocto(tableFee)) return insufficient();
-    const { accountId: agentAccount, privateKey } = await createAgentAccount();
+    let created: { accountId: string; privateKey: string };
+    if (strategyId) {
+      // A licensed strategy: burn one seat and bind it to the new agent id before the account exists.
+      const [seats] = await balances(wallet.account, [strategyId]);
+      if (!(seats >= 1)) return reply({ error: "You need a license seat for this strategy", code: "no_license" }, 403);
+      const agentId = newAgentId();
+      const useTx = await applyLicense(wallet, strategyId, agentId);
+      await recordEvent({ strategy_id: strategyId, kind: "use", account: wallet.account, counterparty: agentId, tx: useTx });
+      created = await createAgentAccount(agentId);
+    } else {
+      created = await createAgentAccount();
+    }
+    const { accountId: agentAccount, privateKey } = created;
     const depositTx = await depositFromWallet(wallet.account, wallet.key, agentAccount, buyIn);
     // The token the player's external agent uses to connect to the MCP server as this agent.
-    const mcpToken = newSeed() + newSeed(); // 64 hex
-    await setSessionAgent(session.id, agentAccount, privateKey, mcpToken);
+    // A licensed strategy plays only on the server, so it gets none.
+    const mcpToken = strategyId ? null : newSeed() + newSeed(); // 64 hex
+    await setSessionAgent(session.id, agentAccount, privateKey, mcpToken ?? undefined, strategyId);
     // Record "deployed" server-side too: the browser's debounced save can be lost
     // if the player navigates or reloads right away, which put the game in practice mode.
     const confirmedAt = Date.now();

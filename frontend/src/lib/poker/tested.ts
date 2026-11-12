@@ -25,7 +25,7 @@ export const agentKey = (params: StrategyParams) => PARAMS.map(({ key }) => para
 export function testedAgents(hands: LiveHand[]): TestedAgent[] {
   const byKey = new Map<string, TestedAgent>();
   for (const h of hands) {
-    if (h.mode !== "practice" || !h.agent) continue;
+    if (h.mode !== "practice" || !h.agent?.params) continue;
     const key = agentKey(h.agent.params);
     const a = byKey.get(key) ?? {
       key,

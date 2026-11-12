@@ -14,8 +14,8 @@ export type LiveHand = ScriptedHand & {
   /** Practice (free chips vs the practice bot) or real money. Older records lack it: real. */
   mode?: HandMode;
   tableId?: string;
-  /** The strategy that played the hand, so tested agents can be compared. */
-  agent?: { preset?: PresetKey; params: StrategyParams };
+  /** The strategy that played the hand, so tested agents can be compared. A licensed market strategy keeps its params secret: only its token. */
+  agent?: { preset?: PresetKey; params?: StrategyParams; strategy?: string };
   /** When the hand was played (ms since epoch). */
   at?: number;
   /** The play session it belongs to: one practice run or one sitting at a live table. */
