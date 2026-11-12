@@ -29,6 +29,9 @@ export function takeSeed(handId: string, sessionId: string) {
  * the player to reveal its seed. The server never sees the player seed before
  * it commits, so it can't preview the deck and refuse a bad hand. If the server
  * never settles, the contract's claim_timeout pays the player the whole pot.
+ *
+ * Stored in the backend, so a restart neither unblocks an agent that withheld
+ * its seed nor loses the hand an honest player can still reveal.
  */
 export type PendingHand = {
   handId: string;
@@ -42,21 +45,57 @@ export type PendingHand = {
   at: number;
   /** /api/play only: the request to play once revealed. */
   req?: PlayRequest;
+  /** Server autoplay only: the server chose (and holds) the player seed. */
+  autoSeed?: string;
 };
 
-// ponytail: in memory, like parked timeouts — a restart forgets pending hands
-// (the contract still pays the player the pot after its timeout). Persist in the
-// backend if restarts between commit and reveal matter.
-const pending = new Map<string, PendingHand>();
+type Row = {
+  hand_id: string;
+  session_id: string;
+  agent: string;
+  player_commitment: string;
+  commit_tx: string;
+  created_at: number;
+  seed: string;
+  commitment: string;
+  data: { tableId: string; stack: number; req?: PlayRequest; autoSeed?: string };
+};
+
+const fromRow = (r: Row): PendingHand => ({
+  handId: r.hand_id,
+  sessionId: r.session_id,
+  agent: r.agent,
+  deal: { seed: r.seed, commitment: r.commitment },
+  playerCommitment: r.player_commitment,
+  commitTx: r.commit_tx,
+  at: r.created_at,
+  ...r.data,
+});
 
 export const pendingHands = {
-  put: (p: PendingHand) => void pending.set(p.handId, p),
-  /** This session's pending hand, or null. */
-  get: (handId: string, sessionId: string) => {
-    const p = pending.get(handId);
-    return p && p.sessionId === sessionId ? p : null;
+  /** Throws BackendError 409 if the agent already has an unrevealed hand. */
+  put: async ({ handId, sessionId, agent, playerCommitment, commitTx, tableId, stack, req, autoSeed }: Omit<PendingHand, "deal" | "at">) => {
+    await backend(`/pending/${handId}`, {
+      method: "PUT",
+      body: {
+        session_id: sessionId,
+        agent,
+        player_commitment: playerCommitment,
+        commit_tx: commitTx,
+        data: { tableId, stack, ...(req ? { req } : {}), ...(autoSeed ? { autoSeed } : {}) },
+      },
+    });
   },
-  delete: (handId: string) => void pending.delete(handId),
+  /** This session's unrevealed hand, or null. */
+  get: async (handId: string, sessionId: string) => {
+    const r = await backend<Row>(`/pending/${handId}`);
+    return r && r.session_id === sessionId ? fromRow(r) : null;
+  },
+  /** Mark revealed (or closed on-chain) — once. False if it already was. */
+  take: async (handId: string) => (await backend(`/pending/${handId}/reveal`, { method: "POST" })) !== null,
   /** The agent's unrevealed hand, if any. */
-  forAgent: (agent: string) => [...pending.values()].find((p) => p.agent === agent) ?? null,
+  forAgent: async (agent: string) => {
+    const r = await backend<{ hand: Row | null }>(`/pending?agent=${encodeURIComponent(agent)}`);
+    return r?.hand ? fromRow(r.hand) : null;
+  },
 };

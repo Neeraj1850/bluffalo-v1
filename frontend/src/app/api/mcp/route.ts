@@ -14,7 +14,8 @@ import {
 } from "@/lib/server/liveHand";
 import { sessionPayoutCap, stakeFor, TABLE_CLOSED, tableStatus } from "@/lib/server/economics";
 import { commitment } from "@/lib/poker/fairness";
-import { balanceOf, ChainError, commitHand, houseBalance } from "@/lib/server/near";
+import { balanceOf, ChainError, houseBalance } from "@/lib/server/near";
+import { commitReal, PlayError } from "@/lib/server/realHand";
 import { parkUnsettled } from "@/lib/server/timeouts";
 import { authFromRequest, requireAuth, withAuth } from "@/lib/server/mcpAuth";
 import { liveDeps, mapAction } from "@/lib/server/mcpPlay";
@@ -36,7 +37,8 @@ function toFail(e: unknown) {
     e instanceof ChainError ||
     e instanceof UnknownHandError ||
     e instanceof NotYourTurnError ||
-    e instanceof IllegalMoveError
+    e instanceof IllegalMoveError ||
+    e instanceof PlayError
   ) {
     return fail(e.message);
   }
@@ -89,7 +91,7 @@ const mcp = createMcpHandler((server) => {
       const table = getTable(tableId);
       if (table.mode !== "real") return fail("That table isn't a real-money table");
       // An unrevealed hand can't be settled by the house, so it blocks the agent until revealed.
-      const waiting = pendingHands.forAgent(agent);
+      const waiting = await pendingHands.forAgent(agent);
       if (waiting) return fail(`Hand ${waiting.handId} is waiting for your reveal`);
       try {
         // Same disclosed bankroll limits as /api/play: closed tables, session cap, exposure cap.
@@ -103,8 +105,8 @@ const mcp = createMcpHandler((server) => {
         const claimed = await takeSeed(handId, sessionId);
         if (!claimed) return fail("Could not claim the deal — try again");
 
-        const commitTx = await commitHand(handId, agent, claimed.commitment, playerCommitment, stack);
-        pendingHands.put({ handId, sessionId, agent, deal: claimed, playerCommitment, commitTx, tableId, stack, at: Date.now() });
+        // Shared with /api/play: one hand per agent, committed on-chain, then stored until revealed.
+        const commitTx = await commitReal({ handId, sessionId, agent, deal: claimed, playerCommitment, tableId, stack });
         return text({ handId, commitTx, next: "Call reveal with your playerSeed" });
       } catch (e) {
         return toFail(e);
@@ -126,10 +128,10 @@ const mcp = createMcpHandler((server) => {
     },
     async ({ handId, playerSeed }) => {
       const { sessionId } = requireAuth();
-      const p = pendingHands.get(handId, sessionId);
+      const p = await pendingHands.get(handId, sessionId);
       if (!p || p.req) return fail(new UnknownHandError().message);
       if ((await commitment(playerSeed)) !== p.playerCommitment) return fail("Seed doesn't match your commitment");
-      pendingHands.delete(handId);
+      if (!(await pendingHands.take(handId))) return fail(new UnknownHandError().message);
       const table = getTable(p.tableId);
       try {
         const result = await startHand(liveDeps, {

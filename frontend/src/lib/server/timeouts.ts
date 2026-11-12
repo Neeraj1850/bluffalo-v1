@@ -1,3 +1,4 @@
+import { pendingHands } from "./deals";
 import { claimTimeout } from "./near";
 
 /**
@@ -26,6 +27,8 @@ export async function claimExpired(now = Date.now(), claim = claimTimeout): Prom
         () => {
           parked.delete(id);
           done.push(id);
+          // Closed on-chain: an unrevealed hand no longer blocks its agent.
+          return pendingHands.take(id).catch(() => false);
         },
         (e) => console.error("[timeouts] claim_timeout failed", id, e),
       ),

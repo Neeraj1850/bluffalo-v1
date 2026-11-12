@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { stopAutoplay } from "@/lib/server/autoplay";
 import { balanceYocto, ChainError, fromYocto, withdrawTo } from "@/lib/server/near";
 import { sessionAgent, sessionAgentKey, sessionFrom, sessionUser, sessionWallet, withSession } from "@/lib/server/sessions";
 
@@ -16,6 +17,8 @@ export async function POST(request: Request) {
     sessionWallet(session.id),
   ]);
   if (!agent || !agentKey || !wallet) return reply({ error: "You have no agent running" }, 409);
+  // Taking the chips home ends server autoplay too.
+  await stopAutoplay(session.id).catch(() => undefined);
   try {
     const yocto = await balanceYocto(agent);
     if (yocto === 0n) return reply({ error: "Your agent has nothing to return" }, 409);

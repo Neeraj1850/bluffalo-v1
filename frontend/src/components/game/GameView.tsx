@@ -30,7 +30,8 @@ import { leaveTable } from "@/services/agentApi";
 import { STOP_COPY } from "@/lib/poker/session";
 import { setLiveLock } from "@/lib/store/liveLock";
 import { useSetup } from "@/lib/store/setup";
-import { stopAgent, txUrl } from "@/services/agentApi";
+import { type AutoplayStatus, fetchAutoplay, setAutoplay, stopAgent, txUrl } from "@/services/agentApi";
+import { AutoplaySitting, AutoplayToggle } from "./Autoplay";
 import { ActionPanel } from "./ActionPanel";
 import { Board } from "./Board";
 import { ChipBurst } from "./ChipBurst";
@@ -61,8 +62,19 @@ export function GameView() {
  */
 function Seat({ deployed }: { deployed: boolean }) {
   const [seated] = useState(deployed);
+  // Server autoplay running (started here earlier, maybe in a closed tab): watch it instead.
+  const [server, setServer] = useState<AutoplayStatus | null | undefined>(seated ? undefined : null);
+  useEffect(() => {
+    if (!seated) return;
+    fetchAutoplay().then(
+      (s) => setServer(s.on ? s : null),
+      () => setServer(null),
+    );
+  }, [seated]);
   // Practice lives on the Strategy page; this screen is only ever the real table.
-  return seated ? <Sitting /> : <NoAgent />;
+  if (!seated) return <NoAgent />;
+  if (server === undefined) return null;
+  return server ? <AutoplaySitting initial={server} /> : <Sitting onServer={setServer} />;
 }
 
 function NoAgent() {
@@ -88,7 +100,7 @@ function NoAgent() {
   );
 }
 
-function Sitting() {
+function Sitting({ onServer }: { onServer: (s: AutoplayStatus) => void }) {
   const setup = useSetup();
   // Fixed for this sitting: stopping the agent mustn't turn a live hand into practice.
   // Without a deployed agent this screen watches practice hands.
@@ -221,6 +233,25 @@ function Sitting() {
 
   return (
     <>
+      {live && !loop.stopped && !stopRequested && (
+        // Browser mode is the default; server play is opt-in and says what it trades away.
+        <AutoplayToggle
+          start={async () => {
+            await setAutoplay({
+              on: true,
+              tableId: table.id,
+              params: setup.params,
+              preset: setup.preset,
+              runId,
+              limits: setup.limits,
+              stack: loop.session.stack,
+              hands: loop.session.hands,
+              net: loop.session.net,
+            });
+            onServer(await fetchAutoplay());
+          }}
+        />
+      )}
       <GameTable
         key={loop.hand.id}
         sessionHref={runHref("real", runId)}
