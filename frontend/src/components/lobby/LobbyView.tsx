@@ -151,8 +151,16 @@ function TopStrategies() {
                 className="grid grid-cols-[24px_minmax(0,1fr)_auto] items-baseline gap-3 border-b border-hair py-2.5"
               >
                 <span className="font-mono text-[11px] text-muted">{String(i + 1).padStart(2, "0")}</span>
-                <span className="truncate font-display text-[16px] font-bold tracking-[-0.02em]">{s.title}</span>
-                <span className="font-display text-[16px] font-bold tabular">{signed(s.net)}</span>
+                <span className="min-w-0">
+                  <span className="block truncate font-display text-[16px] font-bold tracking-[-0.02em]">{s.title}</span>
+                  <span className="block font-mono text-[11px] text-muted">
+                    {s.hands ? `${s.hands} hands · ${signed(s.net)} net` : "no hands yet"}
+                  </span>
+                </span>
+                <span className="text-right">
+                  <span className="block font-display text-[16px] font-bold tabular">{s.price.toFixed(1)}</span>
+                  <span className="block font-mono text-[11px] text-muted">GNEAR {signed(s.change)}</span>
+                </span>
               </Link>
             </li>
           ))}

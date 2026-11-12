@@ -17,9 +17,11 @@ export function filterStrategies(list: MarketStrategy[], f: MarketFilter): Marke
   return list;
 }
 
-/** Best record first: rated before unrated, then net won. */
+/** Best record first: rated before unrated, then net won, then most hands, then price. */
 export const leaderboard = (list: MarketStrategy[]) =>
-  [...list].sort((a, b) => Number(b.rated) - Number(a.rated) || b.net - a.net);
+  [...list].sort(
+    (a, b) => Number(b.rated) - Number(a.rated) || b.net - a.net || b.hands - a.hands || b.price - a.price,
+  );
 
 /** "▲ +1.2" / "▼ −0.8" / "±0.0" — never color alone. */
 export const changeLabel = (change: number) => `${change > 0 ? "▲ " : change < 0 ? "▼ " : ""}${signed(change)}`;

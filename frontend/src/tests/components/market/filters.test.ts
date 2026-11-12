@@ -29,6 +29,11 @@ describe("market filters", () => {
     expect(ids(leaderboard(list))).toEqual(["b", "c", "a", "d"]);
   });
 
+  it("breaks net ties by hands, then price", () => {
+    const tie = [s({ tokenId: "x", price: 3 }), s({ tokenId: "y", price: 9 }), s({ tokenId: "z", hands: 4 })];
+    expect(ids(leaderboard(tie))).toEqual(["z", "y", "x"]);
+  });
+
   it("signs changes with an arrow, never color alone", () => {
     expect(changeLabel(1.25)).toBe("▲ +1.3");
     expect(changeLabel(-0.8)).toBe("▼ −0.8");
