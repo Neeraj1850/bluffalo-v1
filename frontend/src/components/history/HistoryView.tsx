@@ -22,8 +22,12 @@ import { toHistory, type HandMode, type LiveHand } from "@/lib/poker/record";
 import { useHands } from "@/lib/store/useHands";
 import { netAfterRake, rakeOf } from "@/services/houseApi";
 import { SessionList } from "@/components/sessions/SessionList";
+import { paginate, Pager } from "@/components/ui/Pager";
 import { HistoryRow } from "./HistoryRow";
 import { replayHref } from "./ReplayView";
+
+/** Rows per page in History. */
+const PAGE_SIZE = 10;
 
 const MODES: { key: HandMode; label: string }[] = [
   { key: "real", label: "Real money" },
@@ -59,6 +63,8 @@ export function HistoryView({
   const open = chosen === undefined ? (archive[0]?.id ?? null) : chosen;
 
   const hands = archive.filter((h) => inRange(h.at, filter));
+  const [page, setPage] = useState(1);
+  const shown = paginate(hands, page, PAGE_SIZE);
   const net = hands.reduce((a, h) => a + h.net, 0);
   const won = hands.filter((h) => h.net > 0).reduce((a, h) => a + h.net, 0);
   const lost = hands.filter((h) => h.net < 0).reduce((a, h) => a + h.net, 0);
@@ -125,7 +131,10 @@ export function HistoryView({
               type="button"
               role="tab"
               aria-selected={on}
-              onClick={() => setFilter(f.key)}
+              onClick={() => {
+                setFilter(f.key);
+                setPage(1);
+              }}
               className={cn(
                 "relative h-10 rounded-chip border px-3.5 font-mono text-[11px] uppercase tracking-[0.1em] transition-colors duration-200",
                 on ? "border-sel text-onsel" : "border-border text-fg",
@@ -231,7 +240,7 @@ export function HistoryView({
             </h2>
             <MonoLabel tracking="tight">Tap a session to open</MonoLabel>
           </div>
-          <SessionList mode={mode} filter={filter} />
+          <SessionList key={filter} mode={mode} filter={filter} pageSize={PAGE_SIZE} />
         </section>
       ) : (
         <section aria-labelledby="replay" className="flex flex-col">
@@ -282,7 +291,7 @@ export function HistoryView({
             </p>
           )}
           <ul className="flex flex-col">
-            {hands.map((h, i) => (
+            {shown.items.map((h, i) => (
               <HistoryRow
                 key={h.id}
                 hand={h}
@@ -294,6 +303,7 @@ export function HistoryView({
               />
             ))}
           </ul>
+          <Pager page={shown.page} pages={shown.pages} onChange={setPage} />
         </section>
       )}
     </main>

@@ -4,6 +4,7 @@ import { POST } from "@/app/api/play/route";
 import { GET as runs } from "@/app/api/runs/route";
 import { getPreset } from "@/lib/data/strategy";
 import { commitment, verifyDeal } from "@/lib/poker/fairness";
+import { leaveTable } from "@/lib/server/activeTable";
 import { createDeal } from "@/lib/server/deals";
 import { parsePlayRequest, playHand } from "@/lib/server/play";
 import { MODELS } from "@/lib/server/nearai";
@@ -31,6 +32,7 @@ const archive = async (id = ME, mode = "") =>
 
 // NEAR AI is faked: every model answers "call" (a check when nothing is owed), so hands reach showdown.
 beforeEach(async () => {
+  leaveTable(ME);
   vi.stubEnv("NEAR_AI_API_KEY", "test-key");
   backend = useFakeBackend(fakeNearAi({ action: "call", reason: "Keep it simple." }));
   backend.seedSession(ME, "did:privy:me", "ame.op.testnet");
@@ -216,6 +218,7 @@ describe("POST /api/play", () => {
 
   it("groups hands into sessions by run id, one mode at a time", async () => {
     for (const [tableId, runId] of [["kitchen", "aaaa1111"], ["kitchen", "aaaa1111"], ["kitchen", "bbbb2222"], ["back-room", "cccc3333"]]) {
+      if (tableId === "back-room") leaveTable(ME); // stopped practice before going live
       const deal = await createDeal(ME);
       await post({ ...valid, tableId, runId, handId: deal.handId });
     }
@@ -228,6 +231,15 @@ describe("POST /api/play", () => {
     expect(one).toHaveLength(2);
     expect(one.every((h: { run: string }) => h.run === "aaaa1111")).toBe(true);
     expect((await hands(new Request("http://x/api/hands?run=BAD", { headers: headers() }))).status).toBe(400);
+  });
+
+  it("refuses a second table while the player is mid-play at another", async () => {
+    const first = await createDeal(ME);
+    expect((await post({ ...valid, tableId: "kitchen", handId: first.handId })).status).toBe(200);
+    const second = await createDeal(ME);
+    const res = await post({ ...valid, handId: second.handId });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ code: "one_table" });
   });
 
   it("tags real-money hands as real", async () => {

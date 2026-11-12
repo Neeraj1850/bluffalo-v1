@@ -26,6 +26,7 @@ import {
 import { spring } from "@/lib/motion";
 import type { LiveHand } from "@/lib/poker/record";
 import { newRunId, runHref } from "@/lib/poker/runs";
+import { leaveTable } from "@/services/agentApi";
 import { STOP_COPY } from "@/lib/poker/session";
 import { setLiveLock } from "@/lib/store/liveLock";
 import { useSetup } from "@/lib/store/setup";
@@ -97,6 +98,10 @@ function Sitting() {
     bigBlind: table.blinds.big,
   });
   const [stopRequested, setStopRequested] = useState(false);
+  // The agent stopped (by the player or a limit): free the table for other play.
+  useEffect(() => {
+    if (loop.stopped) void leaveTable();
+  }, [loop.stopped]);
   const [confirmStop, setConfirmStop] = useState(false);
   const [returned, setReturned] = useState<ReturnState>({ status: "idle" });
 
@@ -364,6 +369,8 @@ export function GameTable({
     onStop,
     stopRequested,
     onNextHand: keepPlaying && !dealing ? onNextHand : undefined,
+    // Live and still playing: only Stop. Everything else waits until the agent stops.
+    stopOnly: live && !replay && !stopped,
     // Results show the latest real hand: only meaningful straight after a live one.
     doneLink: replay
       ? { href: replay.backHref, label: "Back to history" }
@@ -662,7 +669,7 @@ export function GameTable({
                 See the result
               </ButtonLink>
             )}
-            {sessionHref && session.hands > 0 && (
+            {sessionHref && stopped && session.hands > 0 && (
               <Link
                 href={sessionHref}
                 className="col-span-full font-mono text-[11px] uppercase tracking-[0.12em] underline underline-offset-4"

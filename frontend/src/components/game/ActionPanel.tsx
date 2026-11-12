@@ -18,6 +18,8 @@ type ActionPanelProps = {
   stopRequested?: boolean;
   /** When set, a finished hand offers the next one instead of a replay. */
   onNextHand?: () => void;
+  /** Live play in progress: Stop is the only control (hands deal and play on their own). */
+  stopOnly?: boolean;
   /** Where the main button goes once the hand is over; null hides it. */
   doneLink?: { href: string; label: string } | null;
   size?: "mobile" | "desktop";
@@ -40,6 +42,7 @@ export function ActionPanel({
   size = "mobile",
   className,
   doneLink = { href: "/results", label: "See the result" },
+  stopOnly = false,
 }: ActionPanelProps) {
   const desktop = size === "desktop";
   return (
@@ -74,7 +77,14 @@ export function ActionPanel({
           >
             {action}
           </span>
-          <span className={cn("leading-[1.45]", desktop ? "text-[15px]" : "text-[14px]")}>{reason}</span>
+          <span
+            className={cn(
+              "leading-[1.45]",
+              desktop ? "text-[15px]" : "text-[14px]",
+            )}
+          >
+            {reason}
+          </span>
         </motion.div>
       </AnimatePresence>
 
@@ -85,7 +95,22 @@ export function ActionPanel({
       )}
 
       <div className={cn("mt-auto flex gap-2", desktop && "pt-2")}>
-        {done ? (
+        {stopOnly ? (
+          // Desktop has the Stop button in the side panel; one Stop on screen is enough.
+          onStop &&
+          !desktop && (
+            <button
+              type="button"
+              onClick={onStop}
+              disabled={stopRequested}
+              className="h-11 flex-1 rounded-btn border border-current text-[15px] disabled:opacity-60 lg:h-12"
+            >
+              {stopRequested
+                ? "Stopping after this hand…"
+                : "Stop agent after this hand"}
+            </button>
+          )
+        ) : done ? (
           <>
             {doneLink && (
               <motion.div className="flex flex-1" {...pressable}>

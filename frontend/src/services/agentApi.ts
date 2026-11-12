@@ -130,6 +130,14 @@ export async function fetchTestedAgents(f: typeof fetch = fetch): Promise<Tested
   return (await res.json()).agents;
 }
 
+/** Stopped playing: free this player's table so they can sit at another. Best effort. */
+export function leaveTable(f: typeof fetch = fetch): Promise<void> {
+  return f("/api/table/leave", { method: "POST" }).then(
+    () => undefined,
+    () => undefined,
+  );
+}
+
 /** This player's play sessions of one mode, newest first. */
 export async function fetchRuns(mode: HandMode, f: typeof fetch = fetch): Promise<Run[]> {
   const res = await f(`/api/runs?mode=${mode}`);

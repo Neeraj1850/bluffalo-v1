@@ -5,6 +5,7 @@ import { ServiceDownError } from "@/lib/server/decide";
 import { recordHand } from "@/lib/server/hands";
 import { payoutFor, rakeFor, sessionPayoutCap, stakeFor, TABLE_CLOSED, tableStatus } from "@/lib/server/economics";
 import { balanceOf, ChainError, cancelHand, commitHand, houseBalance, settleHand } from "@/lib/server/near";
+import { claimTable } from "@/lib/server/activeTable";
 import { inFlight } from "@/lib/server/inFlight";
 import { parsePlayRequest, playHand } from "@/lib/server/play";
 import { sessionAgent, sessionFrom, sessionUser, withSession } from "@/lib/server/sessions";
@@ -41,6 +42,15 @@ export async function POST(request: Request) {
       }
       req.stack = stakeFor(balance, house);
       if (req.stack < table.blinds.big) return reply({ error: "Your agent is out of chips at this table" }, 409);
+    }
+
+    // One table at a time: a practice test and a live sitting can't run side by side.
+    const busy = claimTable(session.id, req.tableId);
+    if (busy) {
+      return reply(
+        { error: `You're already playing at ${getTable(busy).name}. One table at a time — stop there first.`, code: "one_table" },
+        409,
+      );
     }
 
     const deal = await takeSeed(req.handId, session.id);

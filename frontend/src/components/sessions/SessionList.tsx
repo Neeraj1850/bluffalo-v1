@@ -8,6 +8,8 @@ import { ago, signed } from "@/lib/format";
 import type { HandMode } from "@/lib/poker/record";
 import { EARLIER_RUN, runHref, winRate, type Run } from "@/lib/poker/runs";
 import { inRange, type HistoryFilter } from "@/lib/history";
+import { paginate, Pager } from "@/components/ui/Pager";
+import { agentKey } from "@/lib/poker/tested";
 import { fetchRuns } from "@/services/agentApi";
 
 type SessionListProps = {
@@ -18,6 +20,10 @@ type SessionListProps = {
   refresh?: number;
   /** History's time range, applied to when each session last played. */
   filter?: HistoryFilter;
+  /** Paginate with this many sessions per page (default: show all). */
+  pageSize?: number;
+  /** Only sessions played with this exact strategy (see agentKey). */
+  agentKey?: string;
 };
 
 const EMPTY: Record<HandMode, string> = {
@@ -32,9 +38,16 @@ export function SessionList({
   current,
   refresh = 0,
   filter = "all",
+  pageSize,
+  agentKey: only,
 }: SessionListProps) {
   const [loaded, setRuns] = useState<Run[] | null>(null);
-  const runs = loaded?.filter((r) => inRange(r.endedAt, filter)) ?? null;
+  const all =
+    loaded?.filter((r) => inRange(r.endedAt, filter) && (!only || (r.agent && agentKey(r.agent.params) === only))) ??
+    null;
+  const [page, setPage] = useState(1);
+  const shown = all && pageSize ? paginate(all, page, pageSize) : null;
+  const runs = shown ? shown.items : all;
 
   useEffect(() => {
     let cancelled = false;
@@ -95,6 +108,7 @@ export function SessionList({
           </li>
         ))}
       </ul>
+      {shown && <Pager page={shown.page} pages={shown.pages} onChange={setPage} />}
     </div>
   );
 }
