@@ -136,11 +136,13 @@ class TestUsers:
 
 class TestAgents:
     def test_stores_the_agent_account(self, client, session_id):
-        assert client.get(f"/sessions/{session_id}/agent").json() == {"account_id": None, "private_key": None}
+        empty = {"account_id": None, "private_key": None, "strategy_id": None}
+        assert client.get(f"/sessions/{session_id}/agent").json() == empty
         client.put(f"/sessions/{session_id}/agent", json={"account_id": "a1b2c3d4.npoker-op.testnet"})
         assert client.get(f"/sessions/{session_id}/agent").json() == {
             "account_id": "a1b2c3d4.npoker-op.testnet",
             "private_key": None,
+            "strategy_id": None,
         }
 
     def test_stores_the_agent_key_with_the_account(self, client, session_id):

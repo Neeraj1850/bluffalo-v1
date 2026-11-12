@@ -3,7 +3,7 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, BigInteger, DateTime, ForeignKey, Index, Integer, String, Uuid
+from sqlalchemy import JSON, BigInteger, DateTime, ForeignKey, Index, Integer, String, Text, Uuid
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -37,6 +37,8 @@ class Session(Base):
     wallet_key: Mapped[str | None] = mapped_column(String(128))
     # Opaque bearer token an external agent presents to the MCP server; resolves back to this session.
     mcp_token: Mapped[str | None] = mapped_column(String(64), unique=True)
+    # The market strategy (token id) the deployed agent plays, if any.
+    agent_strategy: Mapped[str | None] = mapped_column(String(16))
     state: Mapped[dict] = mapped_column(Json, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
@@ -82,3 +84,41 @@ class LiveHand(Base):
     # Milliseconds since the epoch, to match the machine's JS record exactly.
     updated_at: Mapped[int] = mapped_column(BigInteger)
     data: Mapped[dict] = mapped_column(Json)
+
+
+class Strategy(Base):
+    """A minted market strategy. `params` and `salt` are secret: only the params hash is public."""
+
+    __tablename__ = "strategies"
+
+    id: Mapped[str] = mapped_column(String(16), primary_key=True)  # contract token id
+    creator_session_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("sessions.id", ondelete="CASCADE"))
+    creator_account: Mapped[str] = mapped_column(String(64))
+    name: Mapped[str] = mapped_column(String(48), unique=True)
+    params: Mapped[dict] = mapped_column(Json)
+    salt: Mapped[str] = mapped_column(String(32))
+    params_hash: Mapped[str] = mapped_column(String(64))
+    contract_id: Mapped[str] = mapped_column(String(64))
+    mint_tx: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class MarketEvent(Base):
+    """Market activity feed: mints, listings, sales, uses, price ticks, NPC chatter."""
+
+    __tablename__ = "market_events"
+    __table_args__ = (Index("market_events_strategy_created", "strategy_id", "created_at"),)
+
+    id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True
+    )
+    strategy_id: Mapped[str | None] = mapped_column(ForeignKey("strategies.id", ondelete="CASCADE"))
+    kind: Mapped[str] = mapped_column(String(16))
+    account: Mapped[str] = mapped_column(String(64))
+    counterparty: Mapped[str | None] = mapped_column(String(64))
+    price_yocto: Mapped[str | None] = mapped_column(String(40))
+    amount: Mapped[int | None] = mapped_column(Integer)
+    reason: Mapped[str | None] = mapped_column(Text)
+    chat_id: Mapped[str | None] = mapped_column(String(80))
+    tx: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

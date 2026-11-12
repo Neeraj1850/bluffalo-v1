@@ -5,21 +5,26 @@ import json
 import os
 import uuid
 from datetime import timedelta
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Path, Query, status
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import func, select, update
+from sqlalchemy import Float, case, delete, func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
 from .db import get_db
-from .models import Deal, Hand, LiveHand, Session, now
+from .models import Deal, Hand, LiveHand, MarketEvent, Session, Strategy, now
 
 DEAL_TTL = timedelta(minutes=10)
 MAX_STATE_BYTES = 16_000
 HANDS_LIMIT = 50
 HANDS_MAX = 500
 STALE_LIMIT = 100
+EVENTS_LIMIT = 50
+EVENTS_MAX = 200
+PRICE_TTL = timedelta(days=7)
+StrategyId = Annotated[str, Path(pattern=r"^[a-z0-9]{1,16}$")]
 HandId = Annotated[str, Path(pattern=r"^[0-9a-f]{8}$")]
 
 
@@ -67,6 +72,38 @@ class AgentIn(BaseModel):
     account_id: str = Field(pattern=r"^[a-z0-9._-]{2,64}$")
     private_key: str | None = Field(default=None, pattern=r"^ed25519:[1-9A-HJ-NP-Za-km-z]{32,100}$")
     mcp_token: str | None = Field(default=None, pattern=r"^[0-9a-f]{32,64}$")
+    strategy_id: str | None = Field(default=None, pattern=r"^[a-z0-9]{1,16}$")
+
+
+class StrategyIn(BaseModel):
+    id: str = Field(pattern=r"^[a-z0-9]{1,16}$")
+    creator_session_id: uuid.UUID
+    creator_account: str = Field(pattern=r"^[a-z0-9._-]{2,64}$")
+    name: str = Field(min_length=1, max_length=48)
+    params: dict
+    salt: str = Field(pattern=r"^[0-9a-f]{32}$")
+    params_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    contract_id: str = Field(pattern=r"^[a-z0-9._-]{2,64}$")
+    mint_tx: str | None = Field(default=None, max_length=64)
+
+    @field_validator("params")
+    @classmethod
+    def small(cls, v: dict) -> dict:
+        if len(json.dumps(v)) > MAX_STATE_BYTES:
+            raise ValueError("Params are too large")
+        return v
+
+
+class EventIn(BaseModel):
+    strategy_id: str | None = Field(default=None, pattern=r"^[a-z0-9]{1,16}$")
+    kind: Literal["mint", "list", "delist", "sale", "use", "price", "npc"]
+    account: str = Field(min_length=1, max_length=64)
+    counterparty: str | None = Field(default=None, max_length=64)
+    price_yocto: str | None = Field(default=None, pattern=r"^[0-9]{1,40}$")
+    amount: int | None = None
+    reason: str | None = Field(default=None, max_length=2000)
+    chat_id: str | None = Field(default=None, max_length=80)
+    tx: str | None = Field(default=None, max_length=64)
 
 
 class WalletIn(BaseModel):
@@ -135,6 +172,7 @@ def get_user(session_id: uuid.UUID, db: Db) -> dict:
 def set_agent(session_id: uuid.UUID, body: AgentIn, db: Db) -> dict:
     s = session_or_404(db, session_id)
     s.agent_account, s.agent_key = body.account_id, body.private_key
+    s.agent_strategy = body.strategy_id  # a new agent without a strategy clears it
     if body.mcp_token is not None:
         s.mcp_token = body.mcp_token
     db.commit()
@@ -153,7 +191,7 @@ def session_by_token(token: Annotated[str, Path(pattern=r"^[0-9a-f]{32,64}$")], 
 @app.get("/sessions/{session_id}/agent", dependencies=Auth)
 def get_agent(session_id: uuid.UUID, db: Db) -> dict:
     s = session_or_404(db, session_id)
-    return {"account_id": s.agent_account, "private_key": s.agent_key}
+    return {"account_id": s.agent_account, "private_key": s.agent_key, "strategy_id": s.agent_strategy}
 
 
 @app.put("/sessions/{session_id}/wallet", dependencies=Auth)
@@ -259,3 +297,105 @@ def get_live_hand(hand_id: HandId, db: Db) -> dict:
     if not row:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown live hand")
     return {"data": row.data}
+
+
+# Strategy market. Params and salt are secret: only /strategies/{id}/params returns them.
+
+PUBLIC = (
+    Strategy.id,
+    Strategy.creator_account,
+    Strategy.name,
+    Strategy.params_hash,
+    Strategy.contract_id,
+    Strategy.mint_tx,
+    Strategy.created_at,
+)
+
+
+@app.post("/strategies", status_code=201, dependencies=Auth)
+def create_strategy(body: StrategyIn, db: Db) -> dict:
+    session_or_404(db, body.creator_session_id)
+    db.add(Strategy(**body.model_dump()))
+    try:
+        db.commit()
+    except IntegrityError:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Strategy id or name already taken") from None
+    return {"ok": True}
+
+
+@app.get("/strategies", dependencies=Auth)
+def list_strategies(db: Db) -> dict:
+    rows = db.execute(select(*PUBLIC).order_by(Strategy.created_at.desc()))
+    return {"strategies": [dict(r._mapping) for r in rows]}
+
+
+@app.get("/strategies/stats", dependencies=Auth)
+def strategy_stats(db: Db) -> dict:
+    """Per strategy, over real-money hands: count, chips staked, net, wins. Stake = what the
+    agent committed = potWon − net (the record has no separate stake field)."""
+    # ponytail: JSON-path aggregate over every hand, add an indexed column if hands grows
+    sid = Hand.record[("agent", "strategy")].as_string()
+    net = Hand.record["net"].as_float()
+    stake = Hand.record["potWon"].as_float() - net
+    rows = db.execute(
+        select(
+            sid.label("strategy_id"),
+            func.count().label("hands"),
+            func.coalesce(func.sum(stake), 0).cast(Float).label("stake"),
+            func.coalesce(func.sum(net), 0).cast(Float).label("net"),
+            func.sum(case((net > 0, 1), else_=0)).label("wins"),
+        )
+        .where(sid.is_not(None), func.coalesce(Hand.record["mode"].as_string(), "real") == "real")
+        .group_by(sid)
+    )
+    return {"stats": [dict(r._mapping) for r in rows]}
+
+
+@app.get("/strategies/{strategy_id}/params", dependencies=Auth)
+def strategy_params(strategy_id: StrategyId, db: Db) -> dict:
+    s = db.get(Strategy, strategy_id)
+    if not s:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown strategy")
+    return {"params": s.params, "salt": s.salt, "params_hash": s.params_hash}
+
+
+@app.post("/market/events", status_code=201, dependencies=Auth)
+def add_event(body: EventIn, db: Db) -> dict:
+    if body.strategy_id and not db.get(Strategy, body.strategy_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown strategy")
+    e = MarketEvent(**body.model_dump())
+    db.add(e)
+    db.commit()
+    return {"id": e.id}
+
+
+@app.get("/market/events", dependencies=Auth)
+def list_events(
+    db: Db,
+    strategy_id: Annotated[str | None, Query(pattern=r"^[a-z0-9]{1,16}$")] = None,
+    since: Annotated[int | None, Query(ge=0)] = None,
+    limit: Annotated[int, Query(ge=1, le=EVENTS_MAX)] = EVENTS_LIMIT,
+) -> dict:
+    """Newest first. `since` is an event id: only events after it (for polling)."""
+    query = select(MarketEvent)
+    if strategy_id:
+        query = query.where(MarketEvent.strategy_id == strategy_id)
+    if since is not None:
+        query = query.where(MarketEvent.id > since)
+    rows = db.scalars(query.order_by(MarketEvent.id.desc()).limit(limit))
+    cols = [c.key for c in MarketEvent.__table__.columns]
+    return {"events": [{k: getattr(e, k) for k in cols} for e in rows]}
+
+
+def prune_prices(db: DbSession) -> int:
+    """Drop price ticks older than a week; the rest of the feed is kept."""
+    n = db.execute(
+        delete(MarketEvent).where(MarketEvent.kind == "price", MarketEvent.created_at < now() - PRICE_TTL)
+    ).rowcount
+    db.commit()
+    return n
+
+
+@app.post("/market/prune", dependencies=Auth)
+def prune(db: Db) -> dict:
+    return {"deleted": prune_prices(db)}
