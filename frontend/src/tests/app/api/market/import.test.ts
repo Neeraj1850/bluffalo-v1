@@ -11,6 +11,7 @@ beforeEach(() => {
   be = useFakeBackend();
   vi.stubEnv("NPC_BOOKIE", "bookie.op.testnet:ed25519:b");
   vi.stubEnv("NEAR_MARKET_ID", "market.op.testnet");
+  vi.stubEnv("NEAR_OPERATOR_ID", "op.testnet");
 });
 afterEach(() => vi.unstubAllEnvs());
 
@@ -24,5 +25,11 @@ describe("POST /api/market/import", () => {
     expect(await (await call({ rows: [row] })).json()).toEqual({ added: ["s1"] });
     expect(be.strategies.get("s1")).toMatchObject({ creator_account: "bookie.op.testnet", contract_id: "market.op.testnet", salt: row.salt });
     expect(await (await call({ rows: [row] })).json()).toEqual({ added: [] });
+  });
+
+  it("keeps a demo player as the creator", async () => {
+    await call({ rows: [{ ...row, id: "s2", name: "Ava's Trap", creator: "ava" }] });
+    expect(be.strategies.get("s2")).toMatchObject({ creator_account: "ava.op.testnet" });
+    expect((await call({ rows: [{ ...row, id: "s3", name: "X", creator: "Bad Name" }] })).status).toBe(400);
   });
 });

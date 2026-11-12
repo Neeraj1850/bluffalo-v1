@@ -17,3 +17,4 @@ __pycache__/
 
 # Rust build output
 target/
+frontend/scripts/.market-players.json
