@@ -5,12 +5,12 @@ check: lint typecheck test
 
 # rustup installs cargo here; the git hook may not have it on PATH.
 export PATH := $(HOME)/.cargo/bin:$(PATH)
-CONTRACT := contracts/poker
+CONTRACTS := contracts/poker contracts/market
 
 lint:
 	cd frontend && npm run lint
 	cd backend && uv run ruff check . && uv run ruff format --check .
-	cd $(CONTRACT) && cargo fmt --check && cargo clippy -q --all-targets -- -D warnings
+	for c in $(CONTRACTS); do (cd $$c && cargo fmt --check && cargo clippy -q --all-targets -- -D warnings) || exit 1; done
 
 typecheck:
 	cd frontend && npm run typecheck
@@ -18,4 +18,4 @@ typecheck:
 test:
 	cd frontend && npm test
 	cd backend && uv run pytest -q
-	cd $(CONTRACT) && cargo test -q
+	for c in $(CONTRACTS); do (cd $$c && cargo test -q) || exit 1; done

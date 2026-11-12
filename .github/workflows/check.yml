@@ -37,7 +37,9 @@ jobs:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: contracts/poker
+          workspaces: |
+            contracts/poker
+            contracts/market
 
       # Tests never touch the network (CLAUDE.md): no secrets needed here.
       - run: make check
