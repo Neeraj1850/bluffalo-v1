@@ -39,8 +39,26 @@ type SignatureResp = {
   error_code?: string;
 };
 
-/** The model TEE signing addresses the attestation report vouches for (lowercased). */
-async function attestedSigners(model: string, nonce: string, key: string, f: typeof fetch): Promise<string[]> {
+// ponytail: per-process cache, so each server instance fetches the report once per TTL; move to a shared store if instances multiply.
+const REPORT_TTL_MS = 10 * 60_000;
+const reportCache = new Map<string, { at: number; signers: string[] }>();
+
+/** Test hook: forget cached attestation reports. */
+export const clearAttestationCache = () => reportCache.clear();
+
+/**
+ * The model TEE signing addresses the attestation report vouches for (lowercased).
+ * The report is cached per model for REPORT_TTL_MS; signatures are still checked live.
+ */
+async function attestedSigners(model: string, key: string, f: typeof fetch, now = Date.now()): Promise<string[]> {
+  const hit = reportCache.get(model);
+  if (hit && now - hit.at < REPORT_TTL_MS) return hit.signers;
+  const signers = await fetchSigners(model, randomBytes(32).toString("hex"), key, f);
+  reportCache.set(model, { at: now, signers });
+  return signers;
+}
+
+async function fetchSigners(model: string, nonce: string, key: string, f: typeof fetch): Promise<string[]> {
   const url = `${BASE}/attestation/report?model=${encodeURIComponent(model)}&signing_algo=ecdsa&nonce=${nonce}`;
   const res = await f(url, { headers: { Authorization: `Bearer ${key}` } });
   if (!res.ok) throw new Error(`attestation report ${res.status}`);
@@ -68,15 +86,14 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  */
 export async function verifyModel(
   model: string,
-  opts: { fetch?: typeof fetch; sleep?: (ms: number) => Promise<void> } = {},
+  opts: { fetch?: typeof fetch; sleep?: (ms: number) => Promise<void>; now?: number } = {},
 ): Promise<Attestation> {
   const key = process.env.NEAR_AI_API_KEY;
   if (!key) return { verified: false, model, detail: "NEAR_AI_API_KEY is not set", verifyUrl: verifyCenter(model) };
   const f = opts.fetch ?? fetch;
   const nap = opts.sleep ?? sleep;
 
-  const nonce = randomBytes(32).toString("hex");
-  const signers = await attestedSigners(model, nonce, key, f);
+  const signers = await attestedSigners(model, key, f, opts.now);
 
   const body = JSON.stringify({ model, messages: [{ role: "user", content: "attestation ping" }], max_tokens: 1 });
   const res = await f(`${BASE}/chat/completions`, {
@@ -144,7 +161,7 @@ export type ChatAttestation = Attestation & {
 export async function verifyChat(
   chatId: string,
   model: string,
-  opts: { fetch?: typeof fetch; sleep?: (ms: number) => Promise<void> } = {},
+  opts: { fetch?: typeof fetch; sleep?: (ms: number) => Promise<void>; now?: number } = {},
 ): Promise<ChatAttestation> {
   const base = { chatId, model, verifyUrl: verifyCenter(model) };
   const key = process.env.NEAR_AI_API_KEY;
@@ -174,8 +191,7 @@ export async function verifyChat(
     return { ...base, ...hashes, verified: false, detail: "signer doesn't match the reported address" };
   }
 
-  const nonce = randomBytes(32).toString("hex");
-  const signers = await attestedSigners(sigModel, nonce, key, f);
+  const signers = await attestedSigners(sigModel, key, f, opts.now);
   // Any signature kind must come from a signer the TEE attestation vouches for.
   if (!signers.includes(recovered)) {
     return { ...base, ...hashes, verified: false, detail: "signer isn't an attested model TEE" };

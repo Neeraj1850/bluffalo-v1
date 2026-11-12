@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { Wallet } from "ethers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { verifyChat, verifyModel } from "@/lib/server/nearaiAttest";
+import { clearAttestationCache, verifyChat, verifyModel } from "@/lib/server/nearaiAttest";
 
 const sha = (s: string) => createHash("sha256").update(s, "utf8").digest("hex");
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
@@ -37,7 +37,10 @@ function fakeCloud({ signerAddr = wallet.address, signWith = wallet as Signer }:
 const noSleep = async () => {};
 
 describe("verifyModel", () => {
-  beforeEach(() => vi.stubEnv("NEAR_AI_API_KEY", "test-key"));
+  beforeEach(() => {
+    vi.stubEnv("NEAR_AI_API_KEY", "test-key");
+    clearAttestationCache();
+  });
   afterEach(() => vi.unstubAllEnvs());
 
   it("verifies a completion signed by an attested TEE signer", async () => {
@@ -92,7 +95,10 @@ function sigCloud({ signWith = wallet as Signer, attested = true, kind = "provid
 }
 
 describe("verifyChat", () => {
-  beforeEach(() => vi.stubEnv("NEAR_AI_API_KEY", "test-key"));
+  beforeEach(() => {
+    vi.stubEnv("NEAR_AI_API_KEY", "test-key");
+    clearAttestationCache();
+  });
   afterEach(() => vi.unstubAllEnvs());
 
   it("verifies a past decision signed by an attested TEE signer", async () => {
@@ -123,5 +129,23 @@ describe("verifyChat", () => {
     const att = await verifyChat("chatcmpl-x", MODEL, { fetch: f, sleep: noSleep });
     expect(att.verified).toBe(false);
     expect(att.detail).toMatch(/signature/);
+  });
+});
+
+describe("attestation report cache", () => {
+  beforeEach(() => {
+    vi.stubEnv("NEAR_AI_API_KEY", "test-key");
+    clearAttestationCache();
+  });
+  afterEach(() => vi.unstubAllEnvs());
+  const reports = (f: ReturnType<typeof fakeCloud>) => f.mock.calls.filter(([u]) => String(u).includes("/attestation/report")).length;
+
+  it("reuses the report within the TTL and refetches after it", async () => {
+    const f = fakeCloud();
+    expect((await verifyModel(MODEL, { fetch: f, sleep: noSleep, now: 0 })).verified).toBe(true);
+    expect((await verifyModel(MODEL, { fetch: f, sleep: noSleep, now: 60_000 })).verified).toBe(true);
+    expect(reports(f)).toBe(1);
+    await verifyModel(MODEL, { fetch: f, sleep: noSleep, now: 11 * 60_000 });
+    expect(reports(f)).toBe(2);
   });
 });
