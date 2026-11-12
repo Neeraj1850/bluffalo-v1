@@ -51,9 +51,18 @@ export function GameView() {
   const setup = useSetup();
   // Wait for saved state: whether an agent is deployed decides the table.
   if (!setup.hydrated) return null;
+  return <Seat deployed={setup.agent.status === "deployed"} />;
+}
+
+/**
+ * Decided once, when the table opens. When the agent stops mid-sitting (a limit,
+ * or the player) the flag clears, but the sitting must stay on screen to show
+ * how it ended — not flip to "nothing live yet".
+ */
+function Seat({ deployed }: { deployed: boolean }) {
+  const [seated] = useState(deployed);
   // Practice lives on the Strategy page; this screen is only ever the real table.
-  if (setup.agent.status !== "deployed") return <NoAgent />;
-  return <Sitting />;
+  return seated ? <Sitting /> : <NoAgent />;
 }
 
 function NoAgent() {
@@ -62,10 +71,12 @@ function NoAgent() {
       <StatusBadge kind="practice" size="sm" className="self-start">
         No agent at a table
       </StatusBadge>
-      <h1 className="display text-[56px] leading-[0.85] tracking-[-0.06em] lg:text-[80px]">nothing live yet.</h1>
+      <h1 className="display text-[56px] leading-[0.85] tracking-[-0.06em] lg:text-[80px]">
+        nothing live yet.
+      </h1>
       <p className="text-[15px] leading-normal text-muted">
-        Your agent plays here once you send it to a real-money table. Test a strategy for free first, then take it
-        live from the Strategy page.
+        Your agent plays here once you send it to a real-money table. Test a
+        strategy for free first, then take it live from the Strategy page.
       </p>
       <div className="flex flex-col gap-2 sm:flex-row">
         <ButtonLink href="/strategy">Test an agent · free</ButtonLink>
@@ -120,6 +131,9 @@ function Sitting() {
       const r = await stopAgent();
       setReturned({ status: "done", tx: r.tx, amount: r.amount });
     } catch (e) {
+      // Busted: there's nothing to send back, and the stop reason already says why.
+      if (e instanceof Error && /nothing to return/i.test(e.message))
+        return setReturned({ status: "idle" });
       setReturned({
         status: "failed",
         error:
@@ -229,7 +243,8 @@ function Sitting() {
           const leaving = reason || stopRequested;
           if (live && leaving) {
             setup.stopAgent();
-            if (stopRequested) void returnFunds();
+            // Stopped by the player or by a limit: either way its chips come home.
+            void returnFunds();
           }
           return !leaving;
         }}
