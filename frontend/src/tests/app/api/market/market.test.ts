@@ -11,6 +11,8 @@ import { useFakeBackend } from "@/tests/helpers/backend";
 // The chain is mocked: views answer from `chainState`, writes return fake hashes.
 const chain = vi.hoisted(() => ({ send: vi.fn(), callAs: vi.fn(), view: vi.fn(), walletBalanceYocto: vi.fn() }));
 vi.mock("@/lib/server/near", async (orig) => ({ ...(await orig<object>()), ...chain }));
+const ai = vi.hoisted(() => ({ chatJsonId: vi.fn() }));
+vi.mock("@/lib/server/nearai", async (orig) => ({ ...(await orig<object>()), ...ai }));
 
 const ME = "00000000-0000-4000-8000-00000000000a";
 const GUEST = "00000000-0000-4000-8000-00000000000c";
@@ -153,6 +155,14 @@ describe("POST /api/market/tick", () => {
     expect(be.events.some((e) => e.kind === "price")).toBe(true);
     expect(be.events.some((e) => e.kind === "npc" && e.reason === "Scout is offline")).toBe(true);
     expect(chain.callAs.mock.calls.every(([who]) => who !== "scout.op.testnet")).toBe(true);
+  });
+
+  it("shows Scout's pass in the feed with its signed chat id", async () => {
+    vi.stubEnv("NPC_SCOUT", "scout.op.testnet:ed25519:s");
+    vi.stubEnv("NEAR_AI_API_KEY", "k");
+    ai.chatJsonId.mockResolvedValue({ value: { buy: null, reason: "Nothing is cheap yet" }, id: "chat-1" });
+    await tick(authed());
+    expect(be.events).toContainEqual(expect.objectContaining({ kind: "npc", reason: "Scout: Nothing is cheap yet (passed)", chat_id: "chat-1" }));
   });
 });
 

@@ -168,7 +168,9 @@ async function scoutTurn(
 
   const c = candidates.find((x) => x.r.s.token_id === pick.buy);
   // Hard checks: the model only proposes. Listed now, and at most a quarter of Scout's cash.
-  if (!c || c.askG > cash * SCOUT_MAX_SHARE) return;
   const reason = `Scout: ${String(pick.reason ?? "").slice(0, 300)}`;
+  // A pass is a decision too: show it in the feed with its TEE-signed chat id.
+  if (!c || c.askG > cash * SCOUT_MAX_SHARE)
+    return recordEvent({ strategy_id: null, kind: "npc", account: scout.account, reason: `${reason} (passed)`, chat_id: chatId });
   await trade(scout, "buy", c.r.s.token_id, c.askG, reason, chatId);
 }
