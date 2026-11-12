@@ -103,7 +103,7 @@ BACKEND_TOKEN=paste-a-random-string-here   # make one with: openssl rand -hex 32
 docker compose --env-file .env.deploy up --build -d
 ```
 
-**4. Open http://localhost:3000** 🎉
+**4. Open http://localhost:3000**
 
 That's all. The database, backend and web app start together, and database migrations run automatically.
 
@@ -112,7 +112,7 @@ That's all. The database, backend and web app start together, and database migra
 | See logs | `docker compose --env-file .env.deploy logs -f` |
 | Stop it | `docker compose --env-file .env.deploy down` |
 | Update to the latest code | `git pull && docker compose --env-file .env.deploy up --build -d` |
-| Wipe all data (⚠️ irreversible) | `docker compose --env-file .env.deploy down -v` |
+| Wipe all data (irreversible) | `docker compose --env-file .env.deploy down -v` |
 
 > **Putting it on a real server?** Run the same commands on any VPS with Docker installed, and put HTTPS in front of port 3000 (for example Caddy or Cloudflare Tunnel). The session cookie is `Secure` in production, so plain HTTP sign-in will not work there. Also add your domain to Privy's allowed domains.
 
@@ -124,8 +124,8 @@ All of these go in `.env.deploy`. The app starts with only the two required valu
 
 | Variable | Required? | What it unlocks | Where to get it |
 |---|---|---|---|
-| `POSTGRES_PASSWORD` | ✅ yes | Database | Make one up |
-| `BACKEND_TOKEN` | ✅ yes | Lets the web app talk to the backend | `openssl rand -hex 32` |
+| `POSTGRES_PASSWORD` | yes | Database | Make one up |
+| `BACKEND_TOKEN` | yes | Lets the web app talk to the backend | `openssl rand -hex 32` |
 | `NEAR_AI_API_KEY` | for play | AI agent and house decisions (in a TEE) | [cloud.near.ai](https://cloud.near.ai) → API keys |
 | `NEXT_PUBLIC_PRIVY_APP_ID` | for sign-in | Email and wallet login | [dashboard.privy.io](https://dashboard.privy.io) → create an app |
 | `PRIVY_APP_SECRET` | for sign-in | Server-side token check | Same Privy app → Settings |
@@ -296,7 +296,7 @@ stateDiagram-v2
 
 - **Commit-reveal deal, both seeds bound.** The server commits to its seed before your browser picks yours, and your browser checks the server's commitment. Before any card is dealt, `commit_hand` stores `sha256(server seed)` **and** `sha256(your seed)` on-chain. At settlement the contract refuses any seed that doesn't match its hash, so nobody can swap a seed after the deal. Anyone can read both seeds with `get_hand`, re-shuffle, and check the hand.
 - **No voiding losing hands.** There is no operator cancel. A hand left unsettled for 600 blocks (~10 min) can be closed by anyone with `claim_timeout`, and the **player gets the whole pot**, so stalling only costs the house.
-- **Immutable contract.** The contract account has no access keys (deleted right after deploy), so its code can't be changed. Rebuild from `contracts/poker` and compare the code hash above.
+- **Immutable contract.** The contract account has no access keys (deleted right after deploy), so its code can't be changed. Download the exact deployed `poker.wasm` from the [contract-v2 release](https://github.com/Neeraj1850/bluffalo/releases/tag/contract-v2) and check it: `shasum -a 256 poker.wasm` must print `cab7bfd6…4953`, the sha256 behind the on-chain code hash. The build isn't reproducible (`non-reproducible-wasm`), so a fresh rebuild may produce a different hash.
 - **TEE-signed decisions, checked per hand.** Agent moves come from a NEAR AI Cloud model running in confidential compute. On the Results screen, every AI decision of that hand is checked: its NEAR AI signature must recover (EIP-191) to a signer the model's TEE attestation vouches for (`GET /api/verify?chats=…`). The full hardware quote can be checked at [cloud.near.ai/verify](https://cloud.near.ai/verify).
 - **The house never sees your cards.** The house model only gets public information (equity, pot odds, stack-to-pot ratio) and fixed, published parameters.
 
@@ -408,10 +408,10 @@ npm run dev
 
 ## Contributing
 
-- Every feature and bug fix ships with a test: `frontend/src/tests/` (vitest) or `backend/tests/` (pytest).
+- Every feature and bug fix ships with a test: `frontend/src/tests/` (vitest), `backend/tests/` (pytest) or `contracts/poker/src/tests.rs` (cargo).
 - `make check` (ESLint, ruff, tsc, vitest, pytest) must pass. Enable the pre-commit hook once with `git config core.hooksPath .githooks`.
-- Branches: `main` holds releases, `dev` is for integration. Feature branches are named `<issue>-<short-name>` and merge into `dev`.
-- Conventional commits: `feat:`, `fix:`, `docs:`, `chore:` …
+- Conventional commits (`feat:`, `fix:`, `docs:`, `chore:` …). Open a pull request against `main`.
+- The `(#n)` numbers in older commit messages refer to issues in the private repo the project was developed in; they don't exist in this public repo.
 
 **Roadmap:** cross-chain buy-in and cash-out via NEAR Intents (mainnet only, not wired yet).
 
