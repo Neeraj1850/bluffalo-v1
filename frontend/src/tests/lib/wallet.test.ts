@@ -69,4 +69,9 @@ describe("saved setup", () => {
     expect(s.tableId).toBe("vault");
     expect("balance" in s).toBe(false);
   });
+
+  it("defaults the license to none and keeps a saved one", () => {
+    expect(fromSaved({ tableId: "vault" }).license).toBeNull();
+    expect(fromSaved({ license: { id: "t1", name: "Night" } }).license).toEqual({ id: "t1", name: "Night" });
+  });
 });

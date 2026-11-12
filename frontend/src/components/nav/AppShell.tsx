@@ -6,13 +6,13 @@ import { cn } from "@/lib/cn";
 import { AgentReconciler } from "./AgentReconciler";
 import { BottomNav } from "./BottomNav";
 import { NavRail } from "./NavRail";
-import { activeNavKey, BOTTOM_NAV_ROUTES } from "./navItems";
+import { activeNavKey, showsBottomNav } from "./navItems";
 
 /** Persistent chrome for every in-app screen: rail on desktop, bottom bar on mobile browse screens. */
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const active = activeNavKey(pathname);
-  const showBottom = BOTTOM_NAV_ROUTES.some((r) => pathname.startsWith(r));
+  const showBottom = showsBottomNav(pathname);
   // Signed-out players go back to Connect; render nothing meanwhile.
   const signedIn = useRequireSignIn();
   if (!signedIn) return null;

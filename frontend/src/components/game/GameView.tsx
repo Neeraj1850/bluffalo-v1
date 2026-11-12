@@ -228,7 +228,7 @@ function Sitting() {
         live={live}
         tableName={table.name}
         blinds={blindsLabel(table)}
-        presetLabel={getPreset(setup.preset).label}
+        presetLabel={setup.license?.name ?? getPreset(setup.preset).label}
         session={loop.session}
         maxHands={setup.limits.maxHands}
         stopLoss={setup.limits.stopLoss}

@@ -32,10 +32,14 @@ export type SetupState = {
   preset: PresetKey;
   params: StrategyParams;
   limits: Limits;
+  /** A bought strategy license: the server plays its sealed settings. Cleared by any slider or preset change. */
+  license: License | null;
   agent:
     | { status: "idle" }
     | { status: "deployed"; account: string; buyIn: number; tableId: string; at: number };
 };
+
+export type License = { id: string; name: string };
 
 const SAVE_DEBOUNCE_MS = 300;
 
@@ -44,6 +48,7 @@ const initialState: SetupState = {
   preset: DEFAULT_PRESET,
   params: { ...getPreset(DEFAULT_PRESET).params! },
   limits: { ...DEFAULT_LIMITS },
+  license: null,
   agent: { status: "idle" },
 };
 
@@ -51,7 +56,7 @@ const initialState: SetupState = {
 export function fromSaved(saved: unknown): SetupState {
   const { balance: _stale, ...rest } = (saved ?? {}) as Partial<SetupState> & { balance?: unknown };
   void _stale;
-  return { ...initialState, ...rest };
+  return { ...initialState, ...rest, license: rest.license ?? null };
 }
 
 type SetupContextValue = SetupState & {
@@ -65,7 +70,7 @@ type SetupContextValue = SetupState & {
   choosePreset: (key: PresetKey) => void;
   setParam: (key: ParamKey, value: number) => void;
   /** Load a whole saved strategy (e.g. a tested agent). */
-  applyAgent: (preset: PresetKey, params: StrategyParams) => void;
+  applyAgent: (preset: PresetKey, params: StrategyParams, license?: License | null) => void;
   setLimit: (key: LimitKey, value: number) => void;
   markDeployed: (account: string, buyIn?: number) => void;
   /** The agent left the table. Its funds are on chain; see useWallet/useAgent. */
@@ -121,17 +126,18 @@ export function SetupProvider({ children }: { children: ReactNode }) {
     (key: PresetKey) =>
       setState((s) => {
         const p = getPreset(key).params;
-        return { ...s, preset: key, params: p ? { ...p } : s.params };
+        return { ...s, preset: key, params: p ? { ...p } : s.params, license: null };
       }),
     [],
   );
   const setParam = useCallback(
     (key: ParamKey, value: number) =>
-      setState((s) => ({ ...s, preset: "custom", params: { ...s.params, [key]: value } })),
+      setState((s) => ({ ...s, preset: "custom", params: { ...s.params, [key]: value }, license: null })),
     [],
   );
   const applyAgent = useCallback(
-    (key: PresetKey, values: StrategyParams) => setState((s) => ({ ...s, preset: key, params: { ...values } })),
+    (key: PresetKey, values: StrategyParams, license: License | null = null) =>
+      setState((s) => ({ ...s, preset: key, params: { ...values }, license })),
     [],
   );
   const setLimit = useCallback(

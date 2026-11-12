@@ -1,7 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { ButtonHint, ButtonLink } from "@/components/ui/Button";
+import { useState } from "react";
+import { PublishSheet } from "@/components/market/PublishSheet";
+import { YourLicenses } from "@/components/market/YourLicenses";
+import { Button, ButtonHint, ButtonLink } from "@/components/ui/Button";
 import { MonoLabel } from "@/components/ui/MonoLabel";
 import { Rise } from "@/components/ui/Rise";
 import { LIMITS, PARAMS } from "@/lib/data/strategy";
@@ -12,7 +15,8 @@ import { RiskLimitRow } from "./RiskLimitRow";
 import { StrategySlider } from "./StrategySlider";
 
 export function StrategyView() {
-  const { tableId, preset, params, limits, choosePreset, setParam, setLimit } = useSetup();
+  const { tableId, preset, params, limits, license, choosePreset, setParam, setLimit } = useSetup();
+  const [publishing, setPublishing] = useState(false);
   const table = getTable(tableId);
   const isPractice = table.mode === "practice";
 
@@ -40,9 +44,18 @@ export function StrategyView() {
       <div className="grid gap-6 lg:grid-cols-2 lg:items-start lg:gap-10">
         <div className="flex flex-col gap-6 lg:sticky lg:top-10">
           <PresetPicker value={preset} onChange={choosePreset} />
+          <YourLicenses />
         </div>
 
         <div className="flex flex-col gap-6">
+          {license ? (
+            <section className="flex flex-col gap-2 rounded-card border border-border bg-surface p-5">
+              <MonoLabel as="h2">Licensed · {license.name}</MonoLabel>
+              <p className="text-[14px] leading-normal text-muted">
+                Settings sealed by the creator. Your safety limits still apply. Pick a personality to go back to your own.
+              </p>
+            </section>
+          ) : (
           <section
             aria-labelledby="fine-tune"
             className="flex flex-col rounded-card border border-border bg-surface px-5 pb-3 pt-1"
@@ -65,6 +78,7 @@ export function StrategyView() {
               />
             ))}
           </section>
+          )}
 
           <section aria-labelledby="limits" className="flex flex-col gap-1">
             <div className="flex items-baseline justify-between pb-2">
@@ -112,9 +126,15 @@ export function StrategyView() {
                 Start playing
               </ButtonLink>
             )}
+            {!license && (
+              <Button variant="ghost" onClick={() => setPublishing(true)} trailing={<ButtonHint muted>Free · settings stay secret</ButtonHint>}>
+                Publish to the market
+              </Button>
+            )}
           </div>
         </div>
       </div>
+      <PublishSheet open={publishing} onClose={() => setPublishing(false)} />
     </main>
   );
 }

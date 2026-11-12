@@ -33,8 +33,9 @@ export function DeployView() {
       preset: setup.preset,
       params: setup.params,
       limits: setup.limits,
+      strategyId: setup.license?.id,
     }),
-    [setup.tableId, setup.buyIn, setup.preset, setup.params, setup.limits],
+    [setup.tableId, setup.buyIn, setup.preset, setup.params, setup.limits, setup.license?.id],
   );
   const { fee, phase, deploy, retryFee, clearFailure } = useDeploy(request);
   // The server sets the buy-in; until its quote loads, show the table's default.
@@ -83,7 +84,9 @@ export function DeployView() {
     { label: "Table", value: table.name, note: "heads-up vs the house agent" },
     { label: "Blinds", value: `${blindsLabel(table)} GNEAR`, note: "two small forced bets per hand" },
     { label: "Agent balance", value: `${buyIn} GNEAR`, note: "its whole stack" },
-    { label: "Strategy", value: preset.label, note: preset.tag.split("·").pop()?.trim().toLowerCase() },
+    setup.license
+      ? { label: "Strategy", value: setup.license.name, note: "licensed · settings sealed · uses 1 seat" }
+      : { label: "Strategy", value: preset.label, note: preset.tag.split("·").pop()?.trim().toLowerCase() },
     { label: "Stop loss", value: `${setup.limits.stopLoss} GNEAR`, note: "stops after losing this" },
     { label: "Take profit", value: `${setup.limits.takeProfit} GNEAR`, note: "stops after winning this" },
     { label: "Max hands", value: String(setup.limits.maxHands), note: "then leaves the table" },

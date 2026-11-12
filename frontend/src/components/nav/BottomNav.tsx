@@ -6,7 +6,7 @@ import { cn } from "@/lib/cn";
 import { spring } from "@/lib/motion";
 import { useLiveLock } from "@/lib/store/liveLock";
 import { NavIcon, type NavKey } from "./NavIcon";
-import { NAV_ITEMS } from "./navItems";
+import { BOTTOM_NAV_ITEMS } from "./navItems";
 
 /** Mobile bottom bar. The active bar slides between items. */
 export function BottomNav({ active }: { active: NavKey | null }) {
@@ -17,7 +17,7 @@ export function BottomNav({ active }: { active: NavKey | null }) {
       className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-hair bg-bg px-2 lg:hidden"
     >
       <ul className="mx-auto grid h-16 max-w-xl grid-cols-5">
-        {NAV_ITEMS.map((item) => {
+        {BOTTOM_NAV_ITEMS.map((item) => {
           const isActive = item.key === active;
           return (
             <li key={item.key} className="relative">

@@ -3,6 +3,7 @@ import { newSeed } from "@/lib/poker/fairness";
 import type { HandMode, LiveHand } from "@/lib/poker/record";
 import type { Run } from "@/lib/poker/runs";
 import type { TestedAgent } from "@/lib/poker/tested";
+import type { MarketEvent, MarketListing, MarketStrategy, Npc } from "@/lib/market/types";
 
 /**
  * The frontend talks to the agent backend only through this interface.
@@ -17,6 +18,8 @@ export type DeployRequest = {
   preset: PresetKey;
   params: StrategyParams;
   limits: Limits;
+  /** Licensed strategy (market token id); the server plays its sealed params. */
+  strategyId?: string;
 };
 
 /** `buyIn` is what the server will move from the wallet to the agent (table NEAR). */
@@ -177,20 +180,30 @@ export function getFeeQuote(req: Pick<DeployRequest, "tableId">, f: typeof fetch
   return getJson<FeeQuote>(f, `/api/agent/quote?tableId=${encodeURIComponent(req.tableId)}`);
 }
 
-/** Moves the buy-in from the player's wallet to a new agent account on NEAR testnet. */
-export async function deployAgent(req: Pick<DeployRequest, "tableId">, f: typeof fetch = fetch): Promise<DeployResult> {
-  const res = await f("/api/agent/deploy", {
+/**
+ * POST that moves money: errors become ApiError. The server answers with an
+ * error before anything is signed, so fundsMoved is false unless it says otherwise.
+ */
+async function postMoney<T>(f: typeof fetch, url: string, body: unknown): Promise<T> {
+  const res = await f(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ tableId: req.tableId }),
+    body: JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const code = data.code ?? (res.status === 402 ? "insufficient_funds" : undefined);
-    // The server only answers with an error before any transfer is signed.
-    throw new ApiError(data.error ?? "The network didn’t accept the request.", false, code);
+    throw new ApiError(data.error ?? "The network didn’t accept the request.", data.fundsMoved === true, code);
   }
-  return data as DeployResult;
+  return data as T;
+}
+
+/** Moves the buy-in from the player's wallet to a new agent account on NEAR testnet. A license plays its sealed strategy. */
+export function deployAgent(
+  req: Pick<DeployRequest, "tableId"> & { strategyId?: string },
+  f: typeof fetch = fetch,
+): Promise<DeployResult> {
+  return postMoney<DeployResult>(f, "/api/agent/deploy", { tableId: req.tableId, strategyId: req.strategyId });
 }
 
 /** Server-side fair-deal check for a hand without a local proof. */
@@ -278,6 +291,44 @@ export const testnetCashout = {
     return data.status;
   },
 };
+
+// ---------------------------------------------------------------------------
+// Strategy market — sealed strategies sold as licenses (seats). Prices in GNEAR.
+// ---------------------------------------------------------------------------
+
+export type MarketSnapshot = {
+  contract: string;
+  strategies: MarketStrategy[];
+  listings: MarketListing[];
+  npcs: Npc[];
+  events: MarketEvent[];
+};
+export type MarketDetail = {
+  strategy: MarketStrategy;
+  listings: MarketListing[];
+  events: MarketEvent[];
+  hands: { handId: string; net: number; commitTx: string | null; settleTx: string | null }[];
+};
+export type MarketProof = { verified: number; total: number; mismatches: string[] };
+export type MyLicenses = { licenses: { tokenId: string; title: string; seats: number }[]; published: string[] };
+export type PublishRequest = { name: string; params: StrategyParams; seats: 10 | 25 | 100; price: number };
+export type TradeRequest =
+  | { op: "buy"; tokenId: string; seller: string; maxPrice: number }
+  | { op: "list"; tokenId: string; amount: number; price: number }
+  | { op: "delist"; tokenId: string };
+
+export const fetchMarket = (f: typeof fetch = fetch) => getJson<MarketSnapshot>(f, "/api/market");
+export const fetchMarketStrategy = (id: string, f: typeof fetch = fetch) =>
+  getJson<MarketDetail>(f, `/api/market/${encodeURIComponent(id)}`);
+export const fetchMarketProof = (id: string, f: typeof fetch = fetch) =>
+  getJson<MarketProof>(f, `/api/market/${encodeURIComponent(id)}/proof`);
+export const fetchMyLicenses = (f: typeof fetch = fetch) => getJson<MyLicenses>(f, "/api/market/mine");
+/** Mint the seats and list them. Throws ApiError (fundsMoved false when nothing was sent). */
+export const publishStrategy = (req: PublishRequest, f: typeof fetch = fetch) =>
+  postMoney<{ tokenId: string; tx: string }>(f, "/api/market/publish", req);
+/** Buy, list or delist. 402 → code insufficient_funds, 409 → price_moved / busy. */
+export const tradeLicense = (req: TradeRequest, f: typeof fetch = fetch) =>
+  postMoney<{ tx: string }>(f, "/api/market/trade", req);
 
 export const agentApi: AgentApi = {
   getFeeQuote: (req) => getFeeQuote(req),

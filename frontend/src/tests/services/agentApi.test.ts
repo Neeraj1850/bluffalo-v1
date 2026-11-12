@@ -5,14 +5,20 @@ import {
   deployAgent,
   fetchAgent,
   fetchHands,
+  fetchMarket,
+  fetchMarketProof,
+  fetchMarketStrategy,
+  fetchMyLicenses,
   fetchRuns,
   fetchLiveHand,
   fetchWallet,
   getFeeQuote,
   getVerification,
+  publishStrategy,
   SignedOutError,
   stopAgent,
   testnetCashout,
+  tradeLicense,
   withdrawFromWallet,
 } from "@/services/agentApi";
 
@@ -205,5 +211,50 @@ describe("fetchRuns", () => {
   });
   it("throws when sessions can't be loaded", async () => {
     await expect(fetchRuns("real", vi.fn().mockResolvedValue(json({}, 500)))).rejects.toThrow("500");
+  });
+});
+
+describe("strategy market", () => {
+  it("reads the market, a strategy, its proof and my licenses", async () => {
+    const f = vi.fn().mockImplementation(async () => json({ ok: 1 }));
+    await fetchMarket(f);
+    await fetchMarketStrategy("a b", f);
+    await fetchMarketProof("shark", f);
+    await fetchMyLicenses(f);
+    expect(f.mock.calls.map(([url]) => url)).toEqual([
+      "/api/market",
+      "/api/market/a%20b",
+      "/api/market/shark/proof",
+      "/api/market/mine",
+    ]);
+  });
+
+  it("publishes with the contract body", async () => {
+    const f = vi.fn().mockResolvedValue(json({ tokenId: "t1", tx: "TX" }));
+    const body = { name: "Night", params: req.params, seats: 25 as const, price: 12 };
+    expect(await publishStrategy(body, f)).toEqual({ tokenId: "t1", tx: "TX" });
+    expect(f.mock.calls[0][0]).toBe("/api/market/publish");
+    expect(JSON.parse(f.mock.calls[0][1].body)).toEqual(body);
+  });
+
+  it("trades and maps 402 / 409 to ApiError codes with no funds moved", async () => {
+    const ok = vi.fn().mockResolvedValue(json({ tx: "TX" }));
+    const buy = { op: "buy" as const, tokenId: "t1", seller: "s.testnet", maxPrice: 12 };
+    expect(await tradeLicense(buy, ok)).toEqual({ tx: "TX" });
+    expect(ok.mock.calls[0][0]).toBe("/api/market/trade");
+    expect(JSON.parse(ok.mock.calls[0][1].body)).toEqual(buy);
+
+    const broke = vi.fn().mockResolvedValue(json({}, 402));
+    await expect(tradeLicense(buy, broke)).rejects.toMatchObject({ code: "insufficient_funds", fundsMoved: false });
+    const moved = vi.fn().mockResolvedValue(json({ error: "Price moved", code: "price_moved" }, 409));
+    const err = await tradeLicense(buy, moved).catch((e) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err).toMatchObject({ code: "price_moved", fundsMoved: false, message: "Price moved" });
+  });
+
+  it("sends the license with deploy", async () => {
+    const f = vi.fn().mockResolvedValue(json({ agentAccount: "a", confirmedAt: 1 }));
+    await deployAgent({ tableId: "back-room", strategyId: "t1" }, f);
+    expect(JSON.parse(f.mock.calls[0][1].body)).toEqual({ tableId: "back-room", strategyId: "t1" });
   });
 });
