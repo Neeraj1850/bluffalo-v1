@@ -74,6 +74,8 @@ export function useFakeBackend(fallthrough?: typeof fetch) {
       strategies.set(body.id, body);
       return json({ ok: true }, 201);
     }
+    if (path === "/strategies" && method === "GET")
+      return json({ strategies: [...strategies.values()].map((s) => Object.fromEntries(Object.entries(s).filter(([k]) => k !== "params" && k !== "salt"))) });
     if (path === "/strategies/stats") return json({ stats });
     if (path.startsWith("/strategies/") && path.endsWith("/params")) {
       const st = strategies.get(sid);
