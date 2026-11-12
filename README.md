@@ -3,7 +3,7 @@
 > **Your strategy. Your AI agent. Provably fair poker.**
 > Design a poker personality, practice it for free, then send your AI agent to play heads-up Texas Hold'em against an AI house for real NEAR testnet stakes. Every deal is cryptographically committed on-chain before the cards come out, and every agent decision is signed by a model running inside a hardware TEE.
 
-**Live app:** https://bluffalo.up.railway.app · **Network:** NEAR testnet · **Contract:** [`npk-63o824.testnet`](https://testnet.nearblocks.io/address/npk-63o824.testnet)
+**Live app:** https://bluffalo.up.railway.app · **Network:** NEAR testnet · **Contract:** [`bluffalo-poker-mwd58e1p.testnet`](https://testnet.nearblocks.io/address/bluffalo-poker-mwd58e1p.testnet) (no access keys: its code can't be changed)
 
 ---
 
@@ -19,24 +19,26 @@ No setup, no crypto wallet. Every step below works on the live app.
 | 4 | Open **Wallet** and click **Fund my wallet with testnet NEAR** | 100 GNEAR arrives in a few seconds (1 testnet NEAR = 1000 GNEAR) |
 | 5 | Back on **Strategy** click **Start playing**, tick **I understand…**, then **Put my agent in play** | Your agent gets its own NEAR account holding a 50 GNEAR buy-in |
 | 6 | Click **Watch your agent play** | Live hands against the house AI. While playing, the only control is **Stop agent after this hand** |
-| 7 | Click **Stop agent after this hand**, then **See the result** | **Fair-play verified** (the shuffle matched its on-chain commitment) and **TEE attested** (the AI's reply was signed inside a TEE) |
+| 7 | Click **Stop agent after this hand**, then **See the result** | **Fair-play verified** (both seeds matched their on-chain commitments) and **TEE attested · N/N decisions** (every AI decision in that hand was signed inside a TEE) |
 | 8 | Open **History** → **Sessions**, or **Profile** → an agent | Every practice and live session, every hand, every decision. Real hands link to their NearBlocks transactions |
 | 9 | **Wallet** → **Withdraw** to any testnet account | Funds leave the app; a public transaction link appears |
 
-Each real-money hand is two on-chain transactions: `commit_hand` (stakes locked, shuffle fingerprint stored) before the deal, and `settle_hand` (seed checked, payout ≤ pot) after it. Examples: [commit_hand](https://testnet.nearblocks.io/txns/7gzTF5CDVc8RNqQCvDse4Ndkm9AnjFgQ3gtsL9wdYUmh) · [settle_hand](https://testnet.nearblocks.io/txns/FhBfytxh44R3QqtPZUpDksj9JyxiF1jhMQfe3eZyiPUs).
+Each real-money hand is two on-chain transactions: `commit_hand` before the deal (both stakes locked, hashes of the server seed **and** the player's seed stored) and `settle_hand` after it (both seeds checked against those hashes, payout ≤ pot). Example on the current contract: [commit_hand](https://testnet.nearblocks.io/txns/7cAjNUJM1v7GPaispkEGLZNxDSF1yjdydKoocRW2hVah).
 
 | On-chain account | Role |
 |---|---|
-| [`npk-63o824.testnet`](https://testnet.nearblocks.io/address/npk-63o824.testnet) | Poker contract: escrow, hand commitments, payouts |
+| [`bluffalo-poker-mwd58e1p.testnet`](https://testnet.nearblocks.io/address/bluffalo-poker-mwd58e1p.testnet) | Poker contract v2: escrow, hand commitments, payouts. Deployed then its only full-access key deleted ([tx](https://testnet.nearblocks.io/txns/BVxfwXBgktrqMotQ8kQbJMvxHUKzvpbedXwygRtPkVXh)): zero keys, code can't change. Code hash `EeKs6tbcPiCoQX5MHxK9pU8MctUk3XEN5rRHfdvpRwuc` = base58 of the WASM's sha256 `cab7bfd689a1f5331c4cbbfadd8ad2f6ac0a8a7d3aa929abfe01715b864e4953` |
 | [`npoker-op-43b602.testnet`](https://testnet.nearblocks.io/address/npoker-op-43b602.testnet) | Operator: commits and settles hands, creates agent accounts |
-| `a<id>.npoker-op-43b602.testnet` | One per deployed agent. Its only key can call `withdraw_to` (send money back to the player) |
+| `a<id>.npoker-op-43b602.testnet` | One per deployed agent. Its only key is a function-call key for the contract's `withdraw_to`: it can't send NEAR any other way. The receiver is chosen by our server (your wallet, or the account you type when cashing out) |
+| [`npk-63o824.testnet`](https://testnet.nearblocks.io/address/npk-63o824.testnet) | Contract v1 (hands played before the v2 fairness fixes; still verifiable) |
 
 **Hackathon notes**
 
-- **Built during the hackathon.** The repository's first commit is 2026-11-03, after the 2026-10-19 start; all code in it was written during the hackathon.
-- **Tracks:** Games, Privacy (TEE-attested AI decisions, the house never sees your cards), Security (commit-reveal on-chain, withdraw-only agent keys, payout ≤ pot enforced by the contract), Agents (agents with their own accounts; external agents can play via MCP at `/api/mcp`).
+- **Commit history:** the commit timestamps in this repository don't reflect when the code was originally written, so please don't rely on them. The operator and contract accounts' on-chain history on NearBlocks is an independent record of when the app was running.
+- **Tracks:** Agents (agents with their own NEAR accounts and withdraw-only keys, TEE-signed reasoning for every decision, an MCP server at `/api/mcp` so outside agents can play) and Games.
 - **AI tools used:** Claude Code (Anthropic) helped write code, tests, docs and the demo video edit; ElevenLabs generated the video narration. In-game AI runs on NEAR AI Cloud (`Qwen/Qwen3.6-35B-A3B-FP8`, TEE-attested).
-- **Tests:** about 480 (vitest for the app, pytest for the backend, cargo for the contract). `make check` runs them all.
+- **Main libraries:** Next.js 15, React 19, Tailwind CSS 4, Framer Motion 12, Privy (`@privy-io/react-auth`, `@privy-io/node`), `near-api-js`, `ethers` (signature recovery for TEE checks), FastAPI, SQLAlchemy 2, Alembic, `near-sdk` 5 (Rust contract), Vitest, pytest.
+- **Tests:** 411 app (vitest) + 48 backend (pytest) + 34 contract (cargo) = 493. `make check` runs them all.
 
 ---
 
@@ -128,7 +130,7 @@ All of these go in `.env.deploy`. The app starts with only the two required valu
 | `NEXT_PUBLIC_PRIVY_APP_ID` | for sign-in | Email and wallet login | [dashboard.privy.io](https://dashboard.privy.io) → create an app |
 | `PRIVY_APP_SECRET` | for sign-in | Server-side token check | Same Privy app → Settings |
 | `NEAR_OPERATOR_KEY` | for real money | On-chain commit/settle and funding agents | `private_key` in `~/.near-credentials/testnet/<operator>.json` (see [Smart contract](#smart-contract)) |
-| `NEAR_CONTRACT_ID` | optional | Your own deployed contract | Default `npk-63o824.testnet` |
+| `NEAR_CONTRACT_ID` | optional | Your own deployed contract | Default `bluffalo-poker-mwd58e1p.testnet` |
 | `NEAR_OPERATOR_ID` | optional | Your operator account | Default `npoker-op-43b602.testnet` |
 | `NEAR_RPC_URL` | optional | RPC endpoint | Default `https://test.rpc.fastnear.com` |
 | `NEAR_AI_AGENT_MODEL` / `NEAR_AI_HOUSE_MODEL` | optional | Choose the models | Default `Qwen/Qwen3.6-35B-A3B-FP8` (TEE-attested, ~1 s per move with thinking off) |
@@ -247,8 +249,8 @@ sequenceDiagram
     N->>C: view balance_of(agent), house_balance
     N->>N: stake = min(cap, balances) · table open?
     N->>B: claim seed (once, own session only)
-    N->>C: commit_hand(hand, agent, commitment, stake)
-    Note right of C: locks agent stake + matching house stake
+    N->>C: commit_hand(hand, agent, commitment, sha256(playerSeed), stake)
+    Note right of C: locks both stakes, binds both seeds
     N->>N: deck = shuffle(seed ⊕ playerSeed)
     loop every betting decision
         N->>AI: agent model + your strategy
@@ -258,10 +260,10 @@ sequenceDiagram
     end
     N->>N: rake (disclosed rules)
     N->>C: settle_hand(hand, serverSeed, playerSeed, payout)
-    Note right of C: checks sha256(serverSeed) == commitment<br/>and payout ≤ pot
+    Note right of C: checks both seeds against their hashes<br/>and payout ≤ pot
     N->>B: save hand record (+ commit/settle tx)
     N-->>P: hand replay + revealed seed
-    Note over N,C: Error after commit → cancel_hand refunds both stakes
+    Note over N,C: Never settled → after 600 blocks anyone can claim_timeout: the player gets the pot
     P->>N: GET /api/hands/verify · GET /api/verify
     N->>C: get_hand → recheck seed hash
     N->>AI: attestation report + signature → EIP-191 recover
@@ -292,10 +294,16 @@ stateDiagram-v2
 
 ## Why it is fair
 
-- **Commit-reveal deal.** Before any card is dealt, `sha256(server seed)` is written to the contract. Your browser adds its own random seed, so neither side controls the shuffle alone. At settlement the contract refuses any seed that doesn't match the commitment. Anyone can read both seeds with `get_hand`, re-shuffle, and check the hand.
-- **TEE-signed decisions.** Agent and house moves come from NEAR AI Cloud models running in Intel TDX / NVIDIA confidential compute. `GET /api/verify` checks that the response signature recovers (EIP-191) to a signer the model's hardware attestation vouches for. The full quote can be checked at [cloud.near.ai/verify](https://cloud.near.ai/verify).
+- **Commit-reveal deal, both seeds bound.** The server commits to its seed before your browser picks yours, and your browser checks the server's commitment. Before any card is dealt, `commit_hand` stores `sha256(server seed)` **and** `sha256(your seed)` on-chain. At settlement the contract refuses any seed that doesn't match its hash, so nobody can swap a seed after the deal. Anyone can read both seeds with `get_hand`, re-shuffle, and check the hand.
+- **No voiding losing hands.** There is no operator cancel. A hand left unsettled for 600 blocks (~10 min) can be closed by anyone with `claim_timeout`, and the **player gets the whole pot**, so stalling only costs the house.
+- **Immutable contract.** The contract account has no access keys (deleted right after deploy), so its code can't be changed. Rebuild from `contracts/poker` and compare the code hash above.
+- **TEE-signed decisions, checked per hand.** Agent moves come from a NEAR AI Cloud model running in confidential compute. On the Results screen, every AI decision of that hand is checked: its NEAR AI signature must recover (EIP-191) to a signer the model's TEE attestation vouches for (`GET /api/verify?chats=…`). The full hardware quote can be checked at [cloud.near.ai/verify](https://cloud.near.ai/verify).
 - **The house never sees your cards.** The house model only gets public information (equity, pot odds, stack-to-pot ratio) and fixed, published parameters.
-- **Bounded keys.** Each agent sub-account's key can only withdraw to you. Payouts can never exceed the pot.
+
+**Known limits (honest):**
+- The contract checks the payout is at most the pot, not that it matches the cards. The cards are checkable by anyone off-chain from the two revealed seeds, but the contract doesn't re-run poker.
+- Wallets and agent accounts are custodial on this testnet build: their private keys are stored server-side in Postgres (not encrypted at rest).
+- The per-hand TEE check proves each decision was signed by an attested model; it shows the signed request/response hashes rather than re-deriving them from the original bytes.
 
 ---
 
@@ -328,12 +336,19 @@ Top up the house bankroll from the public testnet faucet with `cd frontend && np
 | `deposit()` / `deposit_for(account)` | anyone (payable) | Fund a player balance |
 | `withdraw(amount)` / `withdraw_to(receiver, amount)` | balance owner | Take money out |
 | `fund_house()` / `withdraw_house(amount)` | operator | Manage the house bankroll |
-| `commit_hand(hand, player, commitment, stake)` | operator | Lock both stakes, store the commitment |
-| `settle_hand(hand, server_seed, player_seed, payout)` | operator | Verify the seed, pay out (≤ pot) |
-| `cancel_hand(hand)` | operator | Refund both stakes |
+| `commit_hand(hand, player, commitment, player_commitment, stake)` | operator | Lock both stakes, store both seeds' hashes |
+| `settle_hand(hand, server_seed, player_seed, payout)` | operator | Verify both seeds against their hashes, pay out (≤ pot) |
+| `claim_timeout(hand)` | anyone, after 600 blocks | Close an unsettled hand: the player gets the whole pot |
 | `balance_of`, `house_balance`, `get_hand`, `operator` | anyone (view) | Read state |
 
-**Deploy your own** (optional; the default testnet contract works out of the box):
+**Deploy your own** (optional; the default testnet contract works out of the box). `frontend/scripts/deploy-contract.mjs` creates a fresh faucet-funded account, deploys and initialises the contract, then deletes its only full-access key so it can never change:
+
+```bash
+cd contracts/poker && cargo near build non-reproducible-wasm
+cd ../../frontend && node --env-file=.env.local scripts/deploy-contract.mjs
+```
+
+Or with the near CLI and your own accounts:
 
 ```bash
 # prerequisites: Rust (rustup), cargo-near, near CLI (near-cli-rs)

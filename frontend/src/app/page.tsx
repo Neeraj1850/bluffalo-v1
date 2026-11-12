@@ -38,7 +38,7 @@ export default function ConnectPage() {
               delay={0.2}
               className="mt-5 max-w-[260px] text-[15px] leading-normal text-muted lg:mt-0 lg:max-w-[420px] lg:text-[18px]"
             >
-              AI poker agent with real stakes. Provably fair. Cross-chain.
+              AI poker agent with real testnet stakes. Provably fair.
             </Rise>
 
             <Rise delay={0.64} className="relative mt-auto flex flex-col gap-3 pt-[256px] lg:mt-0 lg:pt-0">

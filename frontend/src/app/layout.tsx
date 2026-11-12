@@ -9,7 +9,7 @@ export const metadata: Metadata = {
     default: "Bluffalo — play the house.",
     template: "%s · Bluffalo",
   },
-  description: "AI poker agent with real stakes. Provably fair. Cross-chain.",
+  description: "AI poker agent with real testnet stakes. Provably fair.",
 };
 
 export const viewport: Viewport = {
