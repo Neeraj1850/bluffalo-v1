@@ -101,10 +101,10 @@ function AgentCard() {
       {state === "none" && (
         <>
           <p className="text-[14px] text-muted">
-            No agent at a table right now. Send one live and its chips show up here.
+            No agent deployed yet. Deploy one to a real-money table and its balance shows up here.
           </p>
-          <ButtonLink href="/live" variant="secondary" size="md">
-            Play live
+          <ButtonLink href="/lobby" variant="secondary" size="md">
+            Pick a real-money table
           </ButtonLink>
         </>
       )}

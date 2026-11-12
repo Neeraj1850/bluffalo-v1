@@ -2,6 +2,7 @@ import type { Limits, PresetKey, StrategyParams } from "@/lib/data/strategy";
 import { newSeed } from "@/lib/poker/fairness";
 import type { HandMode, LiveHand } from "@/lib/poker/record";
 import type { Run } from "@/lib/poker/runs";
+import type { TestedAgent } from "@/lib/poker/tested";
 
 /**
  * The frontend talks to the agent backend only through this interface.
@@ -120,6 +121,13 @@ export async function fetchHands(mode: HandMode = "real", run?: string, f: typeo
   const res = await f(`/api/hands?mode=${mode}${run ? `&run=${run}` : ""}`);
   if (!res.ok) throw new Error(`Request failed (${res.status})`);
   return (await res.json()).hands;
+}
+
+/** Strategies this player has tested in practice, with their record (most recent first). */
+export async function fetchTestedAgents(f: typeof fetch = fetch): Promise<TestedAgent[]> {
+  const res = await f("/api/agents/tested");
+  if (!res.ok) throw new Error(`Request failed (${res.status})`);
+  return (await res.json()).agents;
 }
 
 /** This player's play sessions of one mode, newest first. */

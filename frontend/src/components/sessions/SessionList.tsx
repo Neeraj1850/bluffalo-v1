@@ -7,6 +7,7 @@ import { getPreset } from "@/lib/data/strategy";
 import { ago, signed } from "@/lib/format";
 import type { HandMode } from "@/lib/poker/record";
 import { EARLIER_RUN, runHref, winRate, type Run } from "@/lib/poker/runs";
+import { inRange, type HistoryFilter } from "@/lib/history";
 import { fetchRuns } from "@/services/agentApi";
 
 type SessionListProps = {
@@ -15,16 +16,25 @@ type SessionListProps = {
   current?: string | null;
   /** Bump to reload (e.g. after each finished hand). */
   refresh?: number;
+  /** History's time range, applied to when each session last played. */
+  filter?: HistoryFilter;
 };
 
 const EMPTY: Record<HandMode, string> = {
-  practice: "No practice sessions yet. Press Start practice above — every run is saved here.",
-  real: "No live sessions yet. Practise first, then tap “Use this strategy for live play” on a session you liked.",
+  practice:
+    "No practice sessions yet. Test an agent for free on the Strategy page and every test run is saved here.",
+  real: "No live sessions yet. Send your agent to a real-money table and each sitting is saved here.",
 };
 
 /** Every session of one mode, newest first. Dashed = practice, solid = real money. */
-export function SessionList({ mode, current, refresh = 0 }: SessionListProps) {
-  const [runs, setRuns] = useState<Run[] | null>(null);
+export function SessionList({
+  mode,
+  current,
+  refresh = 0,
+  filter = "all",
+}: SessionListProps) {
+  const [loaded, setRuns] = useState<Run[] | null>(null);
+  const runs = loaded?.filter((r) => inRange(r.endedAt, filter)) ?? null;
 
   useEffect(() => {
     let cancelled = false;
@@ -37,13 +47,14 @@ export function SessionList({ mode, current, refresh = 0 }: SessionListProps) {
   }, [mode, refresh]);
 
   return (
-    <section aria-labelledby={`${mode}-sessions`} className="flex flex-col gap-3">
-      <h2 id={`${mode}-sessions`} className="font-display text-[28px] font-medium tracking-[-0.03em]">
-        {mode === "practice" ? "practice sessions" : "live sessions"}
-      </h2>
-      {runs === null && <p className="text-[14px] text-muted">Loading your sessions…</p>}
+    <div className="flex flex-col gap-3">
+      {runs === null && (
+        <p className="text-[14px] text-muted">Loading your sessions…</p>
+      )}
       {runs?.length === 0 && (
-        <p className="rounded-card border border-dashed border-border p-5 text-[14px] leading-normal text-muted">{EMPTY[mode]}</p>
+        <p className="rounded-card border border-dashed border-border p-5 text-[14px] leading-normal text-muted">
+          {EMPTY[mode]}
+        </p>
       )}
       <ul className="flex flex-col gap-2.5">
         {runs?.map((r) => (
@@ -58,21 +69,32 @@ export function SessionList({ mode, current, refresh = 0 }: SessionListProps) {
             >
               <span className="flex min-w-0 items-center gap-2">
                 <span className="truncate font-display text-[18px] font-bold tracking-[-0.02em]">
-                  {r.id === EARLIER_RUN ? "Earlier hands" : r.agent ? getPreset(r.agent.preset).label : "Your agent"}
+                  {r.id === EARLIER_RUN
+                    ? "Earlier hands"
+                    : r.agent
+                      ? getPreset(r.agent.preset).label
+                      : "Your agent"}
                 </span>
                 {r.id === current && (
-                  <span className="rounded-[4px] bg-fg px-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-bg">Now</span>
+                  <span className="rounded-[4px] bg-fg px-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-bg">
+                    Now
+                  </span>
                 )}
               </span>
-              <span className="text-right font-display text-[20px] font-bold tabular">{signed(r.net)}</span>
-              <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-muted">
-                {r.table} · {r.hands} {r.hands === 1 ? "hand" : "hands"} · won {Math.round(winRate(r) * 100)}%
+              <span className="text-right font-display text-[20px] font-bold tabular">
+                {signed(r.net)}
               </span>
-              <span className="text-right font-mono text-[11px] uppercase tracking-[0.1em] text-muted">{ago(r.endedAt)}</span>
+              <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-muted">
+                {r.table} · {r.hands} {r.hands === 1 ? "hand" : "hands"} · won{" "}
+                {Math.round(winRate(r) * 100)}%
+              </span>
+              <span className="text-right font-mono text-[11px] uppercase tracking-[0.1em] text-muted">
+                {ago(r.endedAt)}
+              </span>
             </Link>
           </li>
         ))}
       </ul>
-    </section>
+    </div>
   );
 }

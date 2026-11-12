@@ -1,7 +1,15 @@
-import { redirect } from "next/navigation";
+import type { Metadata } from "next";
+import { HistoryView } from "@/components/history/HistoryView";
 
-/** History now lives in each mode's tab, as sessions. */
-export default async function HistoryPage({ searchParams }: { searchParams: Promise<{ mode?: string }> }) {
-  const { mode } = await searchParams;
-  redirect(mode === "practice" ? "/practice" : "/live");
+export const metadata: Metadata = { title: "History" };
+
+export default async function HistoryPage({ searchParams }: { searchParams: Promise<{ mode?: string; view?: string }> }) {
+  const { mode, view } = await searchParams;
+  return (
+    <HistoryView
+      key={mode}
+      mode={mode === "practice" ? "practice" : "real"}
+      view={view === "sessions" ? "sessions" : "hands"}
+    />
+  );
 }

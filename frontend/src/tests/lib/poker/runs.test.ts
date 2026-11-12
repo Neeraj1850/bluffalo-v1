@@ -40,7 +40,7 @@ it("makes short hex session ids", () => {
   expect(newRunId()).toMatch(/^[0-9a-f]{12}$/);
 });
 
-it("links practice and live sessions under their own tabs", () => {
-  expect(runHref("practice", "ab12")).toBe("/practice/ab12");
-  expect(runHref("real", "ab12")).toBe("/live/ab12");
+it("links a session's page in History, keeping its mode", () => {
+  expect(runHref("practice", "ab12")).toBe("/history/session/ab12?mode=practice");
+  expect(runHref("real", "ab12")).toBe("/history/session/ab12?mode=real");
 });

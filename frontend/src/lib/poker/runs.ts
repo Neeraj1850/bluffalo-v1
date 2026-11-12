@@ -69,5 +69,5 @@ export const winRate = (r: Pick<Run, "hands" | "won">) => (r.hands ? r.won / r.h
 export const newRunId = () =>
   [...crypto.getRandomValues(new Uint8Array(6))].map((b) => b.toString(16).padStart(2, "0")).join("");
 
-/** Where a session's page lives: practice and live sessions sit under their own tab. */
-export const runHref = (mode: HandMode, id: string) => `/${mode === "practice" ? "practice" : "live"}/${id}`;
+/** A session's page, in the History stack. */
+export const runHref = (mode: HandMode, id: string) => `/history/session/${id}?mode=${mode}`;

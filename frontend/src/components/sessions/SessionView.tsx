@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useGoLive } from "@/components/strategy/useGoLive";
+import { Rise } from "@/components/ui/Rise";
 import { StatBox, StatGroup } from "@/components/ui/StatBox";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { getPreset, strategyLine } from "@/lib/data/strategy";
@@ -13,12 +14,11 @@ import { useHands } from "@/lib/store/useHands";
 import { HandRow } from "./HandRow";
 
 /** One play session: its record, the strategy that played it, and every hand with its decisions. */
-export function SessionView({ mode, id }: { mode: HandMode; id: string }) {
+export function SessionView({ mode, id, back }: { mode: HandMode; id: string; back: { href: string; label: string } }) {
   const hands = useHands(mode, id);
   const { goLive, live } = useGoLive();
   const [open, setOpen] = useState<number | null>(null);
   const run = hands && hands.length ? runsOf(hands)[0] : null;
-  const back = mode === "practice" ? "/practice" : "/live";
   const when = run?.startedAt
     ? new Date(run.startedAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
     : null;
@@ -26,8 +26,8 @@ export function SessionView({ mode, id }: { mode: HandMode; id: string }) {
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-5 pb-12 pt-6 lg:px-10 lg:pt-10">
       <div className="flex items-center justify-between gap-3">
-        <Link href={back} className="inline-flex min-h-11 items-center font-mono text-[11px] uppercase tracking-[0.16em] text-muted hover:text-fg">
-          {"←"} {mode === "practice" ? "Practice" : "Live"}
+        <Link href={back.href} className="inline-flex min-h-11 items-center font-mono text-[11px] uppercase tracking-[0.16em] text-muted hover:text-fg">
+          {"←"} {back.label}
         </Link>
         <StatusBadge kind={mode === "practice" ? "practice" : "live"} size="sm">
           {mode === "practice" ? "Practice session · free chips" : "Live session · real money"}
@@ -40,9 +40,9 @@ export function SessionView({ mode, id }: { mode: HandMode; id: string }) {
       {run && (
         <>
           <header className="flex flex-col gap-2">
-            <h1 className="display text-[64px] leading-[0.85] tracking-[-0.06em] lg:text-[88px]">
-              {id === EARLIER_RUN ? "earlier hands" : run.agent ? getPreset(run.agent.preset).label.toLowerCase() : "session"}
-            </h1>
+            <Rise as="h1" feel="spring" className="display pb-[0.1em] text-[96px] leading-[0.8] tracking-[-0.07em] lg:text-[140px]">
+              {id === EARLIER_RUN ? "earlier" : run.agent ? getPreset(run.agent.preset).label.toLowerCase() : "session"}
+            </Rise>
             <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted">
               {run.table}
               {when && ` · ${when}`}

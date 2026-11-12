@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { cards } from "@/lib/cards";
 import { apply, newHand, type Action } from "@/lib/poker/game";
-import { toRecord } from "@/lib/poker/record";
+import { toHistory, toRecord } from "@/lib/poker/record";
 
 // Agent Qs Qd · house 9h 8s · board 9c 4h 2s Kd 4c; agent on the button.
 const DECK = cards("Qs", "9h", "Qd", "8s", "9c", "4h", "2s", "Kd", "4c");
@@ -73,4 +73,12 @@ describe("toRecord", () => {
   });
 });
 
-
+describe("toHistory", () => {
+  it("summarises streets for the archive", () => {
+    const rec = toRecord(play(call, check, check, raise(2), call, check, check, check, raise(4), call), meta([]));
+    const h = toHistory(rec);
+    expect(h).toMatchObject({ id: "#ab12", net: 7, scope: "session" });
+    expect(h.steps[0]).toEqual({ street: "PRE", board: "—", action: "Call 0.5, checked" });
+    expect(h.steps[1]).toEqual({ street: "FLOP", board: "9♣ 4♡ 2♠", action: "Bet 2, called 2" });
+  });
+});

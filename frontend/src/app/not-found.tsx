@@ -19,7 +19,7 @@ export default function NotFound() {
           This page doesn&rsquo;t exist. Your balance and settings are untouched.
         </p>
       </div>
-      <ButtonLink href="/live" trailing={<Arrow />}>
+      <ButtonLink href="/lobby" trailing={<Arrow />}>
         Back to the tables
       </ButtonLink>
     </main>

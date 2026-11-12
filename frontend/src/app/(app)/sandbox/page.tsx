@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-/** Practice has its own tab now. */
+/** Practice now lives on the Strategy page, next to the settings it tests. */
 export default function SandboxPage() {
-  redirect("/practice");
+  redirect("/strategy?test=1");
 }

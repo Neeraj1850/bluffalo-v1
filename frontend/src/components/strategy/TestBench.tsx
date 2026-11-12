@@ -3,8 +3,8 @@
 import { AnimatePresence } from "framer-motion";
 import { useEffect } from "react";
 import { DecisionFeedRow } from "@/components/game/DecisionFeedRow";
-import { PracticeTable } from "@/components/practice/PracticeTable";
-import { usePracticeSim } from "@/components/practice/usePracticeSim";
+import { PracticeTable } from "@/components/sandbox/PracticeTable";
+import { usePracticeSim } from "@/components/sandbox/usePracticeSim";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 import { StatBox, StatGroup } from "@/components/ui/StatBox";
 import { percent, signed } from "@/lib/format";
@@ -73,7 +73,7 @@ export function TestBench({ runId, onStop, onHand }: TestBenchProps) {
               onClick={onStop}
               className="h-9 rounded-chip border border-border px-3 font-mono text-[11px] uppercase"
             >
-              Stop
+              Stop test
             </button>
           </div>
         </div>
