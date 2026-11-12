@@ -46,11 +46,11 @@ export function DecisionFeedRow(props: DecisionFeedRowProps) {
       initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: latest ? 1 : 0.88, y: 0 }}
       transition={{ duration: 0.32, ease: [0.2, 0.8, 0.2, 1] }}
-      className={cn("grid grid-cols-[44px_1fr_auto] items-baseline gap-3 border-b border-hair py-3")}
+      className={cn("grid grid-cols-[44px_minmax(0,1fr)_auto] items-baseline gap-3 border-b border-hair py-3")}
     >
       <span className="font-mono text-[11px] text-muted">{index}</span>
-      <div className="flex flex-col gap-1">
-        <span className="font-display text-[18px] font-bold tracking-[-0.02em]">{action}</span>
+      <div className="flex min-w-0 flex-col gap-1">
+        <span className="break-words font-display text-[18px] font-bold tracking-[-0.02em]">{action}</span>
         <span className="text-[13px] leading-[1.45] text-muted">{reason}</span>
       </div>
       <span className="font-mono text-[11px] text-muted">{street}</span>

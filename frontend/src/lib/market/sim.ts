@@ -114,6 +114,7 @@ export function* simulateSteps(seed: string, opts: SimOptions = {}): Generator<S
   const ticks = opts.ticks ?? TICKS;
   const hpt = opts.handsPerTick ?? HANDS_PER_TICK;
   const ids = strategies.map((s) => s.id);
+  const label = Object.fromEntries(strategies.map((s) => [s.id, s.label]));
   const stats: Record<string, MarketStats> = {};
   const buys: Record<string, number[]> = {};
   const uses: Record<string, number[]> = {};
@@ -231,7 +232,7 @@ export function* simulateSteps(seed: string, opts: SimOptions = {}): Generator<S
     // 4. Brokers: up to 2 decisions each.
     for (const b of brokers) {
       for (let k = 0; k < 2; k++) {
-        const market: MarketView = ids.map((id) => ({ tokenId: id, price: price[id], prev: prev[id], fair: fairOf(id), listed: listedOf(id) }));
+        const market: MarketView = ids.map((id) => ({ tokenId: id, title: label[id], price: price[id], prev: prev[id], fair: fairOf(id), listed: listedOf(id) }));
         const a = npcDecide(b, market, rand);
         const actor = BROKERS[b.key].name;
         if (a.kind === "none") {
@@ -296,3 +297,6 @@ export function simulate(seed: string, opts: SimOptions = {}) {
     events.push(...ev);
   }
 }
+
+/** Day of the week (1–7) for tick `t` (1–168); 0 before the first tick. */
+export const dayOf = (t: number) => (t <= 0 ? 0 : Math.min(7, Math.floor((t - 1) / 24) + 1));

@@ -56,13 +56,13 @@ export function ListingView({ id }: { id: string }) {
         <Link href="/market" className="inline-flex min-h-11 items-center font-mono text-[11px] uppercase tracking-[0.2em] text-muted hover:text-fg">
           {"←"} Market
         </Link>
-        <h1 className="display text-[56px] leading-[0.85] tracking-[-0.06em] lg:text-[88px]">{s.title}</h1>
+        <h1 className="display break-words text-[56px] leading-[0.85] tracking-[-0.06em] lg:text-[88px]">{s.title}</h1>
         <MonoLabel>
-          by {s.you ? "you" : s.creator} · {s.rated ? "rated" : "unrated · under 100 hands"}
+          by {s.creatorName ?? (s.you ? "you" : s.creator)} · {s.rated ? "rated" : "unrated · under 100 hands"}
         </MonoLabel>
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-2 lg:items-start lg:gap-10">
+      <div className="grid gap-6 grid-cols-[minmax(0,1fr)] lg:grid-cols-2 lg:items-start lg:gap-10">
         <div className="flex flex-col gap-4">
           <StatGroup>
             <StatBox
@@ -107,7 +107,7 @@ export function ListingView({ id }: { id: string }) {
             {data.listings.length === 0 && <p className="py-3 text-[13px] text-muted">No seats for sale right now.</p>}
             <ul>
               {data.listings.map((l) => (
-                <li key={`${l.seller}-${l.priceEach}`} className="grid grid-cols-[1fr_auto] items-center gap-3 border-b border-hair py-3">
+                <li key={`${l.seller}-${l.priceEach}`} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-hair py-3">
                   <span className="flex flex-col">
                     <span className="font-display text-[18px] font-bold tabular">
                       {l.priceEach.toFixed(1)} GNEAR <span className="text-[13px] font-normal text-muted">× {l.amount}</span>
@@ -143,17 +143,15 @@ export function ListingView({ id }: { id: string }) {
                 Verify record
               </Button>
             </div>
-            {proof && proof !== "checking" && (
+            {proof && (
               <p role="status" className="text-[13px] text-muted">
-                {proof === "failed"
-                  ? "Couldn’t check the chain right now."
-                  : `${proof.verified} of ${proof.total} hands match the chain${proof.mismatches.length ? ` · mismatched: ${proof.mismatches.join(", ")}` : ""}.`}
+                {proofLine(proof)}
               </p>
             )}
             {data.hands.length === 0 && <p className="text-[13px] text-muted">No real hands yet.</p>}
             <ul>
               {data.hands.map((h) => (
-                <li key={h.handId} className="grid grid-cols-[1fr_auto] items-baseline gap-3 border-b border-hair py-2.5">
+                <li key={h.handId} className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3 border-b border-hair py-2.5">
                   <span className="flex gap-3 font-mono text-[11px] uppercase tracking-[0.1em] text-muted">
                     <span>#{h.handId.slice(0, 8)}</span>
                     {h.commitTx && <TxLink tx={h.commitTx} label="commit" />}
@@ -172,6 +170,15 @@ export function ListingView({ id }: { id: string }) {
       )}
     </main>
   );
+}
+
+/** The one-line result of "Verify record", for every state. */
+export function proofLine(proof: MarketProof | "checking" | "failed"): string {
+  if (proof === "checking") return "Checking the chain…";
+  if (proof === "failed") return "Couldn’t check the chain right now. Try again.";
+  if (proof.total === 0) return "No real hands to verify yet.";
+  const head = `Verified ${proof.verified} of ${proof.total} hands on-chain`;
+  return proof.mismatches.length ? `${head} · mismatched: ${proof.mismatches.join("; ")}.` : `${head}.`;
 }
 
 const TxLink = ({ tx, label }: { tx: string; label: string }) => (

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { DecisionFeedRow } from "@/components/game/DecisionFeedRow";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
@@ -11,8 +11,7 @@ import { MonoLabel } from "@/components/ui/MonoLabel";
 import { StatBox, StatGroup } from "@/components/ui/StatBox";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { signed } from "@/lib/format";
-import { cast, simulateSteps, TICKS, type SimEvent, type SimSummary } from "@/lib/market/sim";
-import { spring } from "@/lib/motion";
+import { cast, dayOf, simulateSteps, TICKS, type SimEvent, type SimSummary } from "@/lib/market/sim";
 import { useSetup } from "@/lib/store/setup";
 import { Segmented } from "./Segmented";
 
@@ -34,7 +33,6 @@ export function ticksDue(carry: number, dt: number, speed: number): { n: number;
 /** A seeded week of the market, played in the browser. Practice bots, nothing on-chain. */
 export function SimView() {
   const { params } = useSetup();
-  const reduce = useReducedMotion();
   const [draft] = useState(params); // freeze the cast at mount
   const [strategies] = useState(() => cast(SEED, { draft }));
   const gen = useRef<ReturnType<typeof simulateSteps> | null>(null);
@@ -45,12 +43,58 @@ export function SimView() {
   const [rows, setRows] = useState<Row[]>([]);
   const [summary, setSummary] = useState<SimSummary | null>(null);
   const queue = useRef<SimEvent[]>([]);
-  const skip = useRef(false);
   const rowKey = useRef(0);
 
   useEffect(() => {
     gen.current = simulateSteps(SEED, { draft });
   }, [draft]);
+
+  // Pull up to `n` ticks into state; queues their trades for the ticker.
+  const pull = (n: number) => {
+    const fresh: Record<string, number>[] = [];
+    for (let i = 0; i < n && gen.current; i++) {
+      const r = gen.current.next();
+      if (r.done) {
+        setSummary(r.value);
+        break;
+      }
+      fresh.push(r.value.prices);
+      queue.current.push(...r.value.events.filter((e) => e.action !== "none"));
+      setT(r.value.t);
+    }
+    if (fresh.length)
+      setSeries((s) => {
+        const next = { ...s };
+        for (const p of fresh) for (const [id, v] of Object.entries(p)) next[id] = [...(next[id] ?? []), v];
+        return next;
+      });
+  };
+  const pullRef = useRef(pull);
+  pullRef.current = pull;
+
+  // Newest `k` queued trades on top of the ticker, newest first; the backlog is dropped so it never lags.
+  const flush = (k: number) => {
+    const fresh = queue.current.slice(-k).reverse().map((e) => ({ ...e, key: ++rowKey.current }));
+    queue.current = [];
+    if (fresh.length) setRows((r) => [...fresh, ...r].slice(0, 6));
+  };
+  const flushRef = useRef(flush);
+  flushRef.current = flush;
+
+  const skipToEnd = () => {
+    pull(Infinity);
+    flush(6);
+  };
+
+  const restart = () => {
+    gen.current = simulateSteps(SEED, { draft });
+    queue.current = [];
+    setSeries({});
+    setRows([]);
+    setT(0);
+    setSummary(null);
+    setPaused(false);
+  };
 
   // Pull ticks per animation frame; ticker rows are released at most 3 a second.
   useEffect(() => {
@@ -64,31 +108,11 @@ export function SimView() {
       last = now;
       const due = ticksDue(carry, dt, speed);
       carry = due.carry;
-      const n = skip.current ? TICKS : due.n;
-      skip.current = false;
-      const fresh: Record<string, number>[] = [];
-      for (let i = 0; i < n && gen.current; i++) {
-        const r = gen.current.next();
-        if (r.done) {
-          setSummary(r.value);
-          break;
-        }
-        fresh.push(r.value.prices);
-        queue.current.push(...r.value.events);
-        setT(r.value.t + 1);
-      }
-      if (fresh.length)
-        setSeries((s) => {
-          const next = { ...s };
-          for (const p of fresh) for (const [id, v] of Object.entries(p)) next[id] = [...(next[id] ?? []), v];
-          return next;
-        });
+      pullRef.current(due.n);
       rowClock += dt;
       if (rowClock >= 1 / ROWS_PER_SEC && queue.current.length) {
         rowClock = 0;
-        const e = queue.current.at(-1)!;
-        queue.current = []; // drop the backlog: the ticker shows the latest, never lags
-        setRows((r) => [{ ...e, key: ++rowKey.current }, ...r].slice(0, 6));
+        flushRef.current(1);
       }
       raf = requestAnimationFrame(frame);
     };
@@ -117,7 +141,7 @@ export function SimView() {
         <div className="flex items-baseline gap-2">
           <MonoLabel>Day</MonoLabel>
           <span className="font-display text-[44px] font-bold tabular">
-            <AnimatedNumber value={Math.min(7, Math.floor(t / 24) + 1)} decimals={0} />
+            <AnimatedNumber value={Math.max(1, dayOf(t))} decimals={0} />
           </span>
           <StatusBadge kind="practice" size="sm">
             Simulated
@@ -134,17 +158,14 @@ export function SimView() {
           size="sm"
           variant="ghost"
           disabled={!!summary}
-          onClick={() => {
-            skip.current = true;
-            setPaused(false);
-          }}
+          onClick={skipToEnd}
         >
           Skip to end
         </Button>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-[1.1fr_1fr] lg:gap-10">
-        <div className="grid gap-2.5 sm:grid-cols-2">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:gap-10">
+        <div className="grid content-start gap-2.5 sm:grid-cols-2">
           {shown.map((s) => (
             <div key={s.id} className="flex flex-col gap-2 rounded-card border border-dashed border-border p-4">
               <span className="flex items-baseline justify-between">
@@ -163,17 +184,12 @@ export function SimView() {
             </MonoLabel>
             <ol>
               {ranked.slice(0, 6).map((s, i) => (
-                <motion.li
-                  key={s.id}
-                  layout={!reduce}
-                  transition={spring.indicator}
-                  className="grid grid-cols-[32px_1fr_auto_auto] items-baseline gap-3 border-b border-hair py-2.5"
-                >
+                <li key={s.id} className="grid h-11 grid-cols-[32px_minmax(0,1fr)_auto_auto] items-center gap-3 border-b border-hair">
                   <span className="font-mono text-[11px] text-muted">{String(i + 1).padStart(2, "0")}</span>
-                  <span className="font-display text-[16px] font-bold">{s.label}</span>
+                  <span className="truncate font-display text-[16px] font-bold">{s.label}</span>
                   <span className="font-display text-[16px] tabular">{latest(s.id).toFixed(1)}</span>
                   <span className="w-14 text-right font-mono text-[11px] tabular text-muted">{signed(change(s.id))}</span>
-                </motion.li>
+                </li>
               ))}
             </ol>
           </section>
@@ -184,7 +200,7 @@ export function SimView() {
             <ul>
               <AnimatePresence initial={false}>
                 {rows.map((e, i) => (
-                  <DecisionFeedRow key={e.key} index={`D${Math.floor(e.t / 24) + 1}`} action={e.action} reason={e.reason} street={e.actor} latest={i === 0} />
+                  <DecisionFeedRow key={e.key} index={`D${dayOf(e.t)}`} action={e.action} reason={e.reason} street={e.actor} latest={i === 0} />
                 ))}
               </AnimatePresence>
             </ul>
@@ -205,6 +221,14 @@ export function SimView() {
           {summary.closed.length > 0 && (
             <p className="text-[13px] text-muted">Went broke and closed: {summary.closed.join(", ")}.</p>
           )}
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" onClick={restart}>
+              Run again
+            </Button>
+            <Link href="/market" className="inline-flex min-h-11 items-center px-3 font-mono text-[11px] uppercase tracking-[0.2em] text-muted hover:text-fg">
+              Back to market
+            </Link>
+          </div>
         </section>
       )}
     </main>

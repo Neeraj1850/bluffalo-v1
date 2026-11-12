@@ -3,7 +3,7 @@ import { PARAMS } from "@/lib/data/strategy";
 import { PRICE_MAX, PRICE_MIN } from "@/lib/market/rules";
 import { commitment, newSeed } from "@/lib/poker/fairness";
 import { backend, BackendError } from "@/lib/server/backend";
-import { list, marketId, mint, recordEvent, underCap } from "@/lib/server/market";
+import { CALL_GAS, gasReserveYocto, list, marketId, mint, recordEvent, underCap } from "@/lib/server/market";
 import { ChainError, toYocto, walletBalanceYocto } from "@/lib/server/near";
 import { parseParams } from "@/lib/server/play";
 import { ensureSessionWallet, sessionFrom, sessionUser, withSession } from "@/lib/server/sessions";
@@ -40,8 +40,8 @@ export async function POST(request: Request) {
   try {
     const wallet = await ensureSessionWallet(session.id);
     // The wallet signs the listing, so it needs gas money.
-    if ((await walletBalanceYocto(wallet.account)) < 1n) {
-      return reply({ error: "Deposit to your wallet first — listing needs a little gas", code: "insufficient_funds" }, 402);
+    if ((await walletBalanceYocto(wallet.account)) < gasReserveYocto(CALL_GAS)) {
+      return reply({ error: "Deposit to your wallet first — listing needs about 10 GNEAR of network fee headroom", code: "insufficient_funds", fundsMoved: false }, 402);
     }
     const tokenId = `s${newSeed().slice(0, 8)}`;
     const salt = newSeed();

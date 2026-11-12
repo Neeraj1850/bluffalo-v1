@@ -145,6 +145,8 @@ export type NpcState = {
 
 export type MarketView = {
   tokenId: string;
+  /** Shown in reasons; falls back to tokenId. */
+  title?: string;
   /** Current quoted price. */
   price: number;
   /** Quoted price one tick ago. */
@@ -175,7 +177,7 @@ export function npcDecide(npc: NpcState, market: MarketView, rand: () => number)
     if (mine === undefined) continue;
     const ask = brokerAsk(npc.key, m.price);
     if (Math.abs(mine / ask - 1) > REPRICE_GAP) {
-      return { kind: "reprice", tokenId: m.tokenId, price: ask, reason: `${b.name} reprices ${m.tokenId} ${mine.toFixed(1)} → ${ask.toFixed(1)}: quote moved to ${m.price.toFixed(1)}` };
+      return { kind: "reprice", tokenId: m.tokenId, price: ask, reason: `${b.name} reprices ${m.title ?? m.tokenId} ${mine.toFixed(1)} → ${ask.toFixed(1)}: quote moved to ${m.price.toFixed(1)}` };
     }
   }
 
@@ -189,14 +191,17 @@ export function npcDecide(npc: NpcState, market: MarketView, rand: () => number)
     const { m } = deals[0];
     const under = Math.round((1 - m.price / value(m)) * 100);
     const why = b.trend && m.price > m.prev ? `rising ${pct(m.price / m.prev - 1)}, ` : "";
-    return { kind: "buy", tokenId: m.tokenId, price: m.price, reason: `${b.name} bought ${m.tokenId} @${m.price.toFixed(1)}: ${why}${under}% under its value ${value(m).toFixed(1)}` };
+    return { kind: "buy", tokenId: m.tokenId, price: m.price, reason: `${b.name} bought ${m.title ?? m.tokenId} @${m.price.toFixed(1)}: ${why}${under}% under its value ${value(m).toFixed(1)}` };
   }
 
   const held = Object.keys(npc.holdings).find((id) => npc.holdings[id] > 0 && npc.listings[id] === undefined);
   const hm = held && market.find((m) => m.tokenId === held);
   if (hm) {
     const ask = brokerAsk(npc.key, hm.price);
-    return { kind: "list", tokenId: hm.tokenId, price: ask, reason: `${b.name} lists ${hm.tokenId} @${ask.toFixed(1)}: quote ${hm.price.toFixed(1)} × ${b.askMult}` };
+    return { kind: "list", tokenId: hm.tokenId, price: ask, reason: `${b.name} lists ${hm.title ?? hm.tokenId} @${ask.toFixed(1)}: quote ${hm.price.toFixed(1)} × ${b.askMult}` };
   }
   return { kind: "none", reason: `${b.name} waits: nothing under its bid` };
 }
+
+/** Quote change; a strategy with no previous quote has not moved. */
+export const priceChange = (price: number, prev: number) => (prev > 0 ? Math.round((price - prev) * 100) / 100 : 0);

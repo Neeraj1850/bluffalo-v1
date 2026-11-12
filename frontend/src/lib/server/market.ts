@@ -1,4 +1,4 @@
-import { explain, fairValue, isClosed, quote, type MarketStats } from "@/lib/market/rules";
+import { explain, fairValue, isClosed, priceChange, quote, type MarketStats } from "@/lib/market/rules";
 import type { LiveHand } from "@/lib/poker/record";
 import type { MarketEvent, MarketListing, MarketStrategy, Npc } from "@/lib/market/types";
 import { backend } from "./backend";
@@ -19,7 +19,15 @@ export function marketId(): string {
 
 /** Storage for a new token's state, paid by the operator; the contract refunds the excess. */
 const MINT_STORAGE = 10n ** 22n; // 0.01 NEAR
-const BUY_GAS = 100_000_000_000_000n;
+/** buy = 3 plain transfers + state writes; 15 Tgas has headroom. */
+export const BUY_GAS = 15_000_000_000_000n;
+/** list / delist / use_license touch only contract state. */
+export const CALL_GAS = 10_000_000_000_000n;
+/**
+ * What NEAR checks the signer's balance against for `gas` prepaid gas: it prices it
+ * pessimistically at ~1e9 yocto/gas (observed: 100 Tgas reserved 0.1 NEAR), far above what burns.
+ */
+export const gasReserveYocto = (gas: bigint) => gas * 1_000_000_000n;
 const ROYALTY_BPS = 1000;
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -104,10 +112,10 @@ export const mint = (tokenId: string, owner: string, seats: number, title: strin
 
 /** List (or replace the listing of) `amount` seats at `price` GNEAR each. */
 export const list = (s: Signer, tokenId: string, amount: number, price: number, memo = "") =>
-  done(callAs(s.account, s.key, marketId(), "list", { token_id: tokenId, amount: String(amount), price_each: toYocto(price).toString(), memo }, 1n));
+  done(callAs(s.account, s.key, marketId(), "list", { token_id: tokenId, amount: String(amount), price_each: toYocto(price).toString(), memo }, 1n, CALL_GAS));
 
 export const delist = (s: Signer, tokenId: string) =>
-  done(callAs(s.account, s.key, marketId(), "delist", { token_id: tokenId }, 1n));
+  done(callAs(s.account, s.key, marketId(), "delist", { token_id: tokenId }, 1n, CALL_GAS));
 
 /** Buy one seat; deposit is the listing's own price (the contract refunds any excess). */
 export const buy = (s: Signer, tokenId: string, seller: string, priceEachYocto: bigint) =>
@@ -115,7 +123,7 @@ export const buy = (s: Signer, tokenId: string, seller: string, priceEachYocto: 
 
 /** Burn one seat and bind the strategy to `agentId` (must be a sub-account of the operator). */
 export const applyLicense = (s: Signer, tokenId: string, agentId: string) =>
-  done(callAs(s.account, s.key, marketId(), "use_license", { token_id: tokenId, agent_id: agentId }, 1n));
+  done(callAs(s.account, s.key, marketId(), "use_license", { token_id: tokenId, agent_id: agentId }, 1n, CALL_GAS));
 
 export type EventIn = {
   strategy_id: string | null;
@@ -213,13 +221,15 @@ export async function recordPrices() {
 
 // ---- What the routes return ----
 
-const short = (a: string) => (/^[0-9a-f]{64}$/.test(a) ? `${a.slice(0, 6)}…${a.slice(-4)}` : a);
+const short = (a: string) => (/^[0-9a-f]{64}$/.test(a) ? `${a.slice(0, 6)}…${a.slice(-4)}` : a.length > 24 ? `${a.slice(0, 12)}…${a.slice(-8)}` : a);
 
-function namer(caller: string | null) {
+export function namer(caller: string | null) {
   const npcs = new Map(npcSigners().map((n) => [n.account, n.name]));
   return {
     kind: (a: string): MarketListing["sellerKind"] => (a === caller ? "you" : npcs.has(a) ? "npc" : "player"),
-    name: (a: string) => (a === caller ? "you" : (npcs.get(a) ?? short(a))),
+    // Named sub-accounts of the operator ("ava.<operator>") read as their first label.
+    name: (a: string) =>
+      a === caller ? "you" : (npcs.get(a) ?? (a.endsWith(`.${process.env.NEAR_OPERATOR_ID}`) ? a.split(".")[0] : short(a))),
   };
 }
 
@@ -268,6 +278,7 @@ export async function snapshot(caller: string | null, events?: BackendEvent[]) {
   const rows = await priced(events);
   const listings = await liveListings();
   const owned = caller ? await balances(caller, rows.map((r) => r.s.token_id)) : [];
+  const names = namer(caller);
   const strategies: MarketStrategy[] = rows.map((r, i) => {
     const hands = r.stat?.hands ?? 0;
     const net = r.stat?.net ?? 0;
@@ -275,6 +286,7 @@ export async function snapshot(caller: string | null, events?: BackendEvent[]) {
       tokenId: r.s.token_id,
       title: r.s.title,
       creator: r.s.creator_id,
+      creatorName: names.name(r.s.creator_id),
       you: r.s.creator_id === caller,
       supply: Number(r.s.supply),
       maxSupply: r.s.max_supply,
@@ -284,9 +296,9 @@ export async function snapshot(caller: string | null, events?: BackendEvent[]) {
       wins: r.stat?.wins ?? 0,
       rated: hands >= 100,
       price: r.price,
-      prev: r.prev,
+      prev: r.prev > 0 ? r.prev : r.price,
       fair: Math.round(r.fair * 100) / 100,
-      change: Math.round((r.price - r.prev) * 100) / 100,
+      change: priceChange(r.price, r.prev),
       why: explain(r.ms, r.prev),
       spark: r.spark,
       lowestAsk: r.asks.length ? Math.min(...r.asks.map((l) => gnear(l.price_each))) : null,

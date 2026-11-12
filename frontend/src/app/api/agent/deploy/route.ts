@@ -12,7 +12,7 @@ import {
   toYocto,
   walletBalanceYocto,
 } from "@/lib/server/near";
-import { balances, recordEvent, TOKEN_ID, applyLicense } from "@/lib/server/market";
+import { balances, CALL_GAS, gasReserveYocto, recordEvent, TOKEN_ID, applyLicense } from "@/lib/server/market";
 import { saveState, sessionFrom, sessionUser, sessionWallet, setSessionAgent, withSession } from "@/lib/server/sessions";
 
 /**
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
     if (!status.open) return reply(TABLE_CLOSED, 503);
     const buyIn = Math.min(defaultBuyIn(table), status.maxBuyIn);
     const tableFee = tableFeeFor(buyIn);
-    if ((await walletBalanceYocto(wallet.account)) < toYocto(buyIn) + toYocto(tableFee)) return insufficient();
+    if ((await walletBalanceYocto(wallet.account)) < toYocto(buyIn) + toYocto(tableFee) + (strategyId ? gasReserveYocto(CALL_GAS) : 0n)) return insufficient();
     let created: { accountId: string; privateKey: string };
     if (strategyId) {
       // A licensed strategy: burn one seat and bind it to the new agent id before the account exists.

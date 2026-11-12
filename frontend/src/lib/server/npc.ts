@@ -86,6 +86,7 @@ export async function runTick(): Promise<number> {
         };
         const market: MarketView = rows.map((r) => ({
           tokenId: r.s.token_id,
+          title: r.s.title,
           price: r.price,
           prev: r.prev,
           fair: r.fair,

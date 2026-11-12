@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PRICE_MAX, PRICE_MIN } from "@/lib/market/rules";
-import { simulate, simulateSteps } from "@/lib/market/sim";
+import { dayOf, simulate, simulateSteps } from "@/lib/market/sim";
 
 describe("simulate", () => {
   const a = simulate("demo");
@@ -36,5 +36,11 @@ describe("simulate", () => {
     const t0 = performance.now();
     simulate("speed");
     expect(performance.now() - t0).toBeLessThan(1500);
+  });
+});
+
+describe("dayOf", () => {
+  it("caps a 168-tick week at day 7", () => {
+    expect([dayOf(0), dayOf(1), dayOf(24), dayOf(25), dayOf(168)]).toEqual([0, 1, 1, 2, 7]);
   });
 });

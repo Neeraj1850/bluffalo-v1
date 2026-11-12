@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { brokerAsk, brokerBid, explain, fairValue, isClosed, npcDecide, quote, type MarketStats, type NpcState } from "@/lib/market/rules";
+import { brokerAsk, brokerBid, explain, priceChange, fairValue, isClosed, npcDecide, quote, type MarketStats, type NpcState } from "@/lib/market/rules";
 
 const base: MarketStats = { n: 100, sumStake: 1000, sumNet: 0, listed: 4, buyers24h: 0, uses24h: 0 };
 const zero = () => 0;
@@ -63,6 +63,16 @@ describe("brokers", () => {
     expect(npcDecide(npc, [{ ...m[0], fair: 10 }], zero).kind).toBe("none");
     expect(npcDecide({ ...npc, holdings: { shark: 1 } }, [{ ...m[0], fair: 10 }], zero)).toMatchObject({ kind: "list", price: 10.8 });
     expect(npcDecide({ ...npc, holdings: { shark: 1 }, listings: { shark: 20 } }, m, zero)).toMatchObject({ kind: "reprice", price: 10.8 });
+  });
+  it("names the strategy by title in reasons, never the raw token id", () => {
+    const npc: NpcState = { key: "bookie", cash: 500, holdings: {}, listings: { sccc8ab49: 20 } };
+    const a = npcDecide(npc, [{ tokenId: "sccc8ab49", title: "Shark", price: 10, prev: 10, fair: 10, listed: 3 }], zero);
+    expect(a.reason).toMatch(/reprices Shark /);
+    expect(a.reason).not.toMatch(/sccc8ab49/);
+  });
+  it("a strategy with no previous quote has not moved", () => {
+    expect(priceChange(7, 0)).toBe(0);
+    expect(priceChange(7.6, 7)).toBe(0.6);
   });
   it("Tilt chases a rising price that Bookie ignores", () => {
     const m = [{ tokenId: "maniac", price: 11.5, prev: 10, fair: 11.5, listed: 3 }];

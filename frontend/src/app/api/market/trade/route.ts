@@ -4,6 +4,9 @@ import {
   balances,
   busyWallets,
   buy,
+  BUY_GAS,
+  CALL_GAS,
+  gasReserveYocto,
   clearMarketCache,
   delist,
   gnear,
@@ -31,7 +34,15 @@ export async function POST(request: Request) {
   if ((op !== "buy" && op !== "list" && op !== "delist") || typeof tokenId !== "string" || !TOKEN_ID.test(tokenId)) {
     return reply({ error: "Invalid trade", code: "invalid" }, 400);
   }
-  const insufficient = () => reply({ error: "Not enough in your wallet — deposit first", code: "insufficient_funds" }, 402);
+  const insufficient = (needYocto?: bigint) =>
+    reply(
+      {
+        error: needYocto ? `Not enough in your wallet: this needs ${gnear(needYocto.toString()).toFixed(1)} GNEAR including the network fee. Deposit first.` : "Not enough in your wallet — deposit first",
+        code: "insufficient_funds",
+        fundsMoved: false,
+      },
+      402,
+    );
   const wallet = await sessionWallet(session.id);
   if (!wallet) return insufficient();
   if (busyWallets.has(wallet.account)) return reply({ error: "Another trade is still going through", code: "busy" }, 409);
@@ -51,12 +62,13 @@ export async function POST(request: Request) {
       if (each > toYocto(maxPrice)) {
         return reply({ error: `The price moved to ${gnear(l.price_each).toFixed(1)} GNEAR`, code: "price_moved", price: gnear(l.price_each) }, 409);
       }
-      if (cash < each) return insufficient();
+      const need = each + gasReserveYocto(BUY_GAS);
+      if (cash < need) return insufficient(need);
       const tx = await buy(wallet, tokenId, seller, each);
       await recordEvent({ strategy_id: tokenId, kind: "sale", account: wallet.account, counterparty: seller, price_yocto: l.price_each, amount: 1, tx });
       return reply({ tx });
     }
-    if (cash < 1n) return insufficient(); // gas
+    if (cash < gasReserveYocto(CALL_GAS)) return insufficient(gasReserveYocto(CALL_GAS));
     if (op === "list") {
       const { amount, price } = b as { amount?: unknown; price?: unknown };
       if (!Number.isInteger(amount) || (amount as number) < 1 || typeof price !== "number" || !(price >= PRICE_MIN && price <= PRICE_MAX)) {
@@ -72,6 +84,8 @@ export async function POST(request: Request) {
     await recordEvent({ strategy_id: tokenId, kind: "delist", account: wallet.account, tx });
     return reply({ tx });
   } catch (e) {
+    // Backstop: the chain's own balance check is a funds problem, not an outage.
+    if (e instanceof ChainError && /not enough balance/i.test(`${e.message} ${String(e.cause)}`)) return insufficient();
     if (e instanceof ChainError) return reply({ error: e.message, code: "chain_down" }, 503);
     throw e;
   } finally {

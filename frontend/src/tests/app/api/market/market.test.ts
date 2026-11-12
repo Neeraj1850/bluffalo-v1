@@ -4,7 +4,7 @@ import { POST as trade } from "@/app/api/market/trade/route";
 import { POST as tick } from "@/app/api/market/tick/route";
 import type { MarketEvent, MarketListing, MarketStrategy, Npc, Why } from "@/lib/market/types";
 import { busyWallets, clearMarketCache } from "@/lib/server/market";
-import { toYocto } from "@/lib/server/near";
+import { ChainError, toYocto } from "@/lib/server/near";
 import { SESSION_COOKIE } from "@/lib/server/sessions";
 import { useFakeBackend } from "@/tests/helpers/backend";
 
@@ -79,7 +79,7 @@ describe("POST /api/market/publish", () => {
     expect([method, contract, deposit]).toEqual(["mint", "market.op.testnet", 10n ** 22n]);
     expect(args).toMatchObject({ token_id: body.tokenId, owner_id: WALLET, amount: "10", royalty_bps: 1000, max_supply: 10 });
     expect(args.params_hash).toMatch(/^[0-9a-f]{64}$/);
-    expect(chain.callAs).toHaveBeenCalledWith(WALLET, "ed25519:walletkey", "market.op.testnet", "list", expect.objectContaining({ amount: "10", price_each: toYocto(12).toString() }), 1n);
+    expect(chain.callAs).toHaveBeenCalledWith(WALLET, "ed25519:walletkey", "market.op.testnet", "list", expect.objectContaining({ amount: "10", price_each: toYocto(12).toString() }), 1n, 10_000_000_000_000n);
     expect(be.strategies.get(body.tokenId)).toMatchObject({ params, params_hash: args.params_hash });
   });
 
@@ -118,6 +118,21 @@ describe("POST /api/market/trade", () => {
     expect(res.status).toBe(402);
     expect((await res.json()).code).toBe("insufficient_funds");
     expect(chain.callAs).not.toHaveBeenCalled();
+  });
+
+  it("402s (never 503) when the wallet covers the price but not the gas reserve", async () => {
+    chain.walletBalanceYocto.mockResolvedValue(toYocto(20)); // price 12 + 15 GNEAR gas reserve > 20
+    const res = await trade(req(buy));
+    expect(res.status).toBe(402);
+    expect(await res.json()).toMatchObject({ code: "insufficient_funds", fundsMoved: false });
+    expect(chain.callAs).not.toHaveBeenCalled();
+  });
+
+  it("maps the chain's own 'Not enough balance' to 402", async () => {
+    chain.callAs.mockRejectedValueOnce(new ChainError(new Error("Not enough balance for w (balance: 1, cost: 2)")));
+    const res = await trade(req(buy));
+    expect(res.status).toBe(402);
+    expect((await res.json()).code).toBe("insufficient_funds");
   });
 
   it("refuses a second trade while one is in flight", async () => {

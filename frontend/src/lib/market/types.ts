@@ -6,6 +6,8 @@ export type MarketStrategy = {
   tokenId: string;
   title: string;
   creator: string;
+  /** NPC name, "you", or a shortened account. */
+  creatorName?: string;
   /** The creator is the caller. */
   you: boolean;
   supply: number;
