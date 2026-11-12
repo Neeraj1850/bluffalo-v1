@@ -1,11 +1,21 @@
 # Bluffalo
 
-> Design a poker personality, practice it for free, then send your AI agent to play heads-up Texas Hold'em against an AI house for real NEAR testnet stakes. Every deal is cryptographically committed on-chain before the cards come out, and every agent decision is signed by a model running inside a hardware TEE.
+> Design a poker personality, practice it for free, then send your AI agent to play heads-up Texas Hold'em against an AI house for real NEAR testnet stakes. Every hand is committed on-chain before your seed is revealed, the payout is re-checked against the cards in your browser, and every AI decision is signed by a model running inside a hardware TEE, including proof that the house never saw your cards.
 > Then sell it: list your strategy on the **Strategy Market**, where license seats are NEP-245 tokens, prices follow each strategy's verified on-chain record, and three NPC traders with their own wallets buy, sell and reprice.
 
 **Live app:** https://bluffalo.up.railway.app · **Network:** NEAR testnet · **Contracts:** [`bluffalo-poker-mwd58e1p.testnet`](https://testnet.nearblocks.io/address/bluffalo-poker-mwd58e1p.testnet) (poker) and [`market.npoker-op-43b602.testnet`](https://testnet.nearblocks.io/address/market.npoker-op-43b602.testnet) (market), both with zero access keys: their code can't be changed
 
 **Demo video (2:40):** https://x.com/Neeraj_1850/status/2120926721960739199
+
+**Proof, no sign-in needed**
+
+| Claim | Check it |
+|---|---|
+| Both contracts are immutable | `curl -s https://test.rpc.fastnear.com -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"query","params":{"request_type":"view_access_key_list","finality":"final","account_id":"market.npoker-op-43b602.testnet"}}'` returns `"keys":[]` (same for `bluffalo-poker-mwd58e1p.testnet`). Key deletions: [market](https://testnet.nearblocks.io/txns/Hg4y2HHviesHmNn4zpuqQdjdzKKS2KyLrfGdRCbWhXq7), [poker](https://testnet.nearblocks.io/txns/BVxfwXBgktrqMotQ8kQbJMvxHUKzvpbedXwygRtPkVXh) |
+| A real hand is committed on-chain before the deal | [commit_hand](https://testnet.nearblocks.io/txns/7cAjNUJM1v7GPaispkEGLZNxDSF1yjdydKoocRW2hVah) |
+| A strategy seat (NEP-245) was bought with no wallet popup | [buy](https://testnet.nearblocks.io/txns/DAiKrturJLftnpGhEYbHm4K7zSE8m4roz9oPZoQuvV7g) |
+| A strategy's whole record verifies against the chain | `curl -s https://bluffalo.up.railway.app/api/market/s5ba947d2/proof` returns `verified` = `total` |
+| An NPC trader's reasoning was signed in a TEE | `curl -s "https://bluffalo.up.railway.app/api/verify?chats=8a7f1dc5a0294f68a4e2646ad8f09280"` returns `"verified":true` |
 
 ---
 
@@ -15,6 +25,7 @@ No setup, no crypto wallet. Every step below works on the live app.
 
 | # | Do | You should see |
 |---|---|---|
+| 0 | No account? Click **Try it free** on https://bluffalo.up.railway.app | A practice table with free chips, each move with its reason. No sign-in |
 | 1 | Open https://bluffalo.up.railway.app and click **Continue with Email**. Enter any email and the 6-digit code Privy sends you | The **Lobby**: a free practice table, three real-money tables, and a side panel with the house bankroll and open tables |
 | 2 | Open **Strategy**, pick **Shark** (or move a slider), then click **Test this agent** (`/strategy/test`) | A full-page practice table. Free hands start on their own; each move shows *why* the agent made it |
 | 3 | After 2–3 hands click **Stop test**, then **See this test session** | The session: result, hands, and every decision of every hand |
@@ -52,7 +63,7 @@ Each real-money hand is two on-chain transactions: `commit_hand` before the deal
 **Hackathon notes**
 
 - **Demo activity is ours.** The market's house library ([`market-seed.mjs`](frontend/scripts/market-seed.mjs)), the five demo players ([`market-players.mjs`](frontend/scripts/market-players.mjs)) and a few test-account listings were created by us to show a working market. NPC trades after that are made by the app's own traders.
-- **Tracks:** Games With Real Economies (primary: strategy market: NEP-245 seats, player-owned listings, NPC traders with wallets, prices from one rules file, week fast-forward, email login with no popups) and Agent Economy (agents with their own NEAR accounts and withdraw-only keys, agents buying strategies from other players, TEE-signed reasoning for every decision, an MCP server at `/api/mcp` so outside agents can play).
+- **Tracks:** Games With Real Economies (primary: strategy market: NEP-245 seats, player-owned listings, NPC traders with wallets, prices from one rules file, week fast-forward, email login with no popups) and Agent Economy (agents with their own NEAR accounts and withdraw-only keys, agents buying strategies from other players, TEE-signed reasoning for every decision, an MCP server at `/api/mcp` so outside agents can play: `deal` with `sha256(seed)`, then `reveal` the seed after the commit; *Keep playing when I close the tab* runs the agent on the server).
 - **AI tools used:** Claude Code (Anthropic) helped write code, tests, docs and the demo video edit; ElevenLabs generated the video narration. In-game AI runs on NEAR AI Cloud (`Qwen/Qwen3.6-35B-A3B-FP8`, TEE-attested).
 - **Main libraries:** Next.js 15, React 19, Tailwind CSS 4, Framer Motion 12, Privy (`@privy-io/react-auth`, `@privy-io/node`), `near-api-js`, `ethers` (signature recovery for TEE checks), FastAPI, SQLAlchemy 2, Alembic, `near-sdk` 5 (Rust contract), Vitest, pytest.
 - **Tests:** 473 app (vitest) + 54 backend (pytest) + 52 contract (cargo: 34 poker, 18 market) = 579, all passing in `make check`.
@@ -324,14 +335,17 @@ stateDiagram-v2
 - **No voiding losing hands.** There is no operator cancel. A hand left unsettled for 600 blocks (~10 min) can be closed by anyone with `claim_timeout`, and the **player gets the whole pot**, so stalling only costs the house.
 - **Immutable contracts.** The poker contract account has no access keys (deleted right after deploy), so its code can't be changed. Its on-chain code hash is `EeKs6tbcPiCoQX5MHxK9pU8MctUk3XEN5rRHfdvpRwuc`, the base58 of sha256 `cab7bfd6…4953` of the deployed `poker.wasm`. The build isn't reproducible (`non-reproducible-wasm`), so a fresh rebuild may produce a different hash. The market contract is locked the same way; see [Smart contracts](#smart-contracts) for its hash and how to check either one.
 - **TEE-signed decisions, checked per hand.** Agent moves come from a NEAR AI Cloud model running in confidential compute. On the Results screen, every AI decision of that hand is checked: its NEAR AI signature must recover (EIP-191) to a signer the model's TEE attestation vouches for (`GET /api/verify?chats=…`). The full hardware quote can be checked at [cloud.near.ai/verify](https://cloud.near.ai/verify).
-- **The house never sees your cards.** The house model only gets public information (equity, pot odds, stack-to-pot ratio) and fixed, published parameters.
+- **The house never saw your cards, provably.** Each house decision stores the exact request body sent to NEAR AI. On Results, *House never saw your cards* re-hashes each prompt in your browser, checks the hash equals the `request_hash` the TEE signed (`/api/verify?chats=…&seat=house`), and checks none of your hole cards (derived from the revealed seeds) appear in it. The TEE is the dealer's referee: it signs exactly what the house was shown.
+- **Agents can keep playing with the tab closed.** *Keep playing when I close the tab* on the Live screen hands the loop to the server (your stop loss, take profit and max hands still apply). Browser play is the default because in server autoplay the server also picks your seed, so the no-last-look guarantee rests on the operator there; the UI says so before you switch.
 
 **Known limits (honest):**
 - The contract checks the payout is at most the pot, not that it matches the cards. The cards are checkable by anyone off-chain from the two revealed seeds, but the contract doesn't re-run poker.
-- A player who commits and never reveals their seed can't be settled by the house, so after the timeout `claim_timeout` pays them the pot. The server blocks an agent with an unrevealed hand from playing more (in memory; a restart forgets it), which caps that at one stake per agent.
+- A player who commits and never reveals their seed can't be settled by the house, so after the timeout `claim_timeout` pays them the pot. The server blocks an agent with an unrevealed hand from playing more (stored in the backend, so it survives restarts), which caps that at one stake per agent. If your browser crashes mid-hand, it re-sends the saved seed on reload.
 - The browser's payout check uses the default rake rates; a deployment that overrides `RAKE_PCT`/`RAKE_CAP_BB` would show a mismatch.
 - Wallets and agent accounts are custodial on this testnet build: their private keys are stored server-side in Postgres (not encrypted at rest).
-- The per-hand TEE check proves each decision was signed by an attested model; it shows the signed request/response hashes rather than re-deriving them from the original bytes.
+- Agent decisions store only their signed request hash; full prompts are kept for house decisions (the ones the proof needs).
+- Not built: agent-vs-agent tables, mainnet, NEAR Intents. Everything runs on testnet with testnet NEAR.
+- Server-side locks (one hand per agent, one table per player) and the autoplay loop assume a single app instance.
 
 ---
 
