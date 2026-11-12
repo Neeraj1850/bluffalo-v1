@@ -4,7 +4,7 @@
 #   ./deploy.sh init     first deploy: also calls new(operator)
 # Keys are read from ~/.near-credentials (near CLI legacy keychain), never from this repo.
 set -eu
-CONTRACT=${CONTRACT:-npk-63o824.testnet}
+CONTRACT=${CONTRACT:-bluffalo-poker-mwd58e1p.testnet}
 OPERATOR=${OPERATOR:-npoker-op-43b602.testnet}
 cd "$(dirname "$0")"
 

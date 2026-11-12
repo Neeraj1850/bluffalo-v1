@@ -6,6 +6,8 @@ const SEED: &str = "00112233445566778899aabbccddeeff";
 // printf %s 00112233445566778899aabbccddeeff | shasum -a 256
 const COMMIT: &str = "5947d7c33d783f94b3b4c1a96ebc8991ed28f1b069b71e03376cba8caa98a720";
 const PLAYER_SEED: &str = "ffeeddccbbaa99887766554433221100";
+// printf %s ffeeddccbbaa99887766554433221100 | shasum -a 256
+const PLAYER_COMMIT: &str = "5d0b193317e951a7444b9bd4c632e0f1793fcbdfad115ae4caeba4f7ae39cca5";
 const NEAR: u128 = 10u128.pow(24);
 
 fn op() -> AccountId {
@@ -23,6 +25,14 @@ fn call(who: AccountId, deposit: u128) {
         .build());
 }
 
+/// Act as `who` at a given block height.
+fn call_at(who: AccountId, height: u64) {
+    testing_env!(VMContextBuilder::new()
+        .predecessor_account_id(who)
+        .block_height(height)
+        .build());
+}
+
 /// Alice has 10 NEAR deposited and the house has 100.
 fn setup() -> Poker {
     call(op(), 0);
@@ -37,7 +47,13 @@ fn setup() -> Poker {
 
 fn commit(c: &mut Poker, stake: u128) {
     call(op(), 0);
-    c.commit_hand("0123abcd".into(), alice(), COMMIT.into(), U128(stake));
+    c.commit_hand(
+        "0123abcd".into(),
+        alice(),
+        COMMIT.into(),
+        PLAYER_COMMIT.into(),
+        U128(stake),
+    );
 }
 
 fn total(c: &Poker) -> u128 {
@@ -219,7 +235,13 @@ mod hands {
     fn only_the_operator_commits() {
         let mut c = setup();
         call(alice(), 0);
-        c.commit_hand("0123abcd".into(), alice(), COMMIT.into(), U128(NEAR));
+        c.commit_hand(
+            "0123abcd".into(),
+            alice(),
+            COMMIT.into(),
+            PLAYER_COMMIT.into(),
+            U128(NEAR),
+        );
     }
 
     #[test]
@@ -256,11 +278,17 @@ mod hands {
     }
 
     #[test]
-    #[should_panic(expected = "commitment must be a hex sha256")]
+    #[should_panic(expected = "commitments must be hex sha256")]
     fn malformed_commitments_are_refused() {
         let mut c = setup();
         call(op(), 0);
-        c.commit_hand("0123abcd".into(), alice(), "not-a-hash".into(), U128(NEAR));
+        c.commit_hand(
+            "0123abcd".into(),
+            alice(),
+            "not-a-hash".into(),
+            PLAYER_COMMIT.into(),
+            U128(NEAR),
+        );
     }
 
     #[test]
@@ -272,49 +300,56 @@ mod hands {
     }
 
     #[test]
-    fn cancel_refunds_both_stakes_and_conserves_money() {
+    #[should_panic(expected = "Player seed doesn't match")]
+    fn a_swapped_player_seed_is_refused() {
+        let mut c = setup();
+        commit(&mut c, NEAR);
+        c.settle_hand("0123abcd".into(), SEED.into(), SEED.into(), U128(0));
+    }
+
+    #[test]
+    fn a_stalled_hand_pays_the_player_the_whole_pot_and_conserves_money() {
         let mut c = setup();
         let before = total(&c);
         commit(&mut c, 3 * NEAR);
-        assert_eq!(c.balance_of(alice()).0, 7 * NEAR); // stake locked
-        call(op(), 0);
-        c.cancel_hand("0123abcd".into());
-        assert_eq!(c.balance_of(alice()).0, 10 * NEAR); // stake back
-        assert_eq!(c.house_balance().0, 100 * NEAR); // house match back
+        call_at(alice(), HAND_TIMEOUT_BLOCKS); // anyone can close it, once it timed out
+        c.claim_timeout("0123abcd".into());
+        assert_eq!(c.balance_of(alice()).0, 13 * NEAR); // 7 free + 6 pot
+        assert_eq!(c.house_balance().0, 97 * NEAR); // the house forfeits its match
         assert_eq!(total(&c), before);
         assert_eq!(
             c.get_hand("0123abcd".into()).unwrap().status,
-            HandStatus::Cancelled
+            HandStatus::TimedOut
         );
     }
 
     #[test]
+    #[should_panic(expected = "hasn't timed out")]
+    fn nobody_can_close_a_hand_early_not_even_the_operator() {
+        let mut c = setup();
+        commit(&mut c, NEAR);
+        call_at(op(), HAND_TIMEOUT_BLOCKS - 1);
+        c.claim_timeout("0123abcd".into());
+    }
+
+    #[test]
     #[should_panic(expected = "Hand is already closed")]
-    fn a_settled_hand_cannot_be_cancelled() {
+    fn a_settled_hand_cannot_time_out() {
         let mut c = setup();
         commit(&mut c, 2 * NEAR);
         c.settle_hand("0123abcd".into(), SEED.into(), PLAYER_SEED.into(), U128(0));
-        call(op(), 0);
-        c.cancel_hand("0123abcd".into());
+        call_at(alice(), HAND_TIMEOUT_BLOCKS);
+        c.claim_timeout("0123abcd".into());
     }
 
     #[test]
     #[should_panic(expected = "Hand already settled")]
-    fn a_cancelled_hand_cannot_be_settled() {
+    fn a_timed_out_hand_cannot_be_settled() {
         let mut c = setup();
         commit(&mut c, 2 * NEAR);
-        call(op(), 0);
-        c.cancel_hand("0123abcd".into());
+        call_at(op(), HAND_TIMEOUT_BLOCKS);
+        c.claim_timeout("0123abcd".into());
         c.settle_hand("0123abcd".into(), SEED.into(), PLAYER_SEED.into(), U128(0));
-    }
-
-    #[test]
-    #[should_panic(expected = "Only the operator")]
-    fn only_the_operator_cancels() {
-        let mut c = setup();
-        commit(&mut c, NEAR);
-        call(alice(), 0);
-        c.cancel_hand("0123abcd".into());
     }
 }
 

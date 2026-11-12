@@ -3,9 +3,12 @@
 //! The game engine and the AI run off-chain. This contract holds the money and
 //! makes every hand auditable:
 //! 1. `commit_hand`: before the deal, the operator records sha256(server seed)
-//!    and locks the player's stake.
-//! 2. `settle_hand`: after the hand, the operator reveals the server seed. The
-//!    contract checks it against the commitment, stores both seeds and pays out.
+//!    AND sha256(player seed), and locks both stakes. Neither seed can change after.
+//! 2. `settle_hand`: after the hand, both seeds are revealed. The contract checks
+//!    each against its commitment, stores them and pays out.
+//! 3. `claim_timeout`: a hand left unsettled for HAND_TIMEOUT_BLOCKS can be closed
+//!    by anyone, and the player gets the whole pot. The operator can't void a hand
+//!    it's losing: stalling only costs the house.
 //!
 //! Anyone can read a settled hand, re-deal it from sha256(server_seed:player_seed)
 //! and check the result. Payouts are bounded on-chain: a player can never get
@@ -20,8 +23,8 @@ use near_sdk::{env, near, require, AccountId, NearToken, PanicOnDefault, Promise
 pub enum HandStatus {
     Committed,
     Settled,
-    /// Refunded without a result: the player's agent never finished the hand.
-    Cancelled,
+    /// Not settled in time: the player was paid the whole pot.
+    TimedOut,
 }
 
 #[near(serializers = [borsh, json])]
@@ -30,6 +33,8 @@ pub struct Hand {
     pub player: AccountId,
     /// Hex sha256 of the server seed, recorded before the deal.
     pub commitment: String,
+    /// Hex sha256 of the player's seed, recorded before the deal.
+    pub player_commitment: String,
     /// Player's stake locked for this hand (yoctoNEAR).
     pub stake: U128,
     /// House stake locked to match it (yoctoNEAR).
@@ -58,6 +63,9 @@ fn is_hex(s: &str, len: usize) -> bool {
         && s.bytes()
             .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
+
+/// Blocks (~1 s each on testnet) a hand may stay unsettled before anyone can close it.
+pub const HAND_TIMEOUT_BLOCKS: u64 = 600;
 
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
@@ -133,11 +141,21 @@ impl Poker {
 
     // ----- hands ---------------------------------------------------------
 
-    /// Before the deal: lock the stakes and record the server seed's hash.
-    pub fn commit_hand(&mut self, hand_id: String, player: AccountId, commitment: String, stake: U128) {
+    /// Before the deal: lock the stakes and record both seeds' hashes.
+    pub fn commit_hand(
+        &mut self,
+        hand_id: String,
+        player: AccountId,
+        commitment: String,
+        player_commitment: String,
+        stake: U128,
+    ) {
         self.only_operator();
         require!(is_hex(&hand_id, 8), "hand_id must be 8 hex characters");
-        require!(is_hex(&commitment, 64), "commitment must be a hex sha256");
+        require!(
+            is_hex(&commitment, 64) && is_hex(&player_commitment, 64),
+            "commitments must be hex sha256"
+        );
         require!(self.hands.get(&hand_id).is_none(), "Hand already exists");
         require!(stake.0 > 0, "Stake must be positive");
 
@@ -152,6 +170,7 @@ impl Poker {
             Hand {
                 player,
                 commitment,
+                player_commitment,
                 stake,
                 house_stake: stake,
                 committed_at: env::block_height(),
@@ -163,7 +182,7 @@ impl Poker {
         );
     }
 
-    /// After the hand: reveal the seeds and pay out. Fails if the server seed
+    /// After the hand: reveal the seeds and pay out. Fails if either seed
     /// doesn't match what was committed before the deal.
     pub fn settle_hand(&mut self, hand_id: String, server_seed: String, player_seed: String, payout: U128) {
         self.only_operator();
@@ -181,6 +200,10 @@ impl Poker {
             hex(&env::sha256(server_seed.as_bytes())) == hand.commitment,
             "Server seed doesn't match the commitment"
         );
+        require!(
+            hex(&env::sha256(player_seed.as_bytes())) == hand.player_commitment,
+            "Player seed doesn't match the commitment"
+        );
         let pot = hand.stake.0 + hand.house_stake.0;
         require!(payout.0 <= pot, "Payout exceeds the pot");
 
@@ -195,23 +218,24 @@ impl Poker {
         self.hands.insert(hand_id, hand);
     }
 
-    /// A committed hand that was never settled (the agent stalled or disconnected,
-    /// or settling couldn't run): give both stakes back and close it. No seeds are
-    /// revealed — the hand wasn't played. Refunds exactly what `commit_hand` locked.
-    pub fn cancel_hand(&mut self, hand_id: String) {
-        self.only_operator();
+    /// A hand nobody settled within HAND_TIMEOUT_BLOCKS: anyone may close it and
+    /// the player is paid the whole pot. No seeds are revealed — it wasn't settled.
+    pub fn claim_timeout(&mut self, hand_id: String) {
         let mut hand = self
             .hands
             .get(&hand_id)
             .cloned()
             .unwrap_or_else(|| env::panic_str("Unknown hand"));
         require!(hand.status == HandStatus::Committed, "Hand is already closed");
-
+        require!(
+            env::block_height() >= hand.committed_at + HAND_TIMEOUT_BLOCKS,
+            "Hand hasn't timed out yet"
+        );
+        let pot = hand.stake.0 + hand.house_stake.0;
         let balance = self.balance(&hand.player);
-        self.balances.insert(hand.player.clone(), balance + hand.stake.0);
-        self.house += hand.house_stake.0;
-
-        hand.status = HandStatus::Cancelled;
+        self.balances.insert(hand.player.clone(), balance + pot);
+        hand.status = HandStatus::TimedOut;
+        hand.payout = Some(U128(pot));
         self.hands.insert(hand_id, hand);
     }
 
