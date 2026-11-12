@@ -1,19 +1,21 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { YourLicenses } from "@/components/market/YourLicenses";
-import { ButtonHint, ButtonLink } from "@/components/ui/Button";
+import { Button, ButtonHint, ButtonLink } from "@/components/ui/Button";
 import { MonoLabel } from "@/components/ui/MonoLabel";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { LIMITS, PARAMS } from "@/lib/data/strategy";
-import { getTable } from "@/lib/data/tables";
+import { DEFAULT_TABLE_ID, getTable } from "@/lib/data/tables";
 import { useSetup } from "@/lib/store/setup";
 import { PresetPicker } from "./PresetPicker";
 import { RiskLimitRow } from "./RiskLimitRow";
 import { StrategySlider } from "./StrategySlider";
 
 export function StrategyView() {
-  const { tableId, preset, params, limits, license, choosePreset, setParam, setLimit } = useSetup();
+  const { tableId, preset, params, limits, license, choosePreset, setParam, setLimit, selectTable } = useSetup();
+  const router = useRouter();
   const table = getTable(tableId);
   const isPractice = table.mode === "practice";
 
@@ -105,13 +107,17 @@ export function StrategyView() {
               Test this agent
             </ButtonLink>
             {isPractice ? (
-              <ButtonLink
-                href="/lobby"
+              // From the free table, go straight to the review at the recommended real table.
+              <Button
                 variant="secondary"
-                trailing={<ButtonHint muted>Pick a table</ButtonHint>}
+                onClick={() => {
+                  selectTable(DEFAULT_TABLE_ID);
+                  router.push("/deploy");
+                }}
+                trailing={<ButtonHint muted>{getTable(DEFAULT_TABLE_ID).name} · review first</ButtonHint>}
               >
                 Play for real money
-              </ButtonLink>
+              </Button>
             ) : (
               <ButtonLink
                 href="/deploy"
