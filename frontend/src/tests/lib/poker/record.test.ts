@@ -31,6 +31,13 @@ describe("toRecord", () => {
     expect(rec.steps.map((s) => s.reason).slice(0, 4)).toEqual(["limp", "value", "pot control", "value again"]);
   });
 
+  it("carries request hashes and house prompts", () => {
+    const housePrompts = [{ street: "FLOP" as const, prompt: "{}", requestHash: "h", chatId: "c" }];
+    const r = toRecord(hand, { ...meta(["a", "b", "c", "d"]), requestHashes: ["x", undefined], housePrompts });
+    expect(r.steps.map((s) => s.requestHash).slice(0, 2)).toEqual(["x", undefined]);
+    expect(r.housePrompts).toEqual(housePrompts);
+  });
+
   it("works out the money", () => {
     expect(rec).toMatchObject({ id: "#ab12", potWon: 14, net: 7, stackAfter: 57 });
   });

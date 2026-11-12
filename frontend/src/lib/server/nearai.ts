@@ -5,6 +5,8 @@
  * override the IDs with env vars (see GET https://cloud-api.near.ai/v1/models).
  */
 
+import { createHash } from "node:crypto";
+
 const URL = "https://cloud-api.near.ai/v1/chat/completions";
 
 // TEE-attested and fast with thinking off: ~1 s a move on a real prompt, vs 12 s
@@ -61,24 +63,28 @@ export async function chatJsonId<T = unknown>({
   retries = 2,
   fetch: f = fetch,
   sleep = (ms) => new Promise((r) => setTimeout(r, ms)),
-}: Options): Promise<{ value: T; id: string }> {
+}: Options): Promise<{ value: T; id: string; request: string; requestHash: string }> {
   const key = process.env.NEAR_AI_API_KEY;
   if (!key) throw new NearAiError("NEAR_AI_API_KEY is not set", 401);
+
+  // The exact bytes sent: NEAR AI signs sha256(body), so keeping them proves what the model saw.
+  const request = JSON.stringify({
+    model,
+    messages,
+    response_format: { type: "json_object" },
+    max_tokens: maxTokens,
+    temperature: 0.7,
+    // Poker moves need a short JSON answer, not a reasoning trace: thinking
+    // made replies 10x slower and often cut the JSON off at max_tokens.
+    chat_template_kwargs: { enable_thinking: false },
+  });
+  const requestHash = createHash("sha256").update(request, "utf8").digest("hex");
 
   for (let attempt = 0; ; attempt++) {
     const res = await f(URL, {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model,
-        messages,
-        response_format: { type: "json_object" },
-        max_tokens: maxTokens,
-        temperature: 0.7,
-        // Poker moves need a short JSON answer, not a reasoning trace: thinking
-        // made replies 10x slower and often cut the JSON off at max_tokens.
-        chat_template_kwargs: { enable_thinking: false },
-      }),
+      body: request,
       // A reply that never comes would hang the hand with stakes locked on-chain;
       // timing out turns it into "service down" and the hand gets cancelled.
       signal: AbortSignal.timeout(TIMEOUT_MS),
@@ -88,7 +94,7 @@ export async function chatJsonId<T = unknown>({
       const data = await res.json();
       const content = data?.choices?.[0]?.message?.content;
       try {
-        return { value: JSON.parse(content) as T, id: String(data?.id ?? "") };
+        return { value: JSON.parse(content) as T, id: String(data?.id ?? ""), request, requestHash };
       } catch {
         throw new NearAiError("Model returned invalid JSON", 422);
       }

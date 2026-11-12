@@ -3,7 +3,7 @@ import { TABLES } from "@/lib/data/tables";
 import { shuffle } from "@/lib/poker/deck";
 import { mixSeed } from "@/lib/poker/fairness";
 import { apply, isOver, newHand, type Seat } from "@/lib/poker/game";
-import { toRecord, type LiveHand } from "@/lib/poker/record";
+import { toRecord, type HousePrompt, type LiveHand } from "@/lib/poker/record";
 import { decide } from "./decide";
 
 export type PlayRequest = {
@@ -85,6 +85,8 @@ export async function playHand(
 
   const reasons: string[] = [];
   const chatIds: (string | undefined)[] = [];
+  const requestHashes: (string | undefined)[] = [];
+  const housePrompts: HousePrompt[] = [];
   // A heads-up hand can't take more than a few dozen actions; this guards a bad loop.
   for (let n = 0; !isOver(s) && n < 200; n++) {
     const agent = s.toAct === 0;
@@ -93,6 +95,9 @@ export async function playHand(
       // A sealed strategy's numbers must not leak through the agent's own words.
       reasons.push(req.strategy ? d.reason.replace(/\d+\s*\/\s*100/g, "—") : d.reason);
       chatIds.push(d.chatId);
+      requestHashes.push(d.requestHash);
+    } else if (d.request && d.requestHash) {
+      housePrompts.push({ street: s.street, prompt: d.request, requestHash: d.requestHash, ...(d.chatId ? { chatId: d.chatId } : {}) });
     }
     s = apply(s, d.action);
   }
@@ -102,6 +107,8 @@ export async function playHand(
     table: table.name,
     reasons,
     chatIds,
+    requestHashes,
+    housePrompts,
     opponent: practice ? "practice bot" : "house agent",
     proof: { seed: deal.seed, commitment: deal.commitment, playerSeed: req.playerSeed, hole: s.hole, board: s.board },
   });

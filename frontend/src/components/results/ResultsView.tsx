@@ -19,6 +19,7 @@ import { stopAgent, txUrl } from "@/services/agentApi";
 import type { LiveHand } from "@/lib/poker/record";
 import { CashoutSheet } from "./CashoutSheet";
 import { AttestationCard } from "./AttestationCard";
+import { HouseProofCard } from "./HouseProofCard";
 import { VerificationCard } from "./VerificationCard";
 import { netAfterRake, rakeOf } from "@/services/houseApi";
 
@@ -221,6 +222,10 @@ function HandResult({
       <VerificationCard handId={hand.id} proof={hand.proof} chain={hand.chain} replay={hand.replay} />
 
       <AttestationCard chatIds={hand.steps.flatMap((s) => (s.chatId ? [s.chatId] : []))} />
+
+      {hand.housePrompts?.length ? (
+        <HouseProofCard prompts={hand.housePrompts} seed={hand.proof.seed} playerSeed={hand.proof.playerSeed} />
+      ) : null}
 
       <motion.div
         initial="hidden"

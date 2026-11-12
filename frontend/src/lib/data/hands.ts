@@ -18,6 +18,8 @@ export type HandStep = {
   boardCount: 0 | 3 | 4 | 5;
   /** The NEAR AI completion id behind this agent decision, for TEE verification. */
   chatId?: string;
+  /** sha256 of the exact request body sent to NEAR AI for this decision (NEAR AI signs it). */
+  requestHash?: string;
 };
 
 export type ScriptedHand = {

@@ -3,7 +3,7 @@ import { buildPrompt, heuristic, parseDecision, seatView, type Decision } from "
 import type { HandState, Seat } from "@/lib/poker/game";
 import { absurd, baseline, houseStats, statsLines } from "@/lib/poker/house";
 import type { SeatView } from "@/lib/poker/agent";
-import { chatJson, chatJsonId, hasNearAiKey, MODELS, NearAiError } from "./nearai";
+import { chatJsonId, hasNearAiKey, MODELS, NearAiError } from "./nearai";
 
 /** What the house plays like when it uses the heuristic (practice bot, garbled reply). */
 export const HOUSE_PARAMS: StrategyParams = { aggression: 55, bluff: 25, position: 70, sizing: 55 };
@@ -12,6 +12,9 @@ export type SourcedDecision = Decision & {
   source: "nearai" | "heuristic" | "baseline";
   /** The NEAR AI completion id, when the move came from the model (for TEE verification). */
   chatId?: string;
+  /** The exact request body sent to NEAR AI and its sha256 (what NEAR AI signs as request_hash). */
+  request?: string;
+  requestHash?: string;
 };
 
 export const SERVICE_DOWN_MESSAGE = "The agent service is down right now. Try again in a minute.";
@@ -49,8 +52,9 @@ export async function decide(
   if (!hasNearAiKey()) throw new ServiceDownError();
   let raw: unknown;
   let chatId = "";
+  let requestHash = "";
   try {
-    ({ value: raw, id: chatId } = await chatJsonId({
+    ({ value: raw, id: chatId, requestHash } = await chatJsonId({
       model: params ? MODELS.agent : MODELS.house,
       messages: buildPrompt(view, params),
       fetch: opts.fetch,
@@ -60,7 +64,7 @@ export async function decide(
     throw new ServiceDownError(e);
   }
   const d = parseDecision(raw, view.legal);
-  return d ? { ...d, source: "nearai", ...(chatId ? { chatId } : {}) } : fallback();
+  return d ? { ...d, source: "nearai", requestHash, ...(chatId ? { chatId } : {}) } : fallback();
 }
 
 /**
@@ -80,9 +84,10 @@ export async function decideHouse(
   const base = () => ({ ...baseline(view, stats, opts.rand), source: "baseline" as const });
   if (!hasNearAiKey()) return base();
   let raw: unknown;
+  let sent: Pick<SourcedDecision, "chatId" | "request" | "requestHash">;
   try {
     const [system, user] = buildPrompt(view, null);
-    raw = await chatJson({
+    const res = await chatJsonId({
       model: MODELS.house,
       messages: [
         {
@@ -93,10 +98,13 @@ export async function decideHouse(
       ],
       fetch: opts.fetch,
     });
+    raw = res.value;
+    sent = { request: res.request, requestHash: res.requestHash, ...(res.id ? { chatId: res.id } : {}) };
   } catch {
     return base();
   }
+  // Keep what the model was sent even when its move is overruled: the proof is about what it saw.
   const d = parseDecision(raw, view.legal);
-  if (!d || absurd(d, view, stats)) return base();
-  return { ...d, source: "nearai" };
+  if (!d || absurd(d, view, stats)) return { ...base(), ...sent };
+  return { ...d, source: "nearai", ...sent };
 }

@@ -27,6 +27,9 @@ export function useFakeBackend(fallthrough?: typeof fetch) {
   const hands: { session: string; id: string; record: unknown }[] = [];
   type LiveRow = { session_id: string; status: string; to_act: number; updated_at: number; data: unknown };
   const liveHands = new Map<string, LiveRow>(); // hand_id → row
+  type PendingRow = Record<string, unknown> & { hand_id: string; agent: string; revealed: boolean };
+  const pending = new Map<string, PendingRow>(); // hand_id → row (one unrevealed per agent)
+  const autoplay = new Map<string, { on: boolean; autoplay: unknown }>(); // session id → autoplay
   const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 
   const fake = vi.fn<typeof fetch>(async (input, init) => {
@@ -68,6 +71,30 @@ export function useFakeBackend(fallthrough?: typeof fetch) {
         return json({ hands: stale.map((h) => h.data) });
       }
     }
+
+    // Pending reveals (global, by hand id), joined with the deal's seed like the real backend.
+    if (path === "/pending" && method === "GET") {
+      const agent = new URLSearchParams(query).get("agent");
+      const r = [...pending.values()].find((x) => x.agent === agent && !x.revealed);
+      return json({ hand: r ? pendingOut(r) : null });
+    }
+    if (path.startsWith("/pending/")) {
+      const [, , pid, verb] = path.split("/");
+      const r = pending.get(pid);
+      if (verb === "reveal") {
+        if (!r || r.revealed) return json({ detail: "Unknown" }, 404);
+        r.revealed = true;
+        return json({ ok: true });
+      }
+      if (method === "PUT") {
+        if (!sessions.has(body.session_id) || !deals.has(pid)) return json({ detail: "Unknown" }, 404);
+        if (r || [...pending.values()].some((x) => x.agent === body.agent && !x.revealed)) return json({}, 409);
+        pending.set(pid, { ...body, hand_id: pid, created_at: Date.now(), revealed: false });
+        return json({ ok: true }, 201);
+      }
+      return r && !r.revealed ? json(pendingOut(r)) : json({ detail: "Unknown" }, 404);
+    }
+    if (path === "/autoplay") return json({ sessions: [...autoplay].filter(([, a]) => a.on).map(([id]) => id) });
 
     if (path === "/strategies" && method === "POST") {
       if (strategies.has(body.id) || [...strategies.values()].some((x) => x.name === body.name)) return json({}, 409);
@@ -145,6 +172,11 @@ export function useFakeBackend(fallthrough?: typeof fetch) {
       d.played = true;
       return json({ seed: d.seed, commitment: d.commitment });
     }
+    if (kind === "autoplay" && method === "GET") return json(autoplay.get(sid) ?? { on: false, autoplay: null });
+    if (kind === "autoplay" && method === "PUT") {
+      autoplay.set(sid, { on: body.on ?? autoplay.get(sid)?.on ?? false, autoplay: body.autoplay ?? autoplay.get(sid)?.autoplay ?? null });
+      return json({ ok: true });
+    }
     if (kind === "hands" && method === "POST") {
       if (!hands.some((h) => h.id === body.id)) hands.unshift({ session: sid, id: body.id, record: body.record });
       return json({ ok: true }, 201);
@@ -156,6 +188,11 @@ export function useFakeBackend(fallthrough?: typeof fetch) {
     }
     return json({ detail: "Not found" }, 404);
   });
+
+  function pendingOut(r: PendingRow) {
+    const d = deals.get(r.hand_id)!;
+    return { ...r, revealed: undefined, seed: d.seed, commitment: d.commitment };
+  }
 
   vi.stubGlobal("fetch", fake);
   /** Create a session directly, as if a browser had visited before (optionally signed in). */
@@ -171,5 +208,5 @@ export function useFakeBackend(fallthrough?: typeof fetch) {
   /** Bind a session's agent to a market strategy, or give it an MCP token. */
   const seedAgentStrategy = (id: string, strategyId: string) => agentStrategies.set(id, strategyId);
   const seedMcpToken = (id: string, token: string) => mcpTokens.set(token, id);
-  return { fake, seedSession, seedWallet, seedAgentStrategy, seedMcpToken, strategies, events, stats };
+  return { fake, pending, autoplay, seedSession, seedWallet, seedAgentStrategy, seedMcpToken, strategies, events, stats };
 }

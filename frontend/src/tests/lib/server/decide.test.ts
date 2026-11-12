@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cards } from "@/lib/cards";
 import { getPreset } from "@/lib/data/strategy";
@@ -22,7 +23,7 @@ describe("decide", () => {
 
   it("uses the model's legal move", async () => {
     const d = await decide(state, shark, { fetch: reply({ action: "call", reason: "Cheap to see a flop." }) });
-    expect(d).toEqual({ action: { type: "call" }, reason: "Cheap to see a flop.", source: "nearai" });
+    expect(d).toEqual({ action: { type: "call" }, reason: "Cheap to see a flop.", source: "nearai", requestHash: expect.stringMatching(/^[0-9a-f]{64}$/) });
   });
 
   it("uses the agent model for the player and the house model for the house", async () => {
@@ -98,5 +99,13 @@ describe("decideHouse", () => {
     const body = JSON.parse(String(f.mock.calls[0][1]?.body));
     expect(body.messages[1].content).toMatch(/Equity vs a random hand/);
     expect(body.messages[1].content).toMatch(/Stack-to-pot/);
+  });
+
+  it("keeps the exact request body it sent, with its sha256, even when overruled", async () => {
+    vi.stubEnv("NEAR_AI_API_KEY", "k");
+    const f = fakeNearAi({ action: "raise", amount: 50, reason: "shove trash" });
+    const d = await decideHouse({ ...v, hole: cards("7d", "2c") }, { fetch: f });
+    expect(d.request).toBe(String(f.mock.calls[0][1]?.body));
+    expect(d.requestHash).toBe(createHash("sha256").update(d.request!).digest("hex"));
   });
 });

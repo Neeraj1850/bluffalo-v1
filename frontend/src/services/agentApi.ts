@@ -104,8 +104,43 @@ async function post<T>(f: typeof fetch, url: string, body?: unknown): Promise<T>
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`);
+  if (!res.ok) throw Object.assign(new Error(data.error ?? `Request failed (${res.status})`), { code: data.code, handId: data.handId });
   return data as T;
+}
+
+/**
+ * Real money: our seed for a committed hand, kept until it's revealed. If the tab
+ * crashes between commit and reveal, the next deal finds the hand still waiting
+ * and reveals it from here — the agent isn't blocked until the on-chain timeout.
+ */
+const SEED_KEY = "bluffalo:seed:";
+type KeptSeed = { playerSeed: string; commitment: string };
+function keepSeed(handId: string, s: KeptSeed | null) {
+  try {
+    if (s) localStorage.setItem(SEED_KEY + handId, JSON.stringify(s));
+    else localStorage.removeItem(SEED_KEY + handId);
+  } catch {
+    /* no storage (private window): recovery just isn't available */
+  }
+}
+function keptSeed(handId: string): KeptSeed | null {
+  try {
+    return JSON.parse(localStorage.getItem(SEED_KEY + handId) ?? "null");
+  } catch {
+    return null;
+  }
+}
+
+/** Reveal a hand committed earlier from this browser (e.g. before a crash). Null if we don't hold its seed. */
+export async function recoverReveal(handId: string, f: typeof fetch = fetch): Promise<LiveHand | null> {
+  const kept = keptSeed(handId);
+  if (!kept) return null;
+  const hand = await post<LiveHand>(f, "/api/play", { handId, playerSeed: kept.playerSeed });
+  keepSeed(handId, null);
+  if (hand.proof?.commitment !== kept.commitment || hand.proof?.playerSeed !== kept.playerSeed) {
+    throw new Error("Hand doesn’t match its commitment");
+  }
+  return hand;
 }
 
 /**
@@ -123,13 +158,25 @@ export async function fetchLiveHand(
   const playerSeed = newSeed();
   let hand: LiveHand;
   if (getTable(req.tableId).mode === "real") {
-    const { commitTx } = await post<{ handId: string; commitTx: string }>(f, "/api/play", {
-      ...req,
-      handId: deal.handId,
-      playerCommitment: await commitment(playerSeed),
-    });
+    keepSeed(deal.handId, { playerSeed, commitment: deal.commitment });
+    let commitTx: string;
+    try {
+      ({ commitTx } = await post<{ handId: string; commitTx: string }>(f, "/api/play", {
+        ...req,
+        handId: deal.handId,
+        playerCommitment: await commitment(playerSeed),
+      }));
+    } catch (e) {
+      keepSeed(deal.handId, null);
+      // An earlier hand of ours is committed and waiting for our seed: reveal that one instead.
+      const waiting = (e as { code?: string; handId?: string }).code === "awaiting_reveal" ? (e as { handId?: string }).handId : undefined;
+      const recovered = waiting ? await recoverReveal(waiting, f) : null;
+      if (recovered) return recovered;
+      throw e;
+    }
     onCommitted?.(commitTx);
     hand = await post<LiveHand>(f, "/api/play", { handId: deal.handId, playerSeed });
+    keepSeed(deal.handId, null);
   } else {
     hand = await post<LiveHand>(f, "/api/play", { ...req, handId: deal.handId, playerSeed });
   }
@@ -138,6 +185,27 @@ export async function fetchLiveHand(
     throw new Error("Hand doesn’t match its commitment");
   }
   return hand;
+}
+
+export type AutoplayStatus = {
+  on: boolean;
+  running: boolean;
+  autoplay: { tableId: string; runId: string; hands: number; net: number; stack: number; stopped?: string } | null;
+};
+
+/** Server autoplay: is it on, and how is it doing. */
+export async function fetchAutoplay(f: typeof fetch = fetch): Promise<AutoplayStatus> {
+  const res = await f("/api/agent/autoplay");
+  if (!res.ok) throw new Error(`Request failed (${res.status})`);
+  return res.json();
+}
+
+/** Turn server autoplay on (with the sitting's settings) or off (stops after the current hand). */
+export function setAutoplay(
+  body: { on: false } | { on: true; tableId: string; params: StrategyParams; preset?: PresetKey; runId: string; limits: Limits; stack: number; hands?: number; net?: number },
+  f: typeof fetch = fetch,
+): Promise<{ on: boolean }> {
+  return post(f, "/api/agent/autoplay", body);
 }
 
 /** This player's hands of one mode, newest first (recorded by the server). */
@@ -177,12 +245,19 @@ export type Attestation = {
   signatureKind?: "provider_tee" | "gateway";
   detail?: string;
   verifyUrl: string;
+  /** Per-decision checks: the request hash NEAR AI signed for each completion. */
+  requests?: { chatId: string; verified: boolean; signedRequestHash?: string }[];
 };
 
 /** Verify that the agent's decisions run in an attested TEE. Never throws. */
-export async function fetchAttestation(chatIds: string[] = [], f: typeof fetch = fetch): Promise<Attestation> {
+export async function fetchAttestation(
+  chatIds: string[] = [],
+  f: typeof fetch = fetch,
+  seat: "agent" | "house" = "agent",
+): Promise<Attestation> {
   try {
-    const res = await f(chatIds.length ? `/api/verify?chats=${chatIds.map(encodeURIComponent).join(",")}` : "/api/verify");
+    const q = seat === "house" ? "&seat=house" : "";
+    const res = await f(chatIds.length ? `/api/verify?chats=${chatIds.map(encodeURIComponent).join(",")}${q}` : "/api/verify");
     return (await res.json()) as Attestation;
   } catch {
     return { verified: false, model: "", detail: "unreachable", verifyUrl: "https://cloud.near.ai/verify" };

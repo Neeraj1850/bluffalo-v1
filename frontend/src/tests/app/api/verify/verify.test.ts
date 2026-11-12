@@ -28,4 +28,10 @@ describe("GET /api/verify", () => {
     await get("?chats=../../etc,%20");
     expect(attest.verifyChat).not.toHaveBeenCalled();
   });
+
+  it("returns each decision's signed request hash, and checks the house model with seat=house", async () => {
+    attest.verifyChat.mockImplementation(async (id: string) => ({ chatId: id, verified: true, signedRequestHash: `h-${id}`, verifyUrl: "u" }));
+    const r = await get("?chats=chat-aaaaaa&seat=house");
+    expect(r.requests).toEqual([{ chatId: "chat-aaaaaa", verified: true, signedRequestHash: "h-chat-aaaaaa" }]);
+  });
 });

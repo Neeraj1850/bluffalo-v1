@@ -47,6 +47,39 @@ describe("fetchLiveHand", () => {
     expect(committed).toHaveBeenCalledWith("TX");
   });
 
+  it("real money: after a crash, reveals the earlier committed hand from the kept seed", async () => {
+    const store = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+    });
+    // First tab: commits, then "crashes" before the reveal answers.
+    const crash = vi
+      .fn()
+      .mockResolvedValueOnce(json({ handId: "0123abcd", commitment: "c1" }))
+      .mockResolvedValueOnce(json({ handId: "0123abcd", commitTx: "TX" }))
+      .mockRejectedValueOnce(new TypeError("tab closed"));
+    await expect(fetchLiveHand(req, crash)).rejects.toThrow("tab closed");
+    const kept = JSON.parse(store.get("bluffalo:seed:0123abcd")!);
+    // Reloaded: the next deal is refused (hand awaiting reveal), so the kept seed is revealed.
+    const f = vi
+      .fn()
+      .mockResolvedValueOnce(json({ handId: "4567abcd", commitment: "c2" }))
+      .mockResolvedValueOnce(json({ error: "waiting", code: "awaiting_reveal", handId: "0123abcd" }, 409))
+      .mockResolvedValueOnce(json({ id: "#0123abcd", proof: { commitment: "c1", playerSeed: kept.playerSeed } }));
+    expect((await fetchLiveHand(req, f)).id).toBe("#0123abcd");
+    expect(JSON.parse(f.mock.calls[2][1].body)).toEqual({ handId: "0123abcd", playerSeed: kept.playerSeed });
+    expect(store.size).toBe(0);
+    // Without the seed (another browser), the error stands.
+    const g = vi
+      .fn()
+      .mockResolvedValueOnce(json({ handId: "89abcdef", commitment: "c3" }))
+      .mockResolvedValueOnce(json({ error: "waiting", code: "awaiting_reveal", handId: "0123abcd" }, 409));
+    await expect(fetchLiveHand(req, g)).rejects.toThrow("waiting");
+    vi.unstubAllGlobals();
+  });
+
   it("practice: commits the deal, then plays that hand", async () => {
     const f = vi
       .fn()

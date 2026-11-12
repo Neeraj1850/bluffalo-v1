@@ -23,7 +23,12 @@ export type LiveHand = ScriptedHand & {
   at?: number;
   /** The play session it belongs to: one practice run or one sitting at a live table. */
   run?: string;
+  /** Every house decision NEAR AI made, with the exact prompt it saw: proof it never saw the player's cards. */
+  housePrompts?: HousePrompt[];
 };
+
+/** One house decision made by NEAR AI: the exact request body it received and its sha256. */
+export type HousePrompt = { street: LogEntry["street"]; prompt: string; requestHash: string; chatId?: string };
 
 export type HandMode = "practice" | "real";
 
@@ -73,6 +78,8 @@ export function toRecord(
     table,
     reasons,
     chatIds,
+    requestHashes,
+    housePrompts,
     proof,
     opponent = "house agent",
   }: {
@@ -81,6 +88,9 @@ export function toRecord(
     reasons: string[];
     /** NEAR AI completion id per agent decision, aligned with `reasons`. */
     chatIds?: (string | undefined)[];
+    /** sha256 of the request body per agent decision, aligned with `reasons`. */
+    requestHashes?: (string | undefined)[];
+    housePrompts?: HousePrompt[];
     proof: DealProof;
     opponent?: string;
   },
@@ -103,6 +113,7 @@ export function toRecord(
       action: label(s.log, i),
       reason: reasons[j] ?? "",
       chatId: chatIds?.[j],
+      ...(requestHashes?.[j] ? { requestHash: requestHashes[j] } : {}),
       opponent: reply === -1 ? "—" : past(s.log, reply),
       boardCount: BOARD[e.street],
     });
@@ -143,6 +154,7 @@ export function toRecord(
     kickerIndex: shown?.kickerIndex ?? -1,
     proof,
     replay: replayOf(s),
+    ...(housePrompts?.length ? { housePrompts } : {}),
   };
 }
 
