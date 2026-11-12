@@ -4,7 +4,7 @@ import hmac
 import json
 import os
 import uuid
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Path, Query, status
@@ -14,7 +14,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
 from .db import get_db
-from .models import Deal, Hand, LiveHand, MarketEvent, Session, Strategy, now
+from .models import Deal, Hand, LiveHand, MarketEvent, PendingHand, Session, Strategy, now
 
 DEAL_TTL = timedelta(minutes=10)
 MAX_STATE_BYTES = 16_000
@@ -297,6 +297,132 @@ def get_live_hand(hand_id: HandId, db: Db) -> dict:
     if not row:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown live hand")
     return {"data": row.data}
+
+
+# Pending reveals: real-money hands committed on-chain, waiting for the player's seed.
+
+
+class PendingIn(BaseModel):
+    session_id: uuid.UUID
+    agent: str = Field(pattern=r"^[a-z0-9._-]{2,64}$")
+    player_commitment: str = Field(pattern=r"^[0-9a-f]{64}$")
+    commit_tx: str = Field(min_length=1, max_length=64)
+    data: dict
+
+    @field_validator("data")
+    @classmethod
+    def small(cls, v: dict) -> dict:
+        if len(json.dumps(v)) > MAX_STATE_BYTES:
+            raise ValueError("Data is too large")
+        return v
+
+
+def ms(t: datetime) -> int:
+    # SQLite hands back naive datetimes; they were stored as UTC.
+    return int((t if t.tzinfo else t.replace(tzinfo=UTC)).timestamp() * 1000)
+
+
+def pending_out(p: PendingHand, deal: Deal) -> dict:
+    return {
+        "hand_id": p.hand_id,
+        "session_id": str(p.session_id),
+        "agent": p.agent,
+        "player_commitment": p.player_commitment,
+        "commit_tx": p.commit_tx,
+        "data": p.data,
+        "created_at": ms(p.created_at),
+        "seed": deal.seed,
+        "commitment": deal.commitment,
+    }
+
+
+def unrevealed(db: DbSession, *where) -> dict | None:
+    row = db.execute(
+        select(PendingHand, Deal)
+        .join(Deal, Deal.hand_id == PendingHand.hand_id)
+        .where(PendingHand.revealed_at.is_(None), *where)
+    ).first()
+    return pending_out(*row) if row else None
+
+
+@app.put("/pending/{hand_id}", status_code=201, dependencies=Auth)
+def put_pending(hand_id: HandId, body: PendingIn, db: Db) -> dict:
+    """Record a committed hand. 409 if the hand exists or the agent already has one unrevealed."""
+    session_or_404(db, body.session_id)
+    if not db.get(Deal, hand_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown deal")
+    db.add(PendingHand(hand_id=hand_id, **body.model_dump()))
+    try:
+        db.commit()
+    except IntegrityError:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Agent already has a hand awaiting reveal") from None
+    return {"ok": True}
+
+
+@app.get("/pending/{hand_id}", dependencies=Auth)
+def get_pending(hand_id: HandId, db: Db) -> dict:
+    p = unrevealed(db, PendingHand.hand_id == hand_id)
+    if not p:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown or already revealed hand")
+    return p
+
+
+@app.get("/pending", dependencies=Auth)
+def agent_pending(agent: Annotated[str, Query(pattern=r"^[a-z0-9._-]{2,64}$")], db: Db) -> dict:
+    """The agent's unrevealed hand, or null."""
+    return {"hand": unrevealed(db, PendingHand.agent == agent)}
+
+
+@app.post("/pending/{hand_id}/reveal", dependencies=Auth)
+def reveal_pending(hand_id: HandId, db: Db) -> dict:
+    """Mark revealed (or closed by timeout) exactly once; unblocks the agent."""
+    n = db.execute(
+        update(PendingHand)
+        .where(PendingHand.hand_id == hand_id, PendingHand.revealed_at.is_(None))
+        .values(revealed_at=now())
+    ).rowcount
+    db.commit()
+    if not n:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown or already revealed hand")
+    return {"ok": True}
+
+
+# Server-side autoplay: config + progress per session, and the on flag a restart resumes from.
+
+
+class AutoplayIn(BaseModel):
+    on: bool | None = None  # None: progress update only, leave the flag as is
+    autoplay: dict | None = None
+
+    @field_validator("autoplay")
+    @classmethod
+    def small(cls, v: dict | None) -> dict | None:
+        if v is not None and len(json.dumps(v)) > MAX_STATE_BYTES:
+            raise ValueError("Autoplay is too large")
+        return v
+
+
+@app.put("/sessions/{session_id}/autoplay", dependencies=Auth)
+def set_autoplay(session_id: uuid.UUID, body: AutoplayIn, db: Db) -> dict:
+    s = session_or_404(db, session_id)
+    if body.on is not None:
+        s.autoplay_on = body.on
+    if body.autoplay is not None:
+        s.autoplay = body.autoplay
+    db.commit()
+    return {"ok": True}
+
+
+@app.get("/sessions/{session_id}/autoplay", dependencies=Auth)
+def get_autoplay(session_id: uuid.UUID, db: Db) -> dict:
+    s = session_or_404(db, session_id)
+    return {"on": s.autoplay_on, "autoplay": s.autoplay}
+
+
+@app.get("/autoplay", dependencies=Auth)
+def autoplay_sessions(db: Db) -> dict:
+    """Sessions whose autoplay should be running (resumed after a restart)."""
+    return {"sessions": [str(i) for i in db.scalars(select(Session.id).where(Session.autoplay_on))]}
 
 
 # Strategy market. Params and salt are secret: only /strategies/{id}/params returns them.

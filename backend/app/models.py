@@ -3,7 +3,20 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, BigInteger, DateTime, ForeignKey, Index, Integer, String, Text, Uuid
+from sqlalchemy import (
+    JSON,
+    BigInteger,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    Uuid,
+    false,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -40,6 +53,10 @@ class Session(Base):
     # The market strategy (token id) the deployed agent plays, if any.
     agent_strategy: Mapped[str | None] = mapped_column(String(16))
     state: Mapped[dict] = mapped_column(Json, default=dict)
+    # Server-side autoplay: the loop's config and progress, and whether it should be running.
+    # A restart resumes every session with autoplay_on.
+    autoplay: Mapped[dict | None] = mapped_column(Json)
+    autoplay_on: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
 
@@ -55,6 +72,36 @@ class Deal(Base):
     commitment: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     played_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class PendingHand(Base):
+    """A real-money hand committed on-chain, waiting for the player's seed. While unrevealed it
+    blocks its agent (one per agent, enforced by a partial unique index) — across restarts."""
+
+    __tablename__ = "pending_hands"
+    __table_args__ = (
+        Index(
+            "pending_hands_one_per_agent",
+            "agent",
+            unique=True,
+            postgresql_where=text("revealed_at IS NULL"),
+            sqlite_where=text("revealed_at IS NULL"),
+        ),
+    )
+
+    hand_id: Mapped[str] = mapped_column(
+        ForeignKey("deals.hand_id", ondelete="CASCADE", name="pending_hands_hand_id_fkey"), primary_key=True
+    )
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("sessions.id", ondelete="CASCADE", name="pending_hands_session_id_fkey")
+    )
+    agent: Mapped[str] = mapped_column(String(64))
+    player_commitment: Mapped[str] = mapped_column(String(64))
+    commit_tx: Mapped[str] = mapped_column(String(64))
+    # Table, stack, and the play request (and, in server autoplay only, the player seed).
+    data: Mapped[dict] = mapped_column(Json)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    revealed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Hand(Base):
