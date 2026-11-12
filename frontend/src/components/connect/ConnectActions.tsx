@@ -3,7 +3,7 @@
 import { useLogin } from "@privy-io/react-auth";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Arrow, Button, ButtonHint } from "@/components/ui/Button";
+import { Arrow, Button, ButtonHint, ButtonLink } from "@/components/ui/Button";
 import { AUTH_CONFIGURED, useAuth, useSessionLink } from "@/lib/auth";
 
 type Method = "email" | "wallet";
@@ -112,6 +112,16 @@ function ActionButtons({
           >
             Connect Wallet
           </Button>
+        )}
+        {!authenticated && (
+          <ButtonLink
+            href="/strategy/test"
+            variant="secondary"
+            trailing={<ButtonHint muted>No sign-in</ButtonHint>}
+            className="lg:h-[60px] lg:w-auto lg:justify-center lg:px-6 lg:text-[19px]"
+          >
+            Try it free
+          </ButtonLink>
         )}
       </div>
       {notice && (
