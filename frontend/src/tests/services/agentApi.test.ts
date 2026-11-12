@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getPreset } from "@/lib/data/strategy";
+import { commitment } from "@/lib/poker/fairness";
 import {
   ApiError,
   deployAgent,
@@ -23,21 +24,41 @@ import {
 } from "@/services/agentApi";
 
 const req = { tableId: "back-room", params: getPreset("shark").params!, stack: 50, button: 0 as const };
+const practice = { ...req, tableId: "kitchen" };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 
 describe("fetchLiveHand", () => {
-  it("commits the deal, then plays that hand", async () => {
+  it("real money: commits only sha256(seed), then reveals the seed after the commit tx", async () => {
+    const committed = vi.fn();
+    let seed = "";
+    const f = vi
+      .fn()
+      .mockResolvedValueOnce(json({ handId: "0123abcd", commitment: "c1" }))
+      .mockResolvedValueOnce(json({ handId: "0123abcd", commitTx: "TX" }))
+      .mockImplementationOnce(async (_url: string, init: RequestInit) => {
+        seed = JSON.parse(String(init.body)).playerSeed;
+        return json({ id: "#0123abcd", proof: { commitment: "c1", playerSeed: seed } });
+      });
+    await fetchLiveHand(req, f, committed);
+    const step1 = JSON.parse(f.mock.calls[1][1].body);
+    expect(step1.playerSeed).toBeUndefined();
+    expect(step1.playerCommitment).toBe(await commitment(seed));
+    expect(JSON.parse(f.mock.calls[2][1].body)).toEqual({ handId: "0123abcd", playerSeed: seed });
+    expect(committed).toHaveBeenCalledWith("TX");
+  });
+
+  it("practice: commits the deal, then plays that hand", async () => {
     const f = vi
       .fn()
       .mockResolvedValueOnce(json({ handId: "0123abcd", commitment: "c1" }))
       .mockImplementationOnce(async (_url: string, init: RequestInit) =>
         json({ id: "#0123abcd", proof: { commitment: "c1", playerSeed: JSON.parse(String(init.body)).playerSeed } }),
       );
-    const hand = await fetchLiveHand(req, f);
+    const hand = await fetchLiveHand(practice, f);
     expect(hand.id).toBe("#0123abcd");
     expect(f.mock.calls.map(([url]) => url)).toEqual(["/api/deal", "/api/play"]);
     const sent = JSON.parse(f.mock.calls[1][1].body);
-    expect(sent).toEqual({ ...req, handId: "0123abcd", playerSeed: expect.stringMatching(/^[0-9a-f]{32}$/) });
+    expect(sent).toEqual({ ...practice, handId: "0123abcd", playerSeed: expect.stringMatching(/^[0-9a-f]{32}$/) });
   });
 
   it("rejects a hand whose seed wasn't the committed one", async () => {
@@ -45,7 +66,7 @@ describe("fetchLiveHand", () => {
       .fn()
       .mockResolvedValueOnce(json({ handId: "0123abcd", commitment: "c1" }))
       .mockResolvedValueOnce(json({ proof: { commitment: "other" } }));
-    await expect(fetchLiveHand(req, f)).rejects.toThrow("commitment");
+    await expect(fetchLiveHand(practice, f)).rejects.toThrow("commitment");
   });
 
   it("rejects a hand that didn't use our seed", async () => {
@@ -53,7 +74,7 @@ describe("fetchLiveHand", () => {
       .fn()
       .mockResolvedValueOnce(json({ handId: "0123abcd", commitment: "c1" }))
       .mockResolvedValueOnce(json({ proof: { commitment: "c1", playerSeed: "0".repeat(32) } }));
-    await expect(fetchLiveHand(req, f)).rejects.toThrow("commitment");
+    await expect(fetchLiveHand(practice, f)).rejects.toThrow("commitment");
   });
 
   it("surfaces the server's error message", async () => {

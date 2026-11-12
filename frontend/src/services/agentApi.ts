@@ -1,5 +1,6 @@
 import type { Limits, PresetKey, StrategyParams } from "@/lib/data/strategy";
-import { newSeed } from "@/lib/poker/fairness";
+import { getTable } from "@/lib/data/tables";
+import { commitment, newSeed } from "@/lib/poker/fairness";
 import type { HandMode, LiveHand } from "@/lib/poker/record";
 import type { Run } from "@/lib/poker/runs";
 import type { TestedAgent } from "@/lib/poker/tested";
@@ -107,11 +108,31 @@ async function post<T>(f: typeof fetch, url: string, body?: unknown): Promise<T>
   return data as T;
 }
 
-export async function fetchLiveHand(req: HandRequest, f: typeof fetch = fetch): Promise<LiveHand> {
+/**
+ * Deal and play one hand. Real money is commit-then-reveal: we send only
+ * sha256(our seed), the server commits both hashes on-chain (`onCommitted`),
+ * and only then do we reveal the seed — so the server can't see the deck first.
+ */
+export async function fetchLiveHand(
+  req: HandRequest,
+  f: typeof fetch = fetch,
+  onCommitted?: (commitTx: string) => void,
+): Promise<LiveHand> {
   const deal = await post<{ handId: string; commitment: string }>(f, "/api/deal");
   // Our share of the shuffle, chosen only after the server has committed to its own.
   const playerSeed = newSeed();
-  const hand = await post<LiveHand>(f, "/api/play", { ...req, handId: deal.handId, playerSeed });
+  let hand: LiveHand;
+  if (getTable(req.tableId).mode === "real") {
+    const { commitTx } = await post<{ handId: string; commitTx: string }>(f, "/api/play", {
+      ...req,
+      handId: deal.handId,
+      playerCommitment: await commitment(playerSeed),
+    });
+    onCommitted?.(commitTx);
+    hand = await post<LiveHand>(f, "/api/play", { handId: deal.handId, playerSeed });
+  } else {
+    hand = await post<LiveHand>(f, "/api/play", { ...req, handId: deal.handId, playerSeed });
+  }
   // The server must reveal the seed it committed to, and use ours.
   if (hand.proof?.commitment !== deal.commitment || hand.proof?.playerSeed !== playerSeed) {
     throw new Error("Hand doesn’t match its commitment");
@@ -211,6 +232,20 @@ export async function getVerification(handId: string, contract?: string, f: type
   const q = `id=${encodeURIComponent(handId)}${contract ? `&contract=${encodeURIComponent(contract)}` : ""}`;
   const data = await getJson<{ status: Verification }>(f, `/api/hands/verify?${q}`);
   return data.status === "verified" || data.status === "pending" ? data.status : "unavailable";
+}
+
+/** A settled hand as the contract recorded it: both revealed seeds, the stake and the payout (table units). */
+export type ChainHandProof = { serverSeed: string; playerSeed: string; stake: number | null; payout: number | null };
+
+/** The contract's record of a hand, checked server-side; `hand` only once it verified. */
+export async function fetchChainHand(
+  handId: string,
+  contract: string,
+  f: typeof fetch = fetch,
+): Promise<{ status: Verification; hand?: ChainHandProof }> {
+  const q = `id=${encodeURIComponent(handId)}&contract=${encodeURIComponent(contract)}`;
+  const data = await getJson<{ status: Verification; hand?: ChainHandProof }>(f, `/api/hands/verify?${q}`);
+  return data.status === "verified" || data.status === "pending" ? data : { status: "unavailable" };
 }
 
 /** The player's deposit wallet on NEAR testnet and its balance (table NEAR). */

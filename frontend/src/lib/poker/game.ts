@@ -23,6 +23,8 @@ export type HandState = {
   boardCount: 0 | 3 | 4 | 5;
   button: Seat;
   bigBlind: number;
+  /** Optional only for states persisted before it was recorded (then half the big blind). */
+  smallBlind?: number;
   stacks: [number, number];
   /** Put in this street. */
   bets: [number, number];
@@ -81,6 +83,7 @@ export function newHand({
     boardCount: 0,
     button,
     bigBlind: blinds.big,
+    smallBlind: blinds.small,
     stacks: [...stacks],
     bets: [0, 0],
     committed: [0, 0],

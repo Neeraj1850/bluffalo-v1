@@ -42,9 +42,11 @@ afterEach(() => {
 
 describe("GET /api/hands/verify", () => {
   it("verifies a settled hand whose seed matches its commitment", async () => {
-    chain.getHand.mockResolvedValueOnce(await hand());
+    chain.getHand.mockResolvedValueOnce(await hand({ stake: "5000000000000000000000", payout: "7500000000000000000000" }));
     expect(await (await check("0123abcd")).json()).toEqual({
       status: "verified",
+      // revealed seeds + stake/payout in table units, for the browser's own payout re-play
+      hand: { serverSeed: SEED, playerSeed: "ff", stake: 5, payout: 7.5 },
     });
     expect(chain.getHand).toHaveBeenCalledWith("0123abcd", undefined);
   });
@@ -52,7 +54,7 @@ describe("GET /api/hands/verify", () => {
   it("also requires the player's seed to match its commitment (contract v2)", async () => {
     const PLAYER = "fedcba9876543210fedcba9876543210";
     chain.getHand.mockResolvedValueOnce(await hand({ player_seed: PLAYER, player_commitment: await commitment(PLAYER) }));
-    expect(await (await check("0123abcd")).json()).toEqual({ status: "verified" });
+    expect(await (await check("0123abcd")).json()).toMatchObject({ status: "verified" });
     chain.getHand.mockResolvedValueOnce(await hand({ player_seed: PLAYER, player_commitment: await commitment(SEED) }));
     expect(await (await check("0123abcd")).json()).toEqual({ status: "unavailable" });
   });

@@ -218,7 +218,7 @@ function HandResult({
         </div>
       )}
 
-      <VerificationCard handId={hand.id} proof={hand.proof} chain={hand.chain} />
+      <VerificationCard handId={hand.id} proof={hand.proof} chain={hand.chain} replay={hand.replay} />
 
       <AttestationCard chatIds={hand.steps.flatMap((s) => (s.chatId ? [s.chatId] : []))} />
 

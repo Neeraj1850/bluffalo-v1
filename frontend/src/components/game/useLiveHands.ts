@@ -30,6 +30,8 @@ export function useLiveHands({ tableId, params, preset, runId, startStack, limit
   const [stopped, setStopped] = useState<StopReason | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  /** Real money: the commit tx once the hand is bound on-chain, before it's played (submitted ≠ settled). */
+  const [committedTx, setCommittedTx] = useState<string | null>(null);
   /** The server closed this table (house bankroll low). Non-null = reason text. */
   const [closed, setClosed] = useState<string | null>(null);
   // Latest values for the async loader without re-creating it every render.
@@ -46,8 +48,15 @@ export function useLiveHands({ tableId, params, preset, runId, startStack, limit
     setLoading(true);
     setError(null);
     setClosed(null);
+    setCommittedTx(null);
     try {
-      setHand(await fetchLiveHand({ tableId, params, preset, runId, stack: session.stack, button: (session.hands % 2) as 0 | 1 }));
+      setHand(
+        await fetchLiveHand(
+          { tableId, params, preset, runId, stack: session.stack, button: (session.hands % 2) as 0 | 1 },
+          fetch,
+          setCommittedTx,
+        ),
+      );
     } catch (e) {
       const message = e instanceof Error ? e.message : "Couldn’t deal the next hand.";
       // /api/play answers 503 {code:"table_closed"}; the code may be lost in transit, so confirm with /api/tables.
@@ -89,5 +98,5 @@ export function useLiveHands({ tableId, params, preset, runId, startStack, limit
     deal();
   }, [deal]);
 
-  return { hand, session, stopped, error, closed, loading, finish, next: deal, retry };
+  return { hand, session, stopped, error, closed, loading, committedTx, finish, next: deal, retry };
 }

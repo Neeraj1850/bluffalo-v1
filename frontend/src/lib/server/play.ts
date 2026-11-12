@@ -19,8 +19,10 @@ export type PlayRequest = {
   /** The agent's stack going into the hand; the house sits with the same. */
   stack: number;
   button: Seat;
-  /** The player's contribution to the shuffle, sent after the server committed. */
-  playerSeed: string;
+  /** The player's contribution to the shuffle. Practice: sent with the hand. */
+  playerSeed?: string;
+  /** Real money: sha256(playerSeed) only; the seed follows once the hand is committed on-chain. */
+  playerCommitment?: string;
 };
 
 const MAX_STACK = 10_000;
@@ -44,7 +46,11 @@ export function parsePlayRequest(body: unknown): PlayRequest | string {
   if (typeof b.handId !== "string" || !/^[0-9a-f]{8}$/.test(b.handId)) return "Invalid handId";
   if (typeof b.tableId !== "string" || !TABLES.some((t) => t.id === b.tableId)) return "Unknown table";
   if (b.button !== 0 && b.button !== 1) return "button must be 0 or 1";
-  if (typeof b.playerSeed !== "string" || !/^[0-9a-f]{32}$/.test(b.playerSeed)) return "Invalid playerSeed";
+  if (b.playerSeed !== undefined && (typeof b.playerSeed !== "string" || !/^[0-9a-f]{32}$/.test(b.playerSeed))) return "Invalid playerSeed";
+  if (b.playerCommitment !== undefined && (typeof b.playerCommitment !== "string" || !/^[0-9a-f]{64}$/.test(b.playerCommitment))) {
+    return "Invalid playerCommitment";
+  }
+  if ((b.playerSeed === undefined) === (b.playerCommitment === undefined)) return "Send playerSeed or playerCommitment";
   if (typeof b.stack !== "number" || !(b.stack > 0 && b.stack <= MAX_STACK)) return "Invalid stack";
   const params = parseParams(b.params);
   if (typeof params === "string") return params;
@@ -58,13 +64,13 @@ export function parsePlayRequest(body: unknown): PlayRequest | string {
     ...(b.runId ? { runId: b.runId as string } : {}),
     stack: b.stack,
     button: b.button,
-    playerSeed: b.playerSeed,
+    ...(b.playerSeed ? { playerSeed: b.playerSeed as string } : { playerCommitment: b.playerCommitment as string }),
   };
 }
 
 /** Play a committed hand to the end. The house is the practice bot (no model) on practice tables. */
 export async function playHand(
-  req: PlayRequest,
+  req: PlayRequest & { playerSeed: string },
   deal: { seed: string; commitment: string },
   opts: { fetch?: typeof fetch; rand?: () => number } = {},
 ): Promise<LiveHand> {

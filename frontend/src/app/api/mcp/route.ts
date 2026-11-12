@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getTable, TABLES } from "@/lib/data/tables";
 import { shuffle } from "@/lib/poker/deck";
 import { mixSeed } from "@/lib/poker/fairness";
-import { createDeal, takeSeed } from "@/lib/server/deals";
+import { createDeal, pendingHands, takeSeed } from "@/lib/server/deals";
 import { ServiceDownError } from "@/lib/server/decide";
 import {
   applyExternalAction,
@@ -75,17 +75,22 @@ const mcp = createMcpHandler((server) => {
       title: "Deal a hand",
       description:
         "Start a real-money hand at a table. Your whole on-chain balance is the stack; the house matches it. " +
-        "`playerSeed` is 32 lowercase hex chars you pick — it's mixed into the shuffle so the deal is provably fair. " +
-        "Returns the hand id and your first decision (or the result if the hand ends before you act).",
+        "Fair-deal commit-reveal, step 1: pick a secret `playerSeed` (32 lowercase hex chars) and pass only " +
+        "`playerCommitment` = sha256 hex of that seed string. The house commits both hashes on-chain, then you call " +
+        "`reveal` with the seed — so the house never sees the deck before it's bound. Returns the hand id and commit tx. " +
+        "If the house never settles a committed hand, the contract's claim_timeout pays you the whole pot.",
       inputSchema: z.object({
         tableId: z.string(),
-        playerSeed: z.string().regex(/^[0-9a-f]{32}$/, "playerSeed must be 32 lowercase hex chars"),
+        playerCommitment: z.string().regex(/^[0-9a-f]{64}$/, "playerCommitment must be a sha256 hex digest"),
       }),
     },
-    async ({ tableId, playerSeed }) => {
+    async ({ tableId, playerCommitment }) => {
       const { sessionId, agent } = requireAuth();
       const table = getTable(tableId);
       if (table.mode !== "real") return fail("That table isn't a real-money table");
+      // An unrevealed hand can't be settled by the house, so it blocks the agent until revealed.
+      const waiting = pendingHands.forAgent(agent);
+      if (waiting) return fail(`Hand ${waiting.handId} is waiting for your reveal`);
       try {
         // Same disclosed bankroll limits as /api/play: closed tables, session cap, exposure cap.
         const [balance, house] = await Promise.all([balanceOf(agent), houseBalance()]);
@@ -98,28 +103,51 @@ const mcp = createMcpHandler((server) => {
         const claimed = await takeSeed(handId, sessionId);
         if (!claimed) return fail("Could not claim the deal — try again");
 
-        const commitTx = await commitHand(handId, agent, claimed.commitment, await commitment(playerSeed), stack);
-        const deck = shuffle(await mixSeed(claimed.seed, playerSeed));
-        try {
-          const result = await startHand(liveDeps, {
-            handId,
-            sessionId,
-            tableName: table.name,
-            deck,
-            stacks: [stack, stack],
-            blinds: table.blinds,
-            button: 0,
-            deal: { seed: claimed.seed, commitment: claimed.commitment, playerSeed },
-            agent,
-            commitTx,
-          });
-          return text({ handId, ...result });
-        } catch (e) {
-          // Committed on-chain but the hand never got going: claimable by the player after the timeout.
-          parkUnsettled(handId);
-          throw e;
-        }
+        const commitTx = await commitHand(handId, agent, claimed.commitment, playerCommitment, stack);
+        pendingHands.put({ handId, sessionId, agent, deal: claimed, playerCommitment, commitTx, tableId, stack, at: Date.now() });
+        return text({ handId, commitTx, next: "Call reveal with your playerSeed" });
       } catch (e) {
+        return toFail(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    "reveal",
+    {
+      title: "Reveal your seed",
+      description:
+        "Fair-deal step 2: reveal the `playerSeed` whose sha256 you committed in `deal`. The hand starts; returns your " +
+        "first decision (or the result if the hand ends before you act).",
+      inputSchema: z.object({
+        handId: z.string().regex(/^[0-9a-f]{8}$/),
+        playerSeed: z.string().regex(/^[0-9a-f]{32}$/, "playerSeed must be 32 lowercase hex chars"),
+      }),
+    },
+    async ({ handId, playerSeed }) => {
+      const { sessionId } = requireAuth();
+      const p = pendingHands.get(handId, sessionId);
+      if (!p || p.req) return fail(new UnknownHandError().message);
+      if ((await commitment(playerSeed)) !== p.playerCommitment) return fail("Seed doesn't match your commitment");
+      pendingHands.delete(handId);
+      const table = getTable(p.tableId);
+      try {
+        const result = await startHand(liveDeps, {
+          handId,
+          sessionId,
+          tableName: table.name,
+          deck: shuffle(await mixSeed(p.deal.seed, playerSeed)),
+          stacks: [p.stack, p.stack],
+          blinds: table.blinds,
+          button: 0,
+          deal: { seed: p.deal.seed, commitment: p.deal.commitment, playerSeed },
+          agent: p.agent,
+          commitTx: p.commitTx,
+        });
+        return text({ handId, ...result });
+      } catch (e) {
+        // Committed on-chain but the hand never got going: claimable by the player after the timeout.
+        parkUnsettled(handId);
         return toFail(e);
       }
     },

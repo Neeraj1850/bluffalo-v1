@@ -2,11 +2,14 @@ import { cardShort } from "@/lib/cards";
 import type { HandStep, HistoryHand, ScriptedHand } from "@/lib/data/hands";
 import type { PresetKey, StrategyParams } from "@/lib/data/strategy";
 import type { DealProof } from "./fairness";
+import { replayOf, type Replay } from "./replay";
 import { settle, type HandState, type LogEntry } from "./game";
 
 /** A played hand: what the screens render, plus what anyone needs to verify the deal. */
 export type LiveHand = ScriptedHand & {
   proof: DealProof;
+  /** Starting stacks, blinds and every action: re-play the hand from the seeds to check the payout. */
+  replay?: Replay;
   /** Real-money hands: the testnet transactions that committed and settled them. */
   chain?: { contract: string; agent: string; commitTx: string; settleTx: string };
   /** Real-money hands: rake the house kept from the agent's winnings (table NEAR). */
@@ -139,6 +142,7 @@ export function toRecord(
     winningFive: shown?.cards ?? [],
     kickerIndex: shown?.kickerIndex ?? -1,
     proof,
+    replay: replayOf(s),
   };
 }
 

@@ -22,8 +22,17 @@ const valid = { handId: "0123abcd", tableId: "back-room", params, stack: 50, but
 const ME = "00000000-0000-4000-8000-00000000000a";
 const OTHER = "00000000-0000-4000-8000-00000000000b";
 const headers = (id = ME) => ({ cookie: `${SESSION_COOKIE}=${id}` });
-const post = (body: unknown, id = ME) =>
+const raw = (body: unknown, id = ME) =>
   POST(new Request("http://x/api/play", { method: "POST", headers: headers(id), body: JSON.stringify(body) }));
+/** Plays a hand the way the client does: real money commits sha256(seed) first, then reveals the seed. */
+const post = async (body: unknown, id = ME) => {
+  const b = body as Record<string, unknown>;
+  if (b?.tableId === "kitchen" || typeof b?.playerSeed !== "string" || typeof b?.stack !== "number") return raw(body, id);
+  const { playerSeed, ...rest } = b;
+  const committed = await raw({ ...rest, playerCommitment: await commitment(playerSeed as string) }, id);
+  if (committed.status !== 200) return committed;
+  return raw({ handId: b.handId, playerSeed }, id);
+};
 let backend: ReturnType<typeof useFakeBackend>;
 const archiveQ = async (q: string) =>
   (await (await hands(new Request(`http://x/api/hands${q}`, { headers: headers() }))).json()).hands;
@@ -56,6 +65,9 @@ describe("parsePlayRequest", () => {
 
   it("accepts a valid request", () => {
     expect(parsePlayRequest(valid)).toEqual(valid);
+    const rest = { ...valid, playerSeed: undefined };
+    const c = "a".repeat(64);
+    expect(parsePlayRequest({ ...rest, playerCommitment: c })).toEqual({ ...rest, playerCommitment: c });
   });
 
   it.each([
@@ -68,6 +80,8 @@ describe("parsePlayRequest", () => {
     ["a slider out of range", { ...valid, params: { ...params, bluff: 101 } }],
     ["a missing slider", { ...valid, params: { aggression: 50 } }],
     ["a missing player seed", { ...valid, playerSeed: undefined }],
+    ["both a seed and a commitment", { ...valid, playerCommitment: "a".repeat(64) }],
+    ["a malformed commitment", { ...valid, playerSeed: undefined, playerCommitment: "abc" }],
     ["a malformed player seed", { ...valid, playerSeed: "NOT-HEX" }],
   ])("rejects %s", (_, body) => {
     expect(typeof parsePlayRequest(body)).toBe("string");
@@ -267,6 +281,45 @@ describe("POST /api/play", () => {
 
   it("rejects invalid input with 400", async () => {
     expect((await post({ ...valid, stack: "lots" })).status).toBe(400);
+  });
+});
+
+describe("POST /api/play commit-then-reveal (no last look)", () => {
+  it("commits with only the seed hash, returns no hand, then plays on reveal", async () => {
+    const deal = await createDeal(ME);
+    const playerCommitment = await commitment(valid.playerSeed);
+    const rest = { ...valid, playerSeed: undefined };
+    const step1 = await raw({ ...rest, handId: deal.handId, playerCommitment });
+    expect(step1.status).toBe(200);
+    expect(await step1.json()).toEqual({ handId: deal.handId, commitTx: "COMMIT_TX" });
+    expect(chain.commitHand).toHaveBeenCalledWith(deal.handId, "ame.op.testnet", deal.commitment, playerCommitment, 50);
+    expect(chain.settleHand).not.toHaveBeenCalled();
+    // the agent is blocked from another hand while this one waits for the seed
+    const other = await createDeal(ME);
+    const blocked = await raw({ ...rest, handId: other.handId, playerCommitment });
+    expect(blocked.status).toBe(409);
+    expect((await blocked.json()).code).toBe("awaiting_reveal");
+
+    const hand = await (await raw({ handId: deal.handId, playerSeed: valid.playerSeed })).json();
+    expect(hand.proof.playerSeed).toBe(valid.playerSeed);
+    expect(chain.settleHand).toHaveBeenCalledWith(deal.handId, hand.proof.seed, valid.playerSeed, expect.any(Number));
+    expect((await raw({ handId: deal.handId, playerSeed: valid.playerSeed })).status).toBe(404); // once only
+  });
+
+  it("refuses a seed in the committing request for real money", async () => {
+    const deal = await createDeal(ME);
+    expect((await raw({ ...valid, handId: deal.handId })).status).toBe(400);
+    expect(chain.commitHand).not.toHaveBeenCalled();
+  });
+
+  it("refuses a reveal that doesn't match the commitment, or from another session", async () => {
+    const deal = await createDeal(ME);
+    const rest = { ...valid, playerSeed: undefined };
+    await raw({ ...rest, handId: deal.handId, playerCommitment: await commitment(valid.playerSeed) });
+    expect((await raw({ handId: deal.handId, playerSeed: "0".repeat(32) })).status).toBe(400);
+    expect((await raw({ handId: deal.handId, playerSeed: valid.playerSeed }, OTHER)).status).toBe(404);
+    expect(chain.settleHand).not.toHaveBeenCalled();
+    expect((await raw({ handId: deal.handId, playerSeed: valid.playerSeed })).status).toBe(200);
   });
 });
 

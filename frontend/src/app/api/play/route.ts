@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { getTable } from "@/lib/data/tables";
-import { takeSeed } from "@/lib/server/deals";
+import { pendingHands, takeSeed, type PendingHand } from "@/lib/server/deals";
 import { ServiceDownError } from "@/lib/server/decide";
 import { recordHand } from "@/lib/server/hands";
 import { payoutFor, rakeFor, sessionPayoutCap, stakeFor, TABLE_CLOSED, tableStatus } from "@/lib/server/economics";
 import { commitment } from "@/lib/poker/fairness";
 import { balanceOf, ChainError, commitHand, houseBalance, settleHand } from "@/lib/server/near";
-import { claimExpired, parkUnsettled } from "@/lib/server/timeouts";
+import { CLAIM_AFTER_MS, claimExpired, parkUnsettled } from "@/lib/server/timeouts";
 import { claimTable } from "@/lib/server/activeTable";
 import { inFlight } from "@/lib/server/inFlight";
 import { parsePlayRequest, playHand } from "@/lib/server/play";
@@ -17,21 +17,33 @@ import { sessionAgent, sessionAgentStrategy, sessionFrom, sessionUser, withSessi
 
 /**
  * Play a hand committed with POST /api/deal. The response reveals the seed.
- * Real-money hands are committed on NEAR testnet before the deal (stacks
- * locked, seed hash recorded) and settled after it (seed checked on-chain).
+ *
+ * Practice: one request with `playerSeed`. Real money is two steps, so the
+ * server can't see the deck before it's bound on-chain (no last look):
+ *  1. `{ ...hand, playerCommitment }` (sha256 of the player seed) → the server
+ *     commits both hashes and stakes on NEAR testnet → `{ handId, commitTx }`.
+ *  2. `{ handId, playerSeed }` → checked against the commitment, played, and
+ *     settled on-chain with both seeds → the hand.
+ * If step 2 never settles, the contract's claim_timeout pays the player the pot.
  */
 export async function POST(request: Request) {
   const session = await sessionFrom(request);
   const reply = (body: unknown, status = 200) => withSession(NextResponse.json(body, { status }), session);
 
-  const req = parsePlayRequest(await request.json().catch(() => null));
+  const body = await request.json().catch(() => null);
+  if (body && typeof body === "object" && !("tableId" in body) && "playerSeed" in body) {
+    return reveal(body as { handId?: unknown; playerSeed?: unknown }, session.id, reply);
+  }
+  const req = parsePlayRequest(body);
   if (typeof req === "string") return reply({ error: req }, 400);
+  if (real(req.tableId) !== !!req.playerCommitment) {
+    return reply({ error: real(req.tableId) ? "Real-money hands send playerCommitment first" : "Practice hands send playerSeed" }, 400);
+  }
 
   const table = getTable(req.tableId);
-  const real = table.mode === "real";
   let agent: string | null = null;
   try {
-    if (real) {
+    if (real(req.tableId)) {
       // Real money needs a signed-in player with a deployed agent; practice is open to anyone.
       if (!(await sessionUser(session.id))) return reply({ error: "Sign in to play for real money" }, 401);
       agent = await sessionAgent(session.id);
@@ -70,7 +82,7 @@ export async function POST(request: Request) {
     if (!deal) return reply({ error: "Unknown, expired or already played hand" }, 404);
 
     if (!agent) {
-      const hand = await playHand(req, deal);
+      const hand = await playHand({ ...req, playerSeed: req.playerSeed! }, deal);
       // Practice hands are archived too (History → Practice, tested agents). Best effort:
       // a free hand shouldn't fail because the archive hiccuped.
       await recordHand(session.id, hand).catch((e) => console.error("[play] practice record failed", hand.id, e));
@@ -79,25 +91,30 @@ export async function POST(request: Request) {
 
     // One real hand per agent at a time: a hand stakes the agent's balance (up to the exposure cap).
     if (inFlight.has(agent)) return reply({ error: "Your agent is already playing a hand" }, 409);
+    const waiting = pendingHands.forAgent(agent);
+    if (waiting) {
+      // Withholding the seed can't be settled by the house, only timed out (paying the player):
+      // so an unrevealed hand blocks the agent. Once claimable, make sure it gets claimed.
+      if (Date.now() - waiting.at >= CLAIM_AFTER_MS) parkUnsettled(waiting.handId);
+      return reply({ error: "Your agent has a committed hand waiting for your seed", code: "awaiting_reveal", handId: waiting.handId }, 409);
+    }
     inFlight.add(agent);
     try {
       void claimExpired(); // close any earlier hand stuck past its on-chain timeout
-      const commitTx = await commitHand(req.handId, agent, deal.commitment, await commitment(req.playerSeed), req.stack);
-      try {
-        const hand = await playHand(req, deal);
-        // The rake stays with the house: the contract keeps whatever of the pot isn't paid out.
-        const rake = rakeFor(hand, table.blinds.big);
-        const settleTx = await settleHand(req.handId, deal.seed, req.playerSeed, payoutFor(hand.stackAfter, rake));
-        hand.rake = rake;
-        hand.chain = { contract: process.env.NEAR_CONTRACT_ID!, agent, commitTx, settleTx };
-        await recordHand(session.id, hand);
-        return reply(hand);
-      } catch (e) {
-        // Committed but not settled: nobody may void it early, so it pays the player
-        // the pot once the contract's timeout passes. Park it to claim then.
-        parkUnsettled(req.handId);
-        throw e;
-      }
+      const commitTx = await commitHand(req.handId, agent, deal.commitment, req.playerCommitment!, req.stack);
+      pendingHands.put({
+        handId: req.handId,
+        sessionId: session.id,
+        agent,
+        deal,
+        playerCommitment: req.playerCommitment!,
+        commitTx,
+        tableId: req.tableId,
+        stack: req.stack,
+        at: Date.now(),
+        req,
+      });
+      return reply({ handId: req.handId, commitTx });
     } finally {
       inFlight.delete(agent);
     }
@@ -106,5 +123,43 @@ export async function POST(request: Request) {
     if (e instanceof ServiceDownError) return reply({ error: e.message, code: "service_down" }, 503);
     if (e instanceof ChainError) return reply({ error: e.message, code: "chain_down" }, 503);
     throw e;
+  }
+}
+
+const real = (tableId: string) => getTable(tableId).mode === "real";
+
+/** Step 2 of a real-money hand: the player's seed for a hand already committed on-chain. */
+async function reveal(
+  b: { handId?: unknown; playerSeed?: unknown },
+  sessionId: string,
+  reply: (body: unknown, status?: number) => Response,
+) {
+  if (typeof b.handId !== "string" || typeof b.playerSeed !== "string" || !/^[0-9a-f]{32}$/.test(b.playerSeed)) {
+    return reply({ error: "Invalid reveal" }, 400);
+  }
+  const p: PendingHand | null = pendingHands.get(b.handId, sessionId);
+  if (!p?.req) return reply({ error: "Unknown or already revealed hand" }, 404);
+  if ((await commitment(b.playerSeed)) !== p.playerCommitment) return reply({ error: "Seed doesn't match your commitment" }, 400);
+  if (inFlight.has(p.agent)) return reply({ error: "Your agent is already playing a hand" }, 409);
+  pendingHands.delete(p.handId);
+  inFlight.add(p.agent);
+  try {
+    const hand = await playHand({ ...p.req, playerSeed: b.playerSeed }, p.deal);
+    // The rake stays with the house: the contract keeps whatever of the pot isn't paid out.
+    const rake = rakeFor(hand, getTable(p.tableId).blinds.big);
+    const settleTx = await settleHand(p.handId, p.deal.seed, b.playerSeed, payoutFor(hand.stackAfter, rake));
+    hand.rake = rake;
+    hand.chain = { contract: process.env.NEAR_CONTRACT_ID!, agent: p.agent, commitTx: p.commitTx, settleTx };
+    await recordHand(sessionId, hand);
+    return reply(hand);
+  } catch (e) {
+    // Committed but not settled: nobody may void it early, so it pays the player
+    // the pot once the contract's timeout passes. Park it to claim then.
+    parkUnsettled(p.handId);
+    if (e instanceof ServiceDownError) return reply({ error: e.message, code: "service_down" }, 503);
+    if (e instanceof ChainError) return reply({ error: e.message, code: "chain_down" }, 503);
+    throw e;
+  } finally {
+    inFlight.delete(p.agent);
   }
 }

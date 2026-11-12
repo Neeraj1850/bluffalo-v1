@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { commitment } from "@/lib/poker/fairness";
-import { ChainError, getHand } from "@/lib/server/near";
+import { ChainError, fromYocto, getHand } from "@/lib/server/near";
 import { sessionFrom, sessionUser, withSession } from "@/lib/server/sessions";
 
 const HAND_ID = /^[A-Za-z0-9_-]{1,16}$/;
@@ -30,8 +30,17 @@ export async function GET(request: Request) {
       hand?.status === "Settled" && !!hand.server_seed && (await commitment(hand.server_seed)) === hand.commitment;
     const playerOk =
       !hand?.player_commitment || (!!hand.player_seed && (await commitment(hand.player_seed)) === hand.player_commitment);
-    const ok = serverOk && playerOk;
-    return reply({ status: ok ? "verified" : "unavailable" });
+    if (!(serverOk && playerOk)) return reply({ status: "unavailable" });
+    // The revealed seeds, stake and payout, so the browser can re-play the hand and check the payout itself.
+    return reply({
+      status: "verified",
+      hand: {
+        serverSeed: hand!.server_seed,
+        playerSeed: hand!.player_seed,
+        stake: hand!.stake ? fromYocto(hand!.stake) : null,
+        payout: hand!.payout ? fromYocto(hand!.payout) : null,
+      },
+    });
   } catch (e) {
     if (e instanceof ChainError) return reply({ error: e.message, code: "chain_down" }, 503);
     throw e;

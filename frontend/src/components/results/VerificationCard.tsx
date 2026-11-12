@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { Disclosure } from "@/components/ui/Disclosure";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { verifyDeal, type DealProof } from "@/lib/poker/fairness";
-import { agentApi, type Verification } from "@/services/agentApi";
+import { checkPayout, type PayoutCheck, type Replay } from "@/lib/poker/replay";
+import { agentApi, fetchChainHand, type Verification } from "@/services/agentApi";
 
 const COPY: Record<Verification, string> = {
   verified:
@@ -25,12 +26,16 @@ export function VerificationCard({
   handId,
   proof,
   chain,
+  replay,
 }: {
   handId: string;
   proof?: DealProof;
   chain?: { contract: string; commitTx: string; settleTx: string };
+  /** The hand's actions: with the on-chain seeds, re-played here to check the payout. */
+  replay?: Replay;
 }) {
   const [state, setState] = useState<Verification | "loading">("loading");
+  const [payout, setPayout] = useState<PayoutCheck | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -40,8 +45,16 @@ export function VerificationCard({
         )
       : agentApi.getVerification(handId);
     // Real-money hands must also check out against the contract's own record of both seeds.
+    // The browser re-plays the hand from the contract's revealed seeds and checks its payout.
     const onChain = chain
-      ? agentApi.getVerification(handId.replace(/^#/, ""), chain.contract)
+      ? fetchChainHand(handId.replace(/^#/, ""), chain.contract).then(async ({ status, hand }) => {
+          if (status === "verified" && hand && replay && hand.payout !== null) {
+            const p = await checkPayout({ serverSeed: hand.serverSeed, playerSeed: hand.playerSeed, replay, payout: hand.payout });
+            if (!cancelled) setPayout(p);
+            if (!p.ok) return "unavailable" as const;
+          }
+          return status;
+        })
       : null;
     const check = onChain
       ? Promise.all([local, onChain]).then(([a, b]): Verification =>
@@ -58,7 +71,7 @@ export function VerificationCard({
     return () => {
       cancelled = true;
     };
-  }, [handId, proof, chain]);
+  }, [handId, proof, chain, replay]);
 
   const shown: Verification = state === "loading" ? "pending" : state;
 
@@ -83,6 +96,18 @@ export function VerificationCard({
         </span>
       </div>
       <p className="text-[13px] leading-normal text-muted">{COPY[shown]}</p>
+      {payout && (
+        <p className="font-mono text-[11px] uppercase tracking-[0.12em]" role="status">
+          {payout.ok
+            ? `Payout matches the cards: ${payout.payout} GNEAR`
+            : `Payout mismatch — ${payout.reason}${payout.expected !== undefined ? ` (expected ${payout.expected} GNEAR)` : ""}`}
+        </p>
+      )}
+      {chain && (
+        <p className="text-[11px] leading-normal text-muted">
+          If the house never settles a committed hand, anyone can close it on-chain after the timeout and the whole pot goes to your agent.
+        </p>
+      )}
       {shown === "verified" && proof && (
         <Disclosure
           hint="Details"
