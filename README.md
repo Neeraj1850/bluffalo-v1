@@ -1,12 +1,48 @@
 # Bluffalo
 
 > **Your strategy. Your AI agent. Provably fair poker.**
-> Design a poker personality, practice it for free, then send your AI agent to play heads-up Texas Hold'em against an AI house for real NEAR. Every deal is cryptographically committed on-chain before the cards come out, and every agent decision is signed by a model running inside a hardware TEE.
+> Design a poker personality, practice it for free, then send your AI agent to play heads-up Texas Hold'em against an AI house for real NEAR testnet stakes. Every deal is cryptographically committed on-chain before the cards come out, and every agent decision is signed by a model running inside a hardware TEE.
+
+**Live app:** https://bluffalo.up.railway.app · **Network:** NEAR testnet · **Contract:** [`npk-63o824.testnet`](https://testnet.nearblocks.io/address/npk-63o824.testnet)
+
+---
+
+## For judges: try it in 3 minutes
+
+No setup, no crypto wallet. Every step below works on the live app.
+
+| # | Do | You should see |
+|---|---|---|
+| 1 | Open https://bluffalo.up.railway.app and click **Continue with Email**. Enter any email and the 6-digit code Privy sends you | The **Lobby** with four tables |
+| 2 | Open **Strategy**, pick **Shark** (or move a slider), then click **Test this agent** | A full-page practice table. Free hands start on their own; each move shows *why* the agent made it |
+| 3 | After 2–3 hands click **Stop test**, then **See this test session** | The session: result, hands, and every decision of every hand |
+| 4 | Open **Wallet** and click **Fund my wallet with testnet NEAR** | 100 GNEAR arrives in a few seconds (1 testnet NEAR = 1000 GNEAR) |
+| 5 | Back on **Strategy** click **Start playing**, tick **I understand…**, then **Put my agent in play** | Your agent gets its own NEAR account holding a 50 GNEAR buy-in |
+| 6 | Click **Watch your agent play** | Live hands against the house AI. While playing, the only control is **Stop agent after this hand** |
+| 7 | Click **Stop agent after this hand**, then **See the result** | **Fair-play verified** (the shuffle matched its on-chain commitment) and **TEE attested** (the AI's reply was signed inside a TEE) |
+| 8 | Open **History** → **Sessions**, or **Profile** → an agent | Every practice and live session, every hand, every decision. Real hands link to their NearBlocks transactions |
+| 9 | **Wallet** → **Withdraw** to any testnet account | Funds leave the app; a public transaction link appears |
+
+Each real-money hand is two on-chain transactions: `commit_hand` (stakes locked, shuffle fingerprint stored) before the deal, and `settle_hand` (seed checked, payout ≤ pot) after it. Examples: [commit_hand](https://testnet.nearblocks.io/txns/7gzTF5CDVc8RNqQCvDse4Ndkm9AnjFgQ3gtsL9wdYUmh) · [settle_hand](https://testnet.nearblocks.io/txns/FhBfytxh44R3QqtPZUpDksj9JyxiF1jhMQfe3eZyiPUs).
+
+| On-chain account | Role |
+|---|---|
+| [`npk-63o824.testnet`](https://testnet.nearblocks.io/address/npk-63o824.testnet) | Poker contract: escrow, hand commitments, payouts |
+| [`npoker-op-43b602.testnet`](https://testnet.nearblocks.io/address/npoker-op-43b602.testnet) | Operator: commits and settles hands, creates agent accounts |
+| `a<id>.npoker-op-43b602.testnet` | One per deployed agent. Its only key can call `withdraw_to` (send money back to the player) |
+
+**Hackathon notes**
+
+- **Built during the hackathon.** The repository's first commit is 2026-11-03, after the 2026-10-19 start; all code in it was written during the hackathon.
+- **Tracks:** Games, Privacy (TEE-attested AI decisions, the house never sees your cards), Security (commit-reveal on-chain, withdraw-only agent keys, payout ≤ pot enforced by the contract), Agents (agents with their own accounts; external agents can play via MCP at `/api/mcp`).
+- **AI tools used:** Claude Code (Anthropic) helped write code, tests, docs and the demo video edit; ElevenLabs generated the video narration. In-game AI runs on NEAR AI Cloud (`Qwen/Qwen3.6-35B-A3B-FP8`, TEE-attested).
+- **Tests:** about 480 (vitest for the app, pytest for the backend, cargo for the contract). `make check` runs them all.
 
 ---
 
 ## Table of contents
 
+1. [For judges](#for-judges-try-it-in-3-minutes)
 1. [What it does](#what-it-does)
 2. [Deploy in 5 minutes (no coding needed)](#deploy-in-5-minutes-no-coding-needed)
 3. [Getting your keys](#getting-your-keys)
@@ -28,12 +64,13 @@
 |---|---|---|
 | 1. Connect | Sign in with email or a wallet | The lobby. No seed phrase |
 | 2. Strategy | Pick a preset, tune aggression, bluffing, position play and bet sizing | Sliders and safety limits (stop loss, take profit, max hands) |
-| 3. Practice | Run your agent at the practice table | A "Practice · simulated" badge, plus win rate, P&L and a decision feed |
-| 4. Fund | Open Wallet and top up from the testnet faucet | Your deposit address and balance |
+| 3. Test | **Test this agent** on the Strategy tab: free hands against a practice bot | Win rate, P&L and every decision with its reason. Each test is saved as a session |
+| 4. Fund | Open Wallet and tap **Fund my wallet** (in-app faucet, any time you're under 10 GNEAR) | Your deposit address and balance in GNEAR |
 | 5. Deploy | Review the fee quote, then confirm | Your agent gets its own NEAR sub-account holding its buy-in |
-| 6. Watch | Open Live | Animated hands with each decision your agent makes |
+| 6. Watch | Open Live | Animated hands with each decision your agent makes. One table at a time; Stop is the only control while it plays |
 | 7. Verify | Open Results | A commit-reveal check for every hand and a live TEE attestation check |
-| 8. Cash out | Withdraw | The agent's whole on-chain balance goes back to you |
+| 8. Review | History and Profile | Every session (practice and live) with all hands and decisions; each tested agent with its history |
+| 9. Cash out | Stop the agent, then Withdraw | The agent's chips return to your balance; withdraw sends them to any testnet account |
 
 ---
 
@@ -45,7 +82,7 @@ Then open a terminal (macOS: **Terminal**, Windows: **PowerShell**) and paste th
 
 ```bash
 # 1. Download the project
-git clone https://github.com/Neeraj1850/near-poker-agent.git bluffalo
+git clone https://github.com/Neeraj1850/bluffalo.git bluffalo
 cd bluffalo
 
 # 2. Create your settings file
@@ -94,7 +131,7 @@ All of these go in `.env.deploy`. The app starts with only the two required valu
 | `NEAR_CONTRACT_ID` | optional | Your own deployed contract | Default `npk-63o824.testnet` |
 | `NEAR_OPERATOR_ID` | optional | Your operator account | Default `npoker-op-43b602.testnet` |
 | `NEAR_RPC_URL` | optional | RPC endpoint | Default `https://test.rpc.fastnear.com` |
-| `NEAR_AI_AGENT_MODEL` / `NEAR_AI_HOUSE_MODEL` | optional | Choose the models | e.g. `Qwen/Qwen3.6-35B-A3B-FP8`, `z-ai/glm-5.3-flash` |
+| `NEAR_AI_AGENT_MODEL` / `NEAR_AI_HOUSE_MODEL` | optional | Choose the models | Default `Qwen/Qwen3.6-35B-A3B-FP8` (TEE-attested, ~1 s per move with thinking off) |
 
 **Privy setup checklist:**
 1. Turn on the **Email** and **Wallet** login methods.
@@ -110,7 +147,7 @@ All of these go in `.env.deploy`. The app starts with only the two required valu
 ```mermaid
 flowchart LR
     subgraph Browser
-        UI["Next.js UI<br/>Lobby · Strategy · Sandbox<br/>Deploy · Live · Results"]
+        UI["Next.js UI<br/>Lobby · Strategy (+ Test) · Live<br/>History · Profile · Wallet"]
         PRIVY_SDK["Privy SDK"]
     end
 
@@ -177,14 +214,14 @@ contracts/  poker/: Rust NEAR contract + deploy.sh
 flowchart TD
     A["/ Connect<br/>sign in with Privy"] --> B["Lobby<br/>pick a table"]
     B --> C["Strategy<br/>preset + sliders + risk limits"]
-    C --> D["Sandbox<br/>practice hands, no money"]
-    D -->|tweak| C
+    C --> D["Test this agent<br/>free practice hands → saved as a session"]
+    D -->|"back / tweak"| C
     C --> W["Wallet<br/>faucet / deposit"]
     W --> E["Deploy<br/>fee quote → confirm"]
     E -->|"agent sub-account funded"| F["Live game<br/>agent vs house"]
     F -->|"stop / limit hit"| G["Results<br/>verify hands + TEE"]
     G --> H["Cash out<br/>withdraw to your account"]
-    G --> I["History<br/>every hand, replayable"]
+    G --> I["History · Profile<br/>sessions, hands, decisions, tested agents"]
     E -.->|"quote/deploy fails:<br/>settings kept, no funds move"| C
 ```
 
@@ -238,7 +275,8 @@ sequenceDiagram
 stateDiagram-v2
     [*] --> Anonymous: first visit (np_session cookie)
     Anonymous --> SignedIn: Privy login → /api/auth/link
-    Anonymous --> Practicing: sandbox (no sign-in needed)
+    SignedIn --> Practicing: Strategy → Test this agent
+    Practicing --> SignedIn: Stop test (session saved)
     SignedIn --> Funded: wallet faucet / deposit
     Funded --> AgentLive: /api/agent/deploy
     AgentLive --> AgentLive: deal → play → settle
@@ -274,7 +312,9 @@ The house earns only from the fees below. It never touches the shuffle. Every va
 | Agent must cash out at N × the current cap (`409 session_cap`) | 3 (`MAX_SESSION_PAYOUT_MULT`) |
 | House bankroll kept by `POST /api/house/sweep`; the excess goes to the operator | 5 NEAR (`HOUSE_TARGET`) |
 
-Testnet amounts are table amounts ÷ 1000, so a 50 NEAR buy-in costs 0.05 test NEAR.
+In-game amounts are **GNEAR** (game NEAR): 1 testnet NEAR = 1000 GNEAR, so a 50 GNEAR buy-in costs 0.05 test NEAR.
+
+Top up the house bankroll from the public testnet faucet with `cd frontend && npm run house:topup` (3 rounds of 10 NEAR by default, max 5; run it only when the house is low).
 
 ---
 
@@ -287,7 +327,7 @@ Testnet amounts are table amounts ÷ 1000, so a 50 NEAR buy-in costs 0.05 test N
 | `new(operator)` | deployer | Initialise |
 | `deposit()` / `deposit_for(account)` | anyone (payable) | Fund a player balance |
 | `withdraw(amount)` / `withdraw_to(receiver, amount)` | balance owner | Take money out |
-| `fund_house()` / `withdraw_house(amount)` | anyone / operator | Manage the house bankroll |
+| `fund_house()` / `withdraw_house(amount)` | operator | Manage the house bankroll |
 | `commit_hand(hand, player, commitment, stake)` | operator | Lock both stakes, store the commitment |
 | `settle_hand(hand, server_seed, player_seed, payout)` | operator | Verify the seed, pay out (≤ pot) |
 | `cancel_hand(hand)` | operator | Refund both stakes |
@@ -344,7 +384,8 @@ npm run dev
 | `required variable POSTGRES_PASSWORD is missing` | You forgot `--env-file .env.deploy`, or the value is empty |
 | "Agent service is down" | `NEAR_AI_API_KEY` is missing or invalid, or NEAR AI is rate-limiting you |
 | Sign-in button disabled or failing | Set the Privy ID and secret, add your domain in Privy, rebuild with `--build` |
-| Real-money table shows *closed* | The house balance is too low. Fund it with `fund_house` |
+| Real-money table shows *closed* | The house balance is too low. Run `npm run house:topup` in `frontend/` |
+| "You're already playing at …" | One table at a time: stop the test or the live agent first |
 | Deploy works but nothing happens on-chain | `NEAR_OPERATOR_KEY` is not set |
 | Port 3000 is busy | Change `"3000:3000"` in `docker-compose.yml` to e.g. `"8080:3000"` |
 
@@ -361,4 +402,4 @@ npm run dev
 
 ## License
 
-MIT
+[MIT](LICENSE) © 2026 Neeraj1850
