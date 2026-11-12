@@ -51,7 +51,6 @@ Each real-money hand is two on-chain transactions: `commit_hand` before the deal
 
 **Hackathon notes**
 
-- **Commit history:** the commit timestamps in this repository don't reflect when the code was originally written, so please don't rely on them. The operator and contract accounts' on-chain history on NearBlocks is an independent record of when the app was running.
 - **Demo activity is ours.** The market's house library ([`market-seed.mjs`](frontend/scripts/market-seed.mjs)), the five demo players ([`market-players.mjs`](frontend/scripts/market-players.mjs)) and a few test-account listings were created by us to show a working market. NPC trades after that are made by the app's own traders.
 - **Tracks:** Games With Real Economies (primary: strategy market: NEP-245 seats, player-owned listings, NPC traders with wallets, prices from one rules file, week fast-forward, email login with no popups) and Agent Economy (agents with their own NEAR accounts and withdraw-only keys, agents buying strategies from other players, TEE-signed reasoning for every decision, an MCP server at `/api/mcp` so outside agents can play).
 - **AI tools used:** Claude Code (Anthropic) helped write code, tests, docs and the demo video edit; ElevenLabs generated the video narration. In-game AI runs on NEAR AI Cloud (`Qwen/Qwen3.6-35B-A3B-FP8`, TEE-attested).
@@ -268,12 +267,15 @@ sequenceDiagram
     N->>N: seed = random, commitment = sha256(seed)
     N->>B: store seed + commitment
     N-->>P: { handId, commitment }  (seed stays secret)
-    P->>N: POST /api/play { handId, playerSeed }
+    P->>N: POST /api/play { handId, playerCommitment = sha256(playerSeed) }
     N->>C: view balance_of(agent), house_balance
     N->>N: stake = min(cap, balances) · table open?
     N->>B: claim seed (once, own session only)
-    N->>C: commit_hand(hand, agent, commitment, sha256(playerSeed), stake)
+    N->>C: commit_hand(hand, agent, commitment, playerCommitment, stake)
     Note right of C: locks both stakes, binds both seeds
+    N-->>P: { handId, commitTx }  (server still hasn't seen playerSeed)
+    P->>N: POST /api/play { handId, playerSeed }  (reveal)
+    N->>N: sha256(playerSeed) == playerCommitment?
     N->>N: deck = shuffle(seed ⊕ playerSeed)
     loop every betting decision
         N->>AI: agent model + your strategy
@@ -317,7 +319,8 @@ stateDiagram-v2
 
 ## Why it is fair
 
-- **Commit-reveal deal, both seeds bound.** The server commits to its seed before your browser picks yours, and your browser checks the server's commitment. Before any card is dealt, `commit_hand` stores `sha256(server seed)` **and** `sha256(your seed)` on-chain. At settlement the contract refuses any seed that doesn't match its hash, so nobody can swap a seed after the deal. Anyone can read both seeds with `get_hand`, re-shuffle, and check the hand.
+- **Commit-reveal deal, both seeds bound.** The server commits to its seed before your browser picks yours, and your browser checks the server's commitment. Before any card is dealt, `commit_hand` stores `sha256(server seed)` **and** `sha256(your seed)` on-chain. At settlement the contract refuses any seed that doesn't match its hash, so nobody can swap a seed after the deal. Your browser sends only `sha256(your seed)` until the hand is committed on-chain, and reveals the seed after, so the server can't preview the deck and refuse a bad hand (no last look). Anyone can read both seeds with `get_hand`, re-shuffle, and check the hand.
+- **Payout checked in your browser.** Results re-deals from the on-chain seeds, re-plays the hand's recorded actions with the same pure engine and rake rules, and compares the result to the payout `settle_hand` recorded ("Payout matches the cards").
 - **No voiding losing hands.** There is no operator cancel. A hand left unsettled for 600 blocks (~10 min) can be closed by anyone with `claim_timeout`, and the **player gets the whole pot**, so stalling only costs the house.
 - **Immutable contracts.** The poker contract account has no access keys (deleted right after deploy), so its code can't be changed. Its on-chain code hash is `EeKs6tbcPiCoQX5MHxK9pU8MctUk3XEN5rRHfdvpRwuc`, the base58 of sha256 `cab7bfd6…4953` of the deployed `poker.wasm`. The build isn't reproducible (`non-reproducible-wasm`), so a fresh rebuild may produce a different hash. The market contract is locked the same way; see [Smart contracts](#smart-contracts) for its hash and how to check either one.
 - **TEE-signed decisions, checked per hand.** Agent moves come from a NEAR AI Cloud model running in confidential compute. On the Results screen, every AI decision of that hand is checked: its NEAR AI signature must recover (EIP-191) to a signer the model's TEE attestation vouches for (`GET /api/verify?chats=…`). The full hardware quote can be checked at [cloud.near.ai/verify](https://cloud.near.ai/verify).
@@ -325,6 +328,8 @@ stateDiagram-v2
 
 **Known limits (honest):**
 - The contract checks the payout is at most the pot, not that it matches the cards. The cards are checkable by anyone off-chain from the two revealed seeds, but the contract doesn't re-run poker.
+- A player who commits and never reveals their seed can't be settled by the house, so after the timeout `claim_timeout` pays them the pot. The server blocks an agent with an unrevealed hand from playing more (in memory; a restart forgets it), which caps that at one stake per agent.
+- The browser's payout check uses the default rake rates; a deployment that overrides `RAKE_PCT`/`RAKE_CAP_BB` would show a mismatch.
 - Wallets and agent accounts are custodial on this testnet build: their private keys are stored server-side in Postgres (not encrypted at rest).
 - The per-hand TEE check proves each decision was signed by an attested model; it shows the signed request/response hashes rather than re-deriving them from the original bytes.
 
