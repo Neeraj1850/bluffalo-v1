@@ -147,13 +147,15 @@ describe("getFeeQuote", () => {
 describe("getVerification", () => {
   it("reads the server's status", async () => {
     const f = vi.fn().mockResolvedValue(json({ status: "verified" }));
-    expect(await getVerification("#ab", f)).toBe("verified");
+    expect(await getVerification("#ab", undefined, f)).toBe("verified");
     expect(f).toHaveBeenCalledWith("/api/hands/verify?id=%23ab");
+    await getVerification("ab", "poker.testnet", f);
+    expect(f).toHaveBeenLastCalledWith("/api/hands/verify?id=ab&contract=poker.testnet");
   });
 
   it("never reports verified for an unknown answer", async () => {
-    expect(await getVerification("#ab", vi.fn().mockResolvedValue(json({ status: "yes" })))).toBe("unavailable");
-    await expect(getVerification("#ab", vi.fn().mockResolvedValue(json({}, 500)))).rejects.toThrow();
+    expect(await getVerification("#ab", undefined, vi.fn().mockResolvedValue(json({ status: "yes" })))).toBe("unavailable");
+    await expect(getVerification("#ab", undefined, vi.fn().mockResolvedValue(json({}, 500)))).rejects.toThrow();
   });
 });
 

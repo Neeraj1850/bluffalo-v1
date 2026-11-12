@@ -119,7 +119,8 @@ export async function verifyModel(
     return { verified: false, model, detail: "signer doesn't match the reported address", verifyUrl: verifyCenter(model) };
   }
   // The point of the TEE claim: the signer must be one the model attestation vouches for.
-  if (sig.signature_kind === "provider_tee" && !signers.includes(recovered)) {
+  // Any signature kind must come from a signer the TEE attestation vouches for.
+  if (!signers.includes(recovered)) {
     return { verified: false, model, detail: "signer isn't an attested model TEE", verifyUrl: verifyCenter(model) };
   }
 
@@ -175,7 +176,8 @@ export async function verifyChat(
 
   const nonce = randomBytes(32).toString("hex");
   const signers = await attestedSigners(sigModel, nonce, key, f);
-  if (sig.signature_kind === "provider_tee" && !signers.includes(recovered)) {
+  // Any signature kind must come from a signer the TEE attestation vouches for.
+  if (!signers.includes(recovered)) {
     return { ...base, ...hashes, verified: false, detail: "signer isn't an attested model TEE" };
   }
 

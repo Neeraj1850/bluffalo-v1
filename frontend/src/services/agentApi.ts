@@ -58,7 +58,7 @@ export type CashoutStatus = "submitted" | "confirmed" | "failed";
 export interface AgentApi {
   getFeeQuote(req: DeployRequest): Promise<FeeQuote>;
   deployAgent(req: DeployRequest): Promise<DeployResult>;
-  getVerification(handId: string): Promise<Verification>;
+  getVerification(handId: string, contract?: string): Promise<Verification>;
   /** Cash out the agent's whole balance to a NEAR testnet account (`receiver`). */
   getCashoutQuote(receiver: string): Promise<CashoutQuote>;
   submitCashout(quoteId: string): Promise<{ id: string }>;
@@ -156,9 +156,9 @@ export type Attestation = {
 };
 
 /** Verify that the agent's decisions run in an attested TEE. Never throws. */
-export async function fetchAttestation(f: typeof fetch = fetch): Promise<Attestation> {
+export async function fetchAttestation(chatIds: string[] = [], f: typeof fetch = fetch): Promise<Attestation> {
   try {
-    const res = await f("/api/verify");
+    const res = await f(chatIds.length ? `/api/verify?chats=${chatIds.map(encodeURIComponent).join(",")}` : "/api/verify");
     return (await res.json()) as Attestation;
   } catch {
     return { verified: false, model: "", detail: "unreachable", verifyUrl: "https://cloud.near.ai/verify" };
@@ -194,8 +194,9 @@ export async function deployAgent(req: Pick<DeployRequest, "tableId">, f: typeof
 }
 
 /** Server-side fair-deal check for a hand without a local proof. */
-export async function getVerification(handId: string, f: typeof fetch = fetch): Promise<Verification> {
-  const data = await getJson<{ status: Verification }>(f, `/api/hands/verify?id=${encodeURIComponent(handId)}`);
+export async function getVerification(handId: string, contract?: string, f: typeof fetch = fetch): Promise<Verification> {
+  const q = `id=${encodeURIComponent(handId)}${contract ? `&contract=${encodeURIComponent(contract)}` : ""}`;
+  const data = await getJson<{ status: Verification }>(f, `/api/hands/verify?${q}`);
   return data.status === "verified" || data.status === "pending" ? data.status : "unavailable";
 }
 
@@ -281,6 +282,6 @@ export const testnetCashout = {
 export const agentApi: AgentApi = {
   getFeeQuote: (req) => getFeeQuote(req),
   deployAgent: (req) => deployAgent(req),
-  getVerification: (id) => getVerification(id),
+  getVerification: (id, contract) => getVerification(id, contract),
   ...testnetCashout,
 };

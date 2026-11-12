@@ -77,7 +77,7 @@ describe("verifyModel", () => {
 });
 
 /** The attestation report vouches for a signer; the signature is over that chat's text. */
-function sigCloud({ signWith = wallet as Signer, attested = true } = {}) {
+function sigCloud({ signWith = wallet as Signer, attested = true, kind = "provider_tee" } = {}) {
   return vi.fn<typeof fetch>(async (url) => {
     const u = String(url);
     if (u.includes("/attestation/report")) {
@@ -85,7 +85,7 @@ function sigCloud({ signWith = wallet as Signer, attested = true } = {}) {
     }
     if (u.includes("/signature/")) {
       const text = `${MODEL}:${sha("req")}:${sha("resp")}`;
-      return json({ text, signature: await signWith.signMessage(text), signing_address: signWith.address, signature_kind: "provider_tee" });
+      return json({ text, signature: await signWith.signMessage(text), signing_address: signWith.address, signature_kind: kind });
     }
     throw new Error(`unexpected ${u}`);
   });
@@ -107,6 +107,14 @@ describe("verifyChat", () => {
     const att = await verifyChat("chatcmpl-1", MODEL, { fetch: sigCloud({ signWith: Wallet.createRandom() }), sleep: noSleep });
     expect(att.verified).toBe(false);
     expect(att.detail).toMatch(/attested/);
+  });
+
+  it("rejects a gateway-signed decision whose signer isn't attested (no kind is exempt)", async () => {
+    const att = await verifyChat("chatcmpl-1", MODEL, {
+      fetch: sigCloud({ signWith: Wallet.createRandom(), kind: "gateway" }),
+      sleep: noSleep,
+    });
+    expect(att.verified).toBe(false);
   });
 
   it("reports when the decision has no published signature", async () => {

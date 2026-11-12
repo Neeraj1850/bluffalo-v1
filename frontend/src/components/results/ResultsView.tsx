@@ -220,7 +220,7 @@ function HandResult({
 
       <VerificationCard handId={hand.id} proof={hand.proof} chain={hand.chain} />
 
-      <AttestationCard />
+      <AttestationCard chatIds={hand.steps.flatMap((s) => (s.chatId ? [s.chatId] : []))} />
 
       <motion.div
         initial="hidden"
