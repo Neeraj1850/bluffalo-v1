@@ -5,7 +5,7 @@
 
 **Live app:** https://bluffalo.up.railway.app · **Network:** NEAR testnet · **Contracts:** [`bluffalo-poker-mwd58e1p.testnet`](https://testnet.nearblocks.io/address/bluffalo-poker-mwd58e1p.testnet) (poker) and [`market.npoker-op-43b602.testnet`](https://testnet.nearblocks.io/address/market.npoker-op-43b602.testnet) (market), both with zero access keys: their code can't be changed
 
-Demo video: <X post link>
+**Demo video (2:40):** https://x.com/Neeraj_1850/status/2120926721960739199
 
 ---
 
