@@ -84,7 +84,7 @@ Then open a terminal (macOS: **Terminal**, Windows: **PowerShell**) and paste th
 
 ```bash
 # 1. Download the project
-git clone https://github.com/Neeraj1850/bluffalo.git bluffalo
+git clone https://github.com/Neeraj1850/bluffalo-v1.git bluffalo
 cd bluffalo
 
 # 2. Create your settings file
@@ -411,7 +411,6 @@ npm run dev
 - Every feature and bug fix ships with a test: `frontend/src/tests/` (vitest), `backend/tests/` (pytest) or `contracts/poker/src/tests.rs` (cargo).
 - `make check` (ESLint, ruff, tsc, vitest, pytest) must pass. Enable the pre-commit hook once with `git config core.hooksPath .githooks`.
 - Conventional commits (`feat:`, `fix:`, `docs:`, `chore:` …). Open a pull request against `main`.
-- The `(#n)` numbers in older commit messages refer to issues in the private repo the project was developed in; they don't exist in this public repo.
 
 **Roadmap:** cross-chain buy-in and cash-out via NEAR Intents (mainnet only, not wired yet).
 
