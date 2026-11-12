@@ -42,7 +42,7 @@ services:
       NEAR_AI_HOUSE_MODEL: ${NEAR_AI_HOUSE_MODEL:-}
       PRIVY_APP_SECRET: ${PRIVY_APP_SECRET:-}
       NEAR_RPC_URL: ${NEAR_RPC_URL:-https://test.rpc.fastnear.com}
-      NEAR_CONTRACT_ID: ${NEAR_CONTRACT_ID:-npk-63o824.testnet}
+      NEAR_CONTRACT_ID: ${NEAR_CONTRACT_ID:-bluffalo-poker-mwd58e1p.testnet}
       NEAR_OPERATOR_ID: ${NEAR_OPERATOR_ID:-npoker-op-43b602.testnet}
       NEAR_OPERATOR_KEY: ${NEAR_OPERATOR_KEY:-}
     ports:

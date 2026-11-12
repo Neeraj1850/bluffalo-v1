@@ -123,7 +123,8 @@ describe("POST /api/play", () => {
   it("commits on-chain before the deal and settles the ending stack after", async () => {
     const deal = await createDeal(ME);
     const hand = await (await post({ ...valid, handId: deal.handId })).json();
-    expect(chain.commitHand).toHaveBeenCalledWith(deal.handId, "ame.op.testnet", deal.commitment, 50);
+    // both seeds are bound on-chain before the deal: the player's seed hash too
+    expect(chain.commitHand).toHaveBeenCalledWith(deal.handId, "ame.op.testnet", deal.commitment, await commitment(valid.playerSeed), 50);
     // the payout is the ending stack less the disclosed rake
     expect(hand.rake).toBeGreaterThanOrEqual(0);
     expect(chain.settleHand).toHaveBeenCalledWith(
@@ -140,7 +141,7 @@ describe("POST /api/play", () => {
     chain.balanceOf.mockResolvedValueOnce(37.5);
     const deal = await createDeal(ME);
     await post({ ...valid, stack: 9999, handId: deal.handId });
-    expect(chain.commitHand.mock.calls[0][3]).toBe(37.5);
+    expect(chain.commitHand.mock.calls[0][4]).toBe(37.5);
   });
 
   it("stakes at most the house's exposure cap, leaving the rest of the balance unlocked", async () => {
@@ -148,7 +149,7 @@ describe("POST /api/play", () => {
     chain.houseBalance.mockResolvedValueOnce(5000); // 1% = 50
     const deal = await createDeal(ME);
     await post({ ...valid, handId: deal.handId });
-    expect(chain.commitHand.mock.calls[0][3]).toBe(50);
+    expect(chain.commitHand.mock.calls[0][4]).toBe(50);
   });
 
   it("answers 503 table_closed below the house floor, before committing", async () => {

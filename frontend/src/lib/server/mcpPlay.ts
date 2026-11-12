@@ -4,7 +4,8 @@ import { payoutFor, rakeFor } from "./economics";
 import { recordHand } from "./hands";
 import { type Deps, timeoutHand } from "./liveHand";
 import { backendStore } from "./liveHandStore";
-import { cancelHand, settleHand } from "./near";
+import { settleHand } from "./near";
+import { parkUnsettled } from "./timeouts";
 
 /**
  * Wiring for the live-hand machine used by the MCP play tools (see api/mcp): a
@@ -31,7 +32,7 @@ export const liveDeps: Deps = {
     }
   },
   onCancel: async (rec) => {
-    await cancelHand(rec.handId);
+    parkUnsettled(rec.handId);
   },
 };
 

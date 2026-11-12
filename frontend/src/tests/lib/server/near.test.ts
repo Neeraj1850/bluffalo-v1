@@ -55,13 +55,19 @@ describe("amounts", () => {
 });
 
 describe("contract calls", () => {
-  it("commits a hand with the stack as stake and returns the tx hash", async () => {
-    expect(await near.commitHand("0123abcd", "a1.op.testnet", "c".repeat(64), 50)).toBe("TX1");
+  it("commits a hand with both seed hashes and the stack as stake, returning the tx hash", async () => {
+    expect(await near.commitHand("0123abcd", "a1.op.testnet", "c".repeat(64), "d".repeat(64), 50)).toBe("TX1");
     expect(callFunctionRaw).toHaveBeenCalledWith(
       expect.objectContaining({
         contractId: "poker.testnet",
         methodName: "commit_hand",
-        args: { hand_id: "0123abcd", player: "a1.op.testnet", commitment: "c".repeat(64), stake: "50000000000000000000000" },
+        args: {
+          hand_id: "0123abcd",
+          player: "a1.op.testnet",
+          commitment: "c".repeat(64),
+          player_commitment: "d".repeat(64),
+          stake: "50000000000000000000000",
+        },
         deposit: 0n,
         waitUntil: "EXECUTED_OPTIMISTIC",
       }),
@@ -81,9 +87,9 @@ describe("contract calls", () => {
     expect(callFunctionRaw.mock.calls[0][0]).toMatchObject({ methodName: "deposit_for", deposit: 5n * 10n ** 22n });
   });
 
-  it("cancels a hand to refund it", async () => {
-    expect(await near.cancelHand("0123abcd")).toBe("TX1");
-    expect(callFunctionRaw.mock.calls[0][0]).toMatchObject({ methodName: "cancel_hand", args: { hand_id: "0123abcd" } });
+  it("claims a timed-out hand for the player", async () => {
+    expect(await near.claimTimeout("0123abcd")).toBe("TX1");
+    expect(callFunctionRaw.mock.calls[0][0]).toMatchObject({ methodName: "claim_timeout", args: { hand_id: "0123abcd" } });
   });
 
   it("creates agents whose only key can call withdraw_to on the poker contract", async () => {
@@ -109,7 +115,7 @@ describe("contract calls", () => {
 
   it("turns any chain failure into a ChainError", async () => {
     callFunctionRaw.mockRejectedValueOnce(new Error("Smart contract panicked: Player balance is too low"));
-    await expect(near.commitHand("0123abcd", "a1", "c".repeat(64), 50)).rejects.toBeInstanceOf(near.ChainError);
+    await expect(near.commitHand("0123abcd", "a1", "c".repeat(64), "d".repeat(64), 50)).rejects.toBeInstanceOf(near.ChainError);
   });
 
   it("refuses to run without configuration", async () => {

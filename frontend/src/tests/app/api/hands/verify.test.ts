@@ -46,7 +46,22 @@ describe("GET /api/hands/verify", () => {
     expect(await (await check("0123abcd")).json()).toEqual({
       status: "verified",
     });
-    expect(chain.getHand).toHaveBeenCalledWith("0123abcd");
+    expect(chain.getHand).toHaveBeenCalledWith("0123abcd", undefined);
+  });
+
+  it("also requires the player's seed to match its commitment (contract v2)", async () => {
+    const PLAYER = "fedcba9876543210fedcba9876543210";
+    chain.getHand.mockResolvedValueOnce(await hand({ player_seed: PLAYER, player_commitment: await commitment(PLAYER) }));
+    expect(await (await check("0123abcd")).json()).toEqual({ status: "verified" });
+    chain.getHand.mockResolvedValueOnce(await hand({ player_seed: PLAYER, player_commitment: await commitment(SEED) }));
+    expect(await (await check("0123abcd")).json()).toEqual({ status: "unavailable" });
+  });
+
+  it("reads a hand from the contract it was played on, but only our own contracts", async () => {
+    chain.getHand.mockResolvedValueOnce(await hand());
+    await check("0123abcd&contract=npk-63o824.testnet");
+    expect(chain.getHand).toHaveBeenCalledWith("0123abcd", "npk-63o824.testnet");
+    expect((await check("0123abcd&contract=evil.testnet")).status).toBe(400);
   });
 
   it("is pending while the hand is only committed", async () => {

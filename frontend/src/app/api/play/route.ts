@@ -4,7 +4,9 @@ import { takeSeed } from "@/lib/server/deals";
 import { ServiceDownError } from "@/lib/server/decide";
 import { recordHand } from "@/lib/server/hands";
 import { payoutFor, rakeFor, sessionPayoutCap, stakeFor, TABLE_CLOSED, tableStatus } from "@/lib/server/economics";
-import { balanceOf, ChainError, cancelHand, commitHand, houseBalance, settleHand } from "@/lib/server/near";
+import { commitment } from "@/lib/poker/fairness";
+import { balanceOf, ChainError, commitHand, houseBalance, settleHand } from "@/lib/server/near";
+import { claimExpired, parkUnsettled } from "@/lib/server/timeouts";
 import { claimTable } from "@/lib/server/activeTable";
 import { inFlight } from "@/lib/server/inFlight";
 import { parsePlayRequest, playHand } from "@/lib/server/play";
@@ -68,7 +70,8 @@ export async function POST(request: Request) {
     if (inFlight.has(agent)) return reply({ error: "Your agent is already playing a hand" }, 409);
     inFlight.add(agent);
     try {
-      const commitTx = await commitHand(req.handId, agent, deal.commitment, req.stack);
+      void claimExpired(); // close any earlier hand stuck past its on-chain timeout
+      const commitTx = await commitHand(req.handId, agent, deal.commitment, await commitment(req.playerSeed), req.stack);
       try {
         const hand = await playHand(req, deal);
         // The rake stays with the house: the contract keeps whatever of the pot isn't paid out.
@@ -79,8 +82,9 @@ export async function POST(request: Request) {
         await recordHand(session.id, hand);
         return reply(hand);
       } catch (e) {
-        // Committed but not settled: give both stakes back so nothing stays locked.
-        await cancelHand(req.handId).catch((err) => console.error("[play] cancel_hand failed", req.handId, err));
+        // Committed but not settled: nobody may void it early, so it pays the player
+        // the pot once the contract's timeout passes. Park it to claim then.
+        parkUnsettled(req.handId);
         throw e;
       }
     } finally {

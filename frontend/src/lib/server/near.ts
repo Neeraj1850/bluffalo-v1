@@ -101,9 +101,15 @@ export function depositFor(agent: string, amount: number) {
   return send("deposit_for", { account_id: agent }, toYocto(amount));
 }
 
-/** Before the deal: lock the agent's stack and a matching house stack, record the seed hash. */
-export function commitHand(handId: string, agent: string, commitment: string, stack: number) {
-  return send("commit_hand", { hand_id: handId, player: agent, commitment, stake: toYocto(stack).toString() });
+/** Before the deal: lock the agent's stack and a matching house stack, record both seeds' hashes. */
+export function commitHand(handId: string, agent: string, commitment: string, playerCommitment: string, stack: number) {
+  return send("commit_hand", {
+    hand_id: handId,
+    player: agent,
+    commitment,
+    player_commitment: playerCommitment,
+    stake: toYocto(stack).toString(),
+  });
 }
 
 /** After the hand: reveal both seeds; the agent's balance becomes its ending stack. */
@@ -116,9 +122,12 @@ export function settleHand(handId: string, serverSeed: string, playerSeed: strin
   });
 }
 
-/** Give both stakes back on a hand that was committed but never settled (agent stalled). */
-export function cancelHand(handId: string) {
-  return send("cancel_hand", { hand_id: handId });
+/**
+ * Close a hand left unsettled past the contract's timeout: the player gets the
+ * whole pot. Nobody (not even the operator) can close a hand before then.
+ */
+export function claimTimeout(handId: string) {
+  return send("claim_timeout", { hand_id: handId });
 }
 
 /** The agent's balance in the contract, exactly, in yoctoNEAR. */
@@ -308,16 +317,22 @@ export async function gasPriceYocto(): Promise<bigint> {
 export type ChainHand = {
   player: string;
   commitment: string;
-  status: "Committed" | "Settled" | "Cancelled";
+  /** sha256 of the player's seed, bound before the deal (contract v2 hands). */
+  player_commitment?: string;
+  status: "Committed" | "Settled" | "Cancelled" | "TimedOut";
   server_seed: string | null;
   player_seed: string | null;
 };
 
 /** A hand's on-chain record (commitment, status, revealed seeds), or null if the contract has none. */
-export async function getHand(handId: string): Promise<ChainHand | null> {
+export async function getHand(handId: string, contractId?: string): Promise<ChainHand | null> {
   const { account, contract } = operator();
   try {
-    const raw = await account.provider.callFunction({ contractId: contract, method: "get_hand", args: { hand_id: handId } });
+    const raw = await account.provider.callFunction({
+      contractId: contractId ?? contract,
+      method: "get_hand",
+      args: { hand_id: handId },
+    });
     return (raw as ChainHand | null | undefined) ?? null;
   } catch (e) {
     throw new ChainError(e);

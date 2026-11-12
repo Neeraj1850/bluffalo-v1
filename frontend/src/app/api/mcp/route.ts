@@ -13,7 +13,9 @@ import {
   UnknownHandError,
 } from "@/lib/server/liveHand";
 import { sessionPayoutCap, stakeFor, TABLE_CLOSED, tableStatus } from "@/lib/server/economics";
-import { balanceOf, cancelHand, ChainError, commitHand, houseBalance } from "@/lib/server/near";
+import { commitment } from "@/lib/poker/fairness";
+import { balanceOf, ChainError, commitHand, houseBalance } from "@/lib/server/near";
+import { parkUnsettled } from "@/lib/server/timeouts";
 import { authFromRequest, requireAuth, withAuth } from "@/lib/server/mcpAuth";
 import { liveDeps, mapAction } from "@/lib/server/mcpPlay";
 
@@ -96,7 +98,7 @@ const mcp = createMcpHandler((server) => {
         const claimed = await takeSeed(handId, sessionId);
         if (!claimed) return fail("Could not claim the deal — try again");
 
-        const commitTx = await commitHand(handId, agent, claimed.commitment, stack);
+        const commitTx = await commitHand(handId, agent, claimed.commitment, await commitment(playerSeed), stack);
         const deck = shuffle(await mixSeed(claimed.seed, playerSeed));
         try {
           const result = await startHand(liveDeps, {
@@ -113,8 +115,8 @@ const mcp = createMcpHandler((server) => {
           });
           return text({ handId, ...result });
         } catch (e) {
-          // Committed on-chain but the hand never got going (house model down): refund.
-          await cancelHand(handId).catch(() => {});
+          // Committed on-chain but the hand never got going: claimable by the player after the timeout.
+          parkUnsettled(handId);
           throw e;
         }
       } catch (e) {

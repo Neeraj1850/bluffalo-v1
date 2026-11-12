@@ -2,13 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { freshDeck } from "@/lib/poker/deck";
 import { type Action, type Legal } from "@/lib/poker/game";
 import { listHands } from "@/lib/server/hands";
+import { parkedHands } from "@/lib/server/timeouts";
 import { applyExternalAction, startHand } from "@/lib/server/liveHand";
 import { liveDeps, mapAction, sweepStaleHands } from "@/lib/server/mcpPlay";
 import { useFakeBackend } from "@/tests/helpers/backend";
 import { fakeNearAi } from "@/tests/helpers/nearai";
 
 // The testnet contract is mocked; its client is tested in near.test.ts and live on testnet.
-const chain = vi.hoisted(() => ({ settleHand: vi.fn(), cancelHand: vi.fn() }));
+const chain = vi.hoisted(() => ({ settleHand: vi.fn() }));
 vi.mock("@/lib/server/near", async (orig) => ({ ...(await orig<object>()), ...chain }));
 
 const SID = "sess-1";
@@ -22,7 +23,6 @@ beforeEach(() => {
   const backend = useFakeBackend(fakeNearAi({ action: "call", reason: "Keep it simple." }));
   backend.seedSession(SID, "did:privy:me", "ame.op.testnet");
   chain.settleHand.mockReset().mockResolvedValue("SETTLE_TX");
-  chain.cancelHand.mockReset().mockResolvedValue("CANCEL_TX");
 });
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -92,7 +92,7 @@ describe("liveDeps (MCP play wiring)", () => {
     expect(await listHands(SID)).toHaveLength(1);
   });
 
-  it("refunds (cancels) instead of locking funds when settlement fails", async () => {
+  it("parks an unsettled hand for the on-chain timeout claim (pays the player) when settlement fails", async () => {
     chain.settleHand.mockRejectedValue(new Error("testnet unreachable"));
     let result = await startHand(liveDeps, {
       handId: "0123abcd",
@@ -108,7 +108,7 @@ describe("liveDeps (MCP play wiring)", () => {
     });
     while (!result.done) result = await applyExternalAction(liveDeps, "0123abcd", passive(result.view.legal));
     if (result.done) expect(result.settled).toBe(false);
-    expect(chain.cancelHand).toHaveBeenCalledOnce();
+    expect(parkedHands()).toContain("0123abcd");
     expect(await listHands(SID)).toHaveLength(0);
   });
 });
