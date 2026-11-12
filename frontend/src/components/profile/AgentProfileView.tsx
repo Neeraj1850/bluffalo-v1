@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { SessionList } from "@/components/sessions/SessionList";
+import { PublishSheet } from "@/components/market/PublishSheet";
 import { useGoLive } from "@/components/strategy/useGoLive";
 import { MonoLabel } from "@/components/ui/MonoLabel";
 import { Rise } from "@/components/ui/Rise";
@@ -19,6 +20,7 @@ export function AgentProfileView({ agentKey }: { agentKey: string }) {
   const { applyAgent } = useSetup();
   const { goLive, live } = useGoLive();
   const [used, setUsed] = useState(false);
+  const [listing, setListing] = useState(false);
 
   useEffect(() => {
     fetchTestedAgents()
@@ -68,7 +70,15 @@ export function AgentProfileView({ agentKey }: { agentKey: string }) {
             >
               {used ? "Loaded on the Strategy tab ✓" : "Use these settings"}
             </button>
+            <button
+              type="button"
+              onClick={() => setListing(true)}
+              className="h-14 rounded-btn border border-dashed border-border text-[15px] hover:border-fg sm:col-span-2"
+            >
+              List on market
+            </button>
           </div>
+          {listing && <PublishSheet open onClose={() => setListing(false)} agent={{ name: getPreset(agent.preset).label, params: agent.params }} />}
 
           <section className="flex flex-col gap-3">
             <h2 className="font-mono text-[11px] uppercase tracking-[0.2em]">Practice sessions</h2>

@@ -16,7 +16,8 @@ export function LobbyView() {
   const status = useTables();
 
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-5 pt-6 lg:px-10 lg:pt-10">
+    <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-5 pt-6 lg:grid lg:h-dvh lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)] lg:gap-10 lg:overflow-hidden lg:px-10 lg:py-8">
+      <div className="flex min-w-0 flex-col gap-6 lg:min-h-0 lg:overflow-y-auto">
       <header className="flex flex-col gap-4">
         <div className="flex items-center justify-between gap-4">
           <MonoLabel tracking="wide">02 · Pick a seat</MonoLabel>
@@ -26,7 +27,7 @@ export function LobbyView() {
           as="h1"
           feel="spring"
           distance={24}
-          className="display text-[104px] leading-[0.8] tracking-[-0.07em] lg:text-[160px]"
+          className="display text-[104px] leading-[0.8] tracking-[-0.07em] lg:text-[104px]"
         >
           tables
         </Rise>
@@ -63,9 +64,10 @@ export function LobbyView() {
       </Disclosure>
 
       <HouseRules className="-mt-4 border-b border-hair pb-1.5" />
+      </div>
 
       <motion.ul
-        className="grid gap-6 md:grid-cols-2 md:items-start"
+        className="grid min-w-0 gap-6 md:grid-cols-2 md:items-start lg:min-h-0 lg:content-start lg:gap-4 lg:overflow-y-auto lg:pr-8 lg:pt-4"
         initial="hidden"
         animate="show"
         variants={{ hidden: {}, show: { transition: { staggerChildren: 0.08, delayChildren: 0.08 } } }}

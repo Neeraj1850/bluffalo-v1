@@ -1,10 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { PublishSheet } from "@/components/market/PublishSheet";
 import { YourLicenses } from "@/components/market/YourLicenses";
-import { Button, ButtonHint, ButtonLink } from "@/components/ui/Button";
+import { ButtonHint, ButtonLink } from "@/components/ui/Button";
 import { MonoLabel } from "@/components/ui/MonoLabel";
 import { Rise } from "@/components/ui/Rise";
 import { LIMITS, PARAMS } from "@/lib/data/strategy";
@@ -16,13 +14,12 @@ import { StrategySlider } from "./StrategySlider";
 
 export function StrategyView() {
   const { tableId, preset, params, limits, license, choosePreset, setParam, setLimit } = useSetup();
-  const [publishing, setPublishing] = useState(false);
   const table = getTable(tableId);
   const isPractice = table.mode === "practice";
 
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-5 pt-6 lg:px-10 lg:pt-10">
-      <header className="flex flex-col gap-3">
+    <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-5 pt-6 lg:h-dvh lg:gap-4 lg:overflow-hidden lg:px-10 lg:pb-6 lg:pt-8">
+      <header className="flex flex-col gap-3 lg:gap-1">
         <div className="flex items-center justify-between font-mono text-[11px] uppercase tracking-[0.2em] text-muted">
           <Link href="/lobby" className="inline-flex min-h-11 items-center hover:text-fg">
             {"←"} {table.name}
@@ -32,22 +29,23 @@ export function StrategyView() {
         <Rise
           as="h1"
           feel="spring"
-          className="display pb-[0.1em] text-[88px] leading-[0.8] tracking-[-0.07em] lg:text-[140px]"
+          className="display pb-[0.1em] text-[88px] leading-[0.8] tracking-[-0.07em] lg:text-[72px]"
         >
           strategy
         </Rise>
-        <p className="max-w-md text-[15px] leading-normal text-muted">
+        <p className="max-w-md text-[15px] leading-normal text-muted lg:hidden">
           Pick a personality. Your agent plays every hand with it. You can fine-tune later.
         </p>
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-2 lg:items-start lg:gap-10">
-        <div className="flex flex-col gap-6 lg:sticky lg:top-10">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:min-h-0 lg:flex-1 lg:grid-cols-3 lg:gap-6">
+        <div className="flex flex-col gap-6 lg:min-h-0 lg:overflow-y-auto">
           <PresetPicker value={preset} onChange={choosePreset} />
           <YourLicenses />
         </div>
 
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-6 lg:contents">
+          <div className="flex flex-col gap-6 lg:min-h-0 lg:overflow-y-auto">
           {license ? (
             <section className="flex flex-col gap-2 rounded-card border border-border bg-surface p-5">
               <MonoLabel as="h2">Licensed · {license.name}</MonoLabel>
@@ -79,7 +77,9 @@ export function StrategyView() {
             ))}
           </section>
           )}
+          </div>
 
+          <div className="flex flex-col gap-6 lg:min-h-0 lg:overflow-y-auto">
           <section aria-labelledby="limits" className="flex flex-col gap-1">
             <div className="flex items-baseline justify-between pb-2">
               <h2 id="limits" className="font-display text-[28px] font-medium tracking-[-0.03em]">
@@ -126,15 +126,10 @@ export function StrategyView() {
                 Start playing
               </ButtonLink>
             )}
-            {!license && (
-              <Button variant="ghost" onClick={() => setPublishing(true)} trailing={<ButtonHint muted>Free · settings stay secret</ButtonHint>}>
-                Publish to the market
-              </Button>
-            )}
+          </div>
           </div>
         </div>
       </div>
-      <PublishSheet open={publishing} onClose={() => setPublishing(false)} />
     </main>
   );
 }

@@ -70,7 +70,8 @@ export function HistoryView({
   const lost = hands.filter((h) => h.net < 0).reduce((a, h) => a + h.net, 0);
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-5 pt-6 lg:px-10 lg:pt-10">
+    <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-5 pt-6 lg:grid lg:h-dvh lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)] lg:gap-10 lg:overflow-hidden lg:px-10 lg:py-8">
+      <div className="flex min-w-0 flex-col gap-6 lg:min-h-0 lg:overflow-y-auto">
       <header className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <MonoLabel tracking="wide">07 · The archive</MonoLabel>
@@ -82,7 +83,7 @@ export function HistoryView({
         <Rise
           as="h1"
           feel="spring"
-          className="display pb-[0.1em] text-[96px] leading-[0.8] tracking-[-0.07em] lg:text-[140px]"
+          className="display pb-[0.1em] text-[96px] leading-[0.8] tracking-[-0.07em] lg:text-[96px]"
         >
           history
         </Rise>
@@ -228,7 +229,9 @@ export function HistoryView({
           />
         </div>
       </div>
+      </div>
 
+      <div className="min-w-0 lg:min-h-0 lg:overflow-y-auto">
       {view === "sessions" ? (
         <section aria-labelledby="sessions" className="flex flex-col">
           <div className="flex items-baseline justify-between pb-2">
@@ -306,6 +309,7 @@ export function HistoryView({
           <Pager page={shown.page} pages={shown.pages} onChange={setPage} />
         </section>
       )}
+      </div>
     </main>
   );
 }

@@ -5,7 +5,7 @@ import { Button, ButtonHint, ButtonLink } from "@/components/ui/Button";
 import { ConfirmationSummary } from "@/components/ui/ConfirmationSummary";
 import { Sheet } from "@/components/ui/Sheet";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { getPreset, strategyLine } from "@/lib/data/strategy";
+import { getPreset, strategyLine, type StrategyParams } from "@/lib/data/strategy";
 import { BASE_PRICE } from "@/lib/market/rules";
 import { useSetup } from "@/lib/store/setup";
 import { ApiError, publishStrategy, txUrl } from "@/services/agentApi";
@@ -20,10 +20,11 @@ type Phase =
 const SEATS = [10, 25, 100] as const;
 type Seats = (typeof SEATS)[number];
 
-/** Publish the current sliders as a sealed strategy: seats are minted and listed at your ask. */
-export function PublishSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { preset, params } = useSetup();
-  const [name, setName] = useState(() => (preset === "custom" ? "" : getPreset(preset).label));
+/** Publish a sealed strategy (a tested agent's sliders, else the current ones): seats are minted and listed at your ask. */
+export function PublishSheet({ open, onClose, agent }: { open: boolean; onClose: () => void; agent?: { name: string; params: StrategyParams } }) {
+  const setup = useSetup();
+  const params = agent?.params ?? setup.params;
+  const [name, setName] = useState(() => agent?.name ?? (setup.preset === "custom" ? "" : getPreset(setup.preset).label));
   const [seats, setSeats] = useState<Seats>(10);
   const [priceText, setPriceText] = useState(String(BASE_PRICE));
   const [phase, setPhase] = useState<Phase>({ status: "idle" });

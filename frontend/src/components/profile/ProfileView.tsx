@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { SignOutButton } from "@/components/SignOutButton";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { ButtonLink } from "@/components/ui/Button";
+import { PublishSheet } from "@/components/market/PublishSheet";
+import { Button, ButtonLink } from "@/components/ui/Button";
 import { MonoLabel } from "@/components/ui/MonoLabel";
 import { Rise } from "@/components/ui/Rise";
 import { getPreset, strategyLine } from "@/lib/data/strategy";
@@ -17,6 +18,7 @@ import { fetchTestedAgents } from "@/services/agentApi";
 export function ProfileView() {
   const wallet = useWallet();
   const [agents, setAgents] = useState<TestedAgent[] | null>(null);
+  const [listing, setListing] = useState<TestedAgent | null>(null);
 
   useEffect(() => {
     fetchTestedAgents()
@@ -73,7 +75,7 @@ export function ProfileView() {
         )}
         <ul className="grid gap-3 md:grid-cols-2">
           {agents?.map((a) => (
-            <li key={a.key}>
+            <li key={a.key} className="flex flex-col gap-1">
               <Link
                 href={`/profile/agent/${a.key}`}
                 className="flex flex-col gap-4 rounded-card border border-dashed border-border p-5 transition-colors hover:border-fg"
@@ -99,10 +101,16 @@ export function ProfileView() {
                 </dl>
                 <span className="font-mono text-[11px] uppercase tracking-[0.12em]">History {"→"}</span>
               </Link>
+              <Button size="sm" variant="ghost" onClick={() => setListing(a)}>
+                List on market
+              </Button>
             </li>
           ))}
         </ul>
       </section>
+      {listing && (
+        <PublishSheet open onClose={() => setListing(null)} agent={{ name: getPreset(listing.preset).label, params: listing.params }} />
+      )}
     </main>
   );
 }

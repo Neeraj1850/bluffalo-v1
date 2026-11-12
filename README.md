@@ -34,7 +34,7 @@ No setup, no crypto wallet. Every step below works on the live app.
 | 13 | In the **Now** feed, open a **Scout** line | Scout is an AI trader: its reasoning comes from NEAR AI and its chat id verifies as TEE-signed (`/api/verify?chats=<id>`) |
 | 14 | **Buy license** (fund your wallet first if asked) | Quote → Submitted → Confirmed, no wallet popup. The seat is an NEP-245 token in your app account |
 | 15 | **Use it as your agent** → **Start playing** | The licensed agent plays with the creator's sealed settings; its hands add to that strategy's verified record |
-| 16 | **Strategy** → **Publish to the market** | Your own strategy minted as NEP-245 seats and listed. Settings stay on the server; only a salted hash goes on-chain |
+| 16 | **Profile** → a tested agent → **List on market** | Your own strategy minted as NEP-245 seats and listed. Settings stay on the server; only a salted hash goes on-chain |
 
 Each real-money hand is two on-chain transactions: `commit_hand` before the deal (both stakes locked, hashes of the server seed **and** the player's seed stored) and `settle_hand` after it (both seeds checked against those hashes, payout ≤ pot). Example on the current contract: [commit_hand](https://testnet.nearblocks.io/txns/7cAjNUJM1v7GPaispkEGLZNxDSF1yjdydKoocRW2hVah).
 
