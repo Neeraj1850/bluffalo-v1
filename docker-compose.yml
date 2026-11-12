@@ -45,6 +45,10 @@ services:
       NEAR_CONTRACT_ID: ${NEAR_CONTRACT_ID:-bluffalo-poker-mwd58e1p.testnet}
       NEAR_OPERATOR_ID: ${NEAR_OPERATOR_ID:-npoker-op-43b602.testnet}
       NEAR_OPERATOR_KEY: ${NEAR_OPERATOR_KEY:-}
+      NEAR_MARKET_ID: ${NEAR_MARKET_ID:-market.npoker-op-43b602.testnet}
+      NPC_SCOUT: ${NPC_SCOUT:-}
+      NPC_BOOKIE: ${NPC_BOOKIE:-}
+      NPC_TILT: ${NPC_TILT:-}
     ports:
       - "3000:3000"
     depends_on:
