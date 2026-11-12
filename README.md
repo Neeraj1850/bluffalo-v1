@@ -1,10 +1,11 @@
 # Bluffalo
 
-> **Your strategy. Your AI agent. Provably fair poker.**
 > Design a poker personality, practice it for free, then send your AI agent to play heads-up Texas Hold'em against an AI house for real NEAR testnet stakes. Every deal is cryptographically committed on-chain before the cards come out, and every agent decision is signed by a model running inside a hardware TEE.
-> Then sell it: publish your strategy to the **Strategy Market**, where license seats are NEP-245 tokens, prices follow each strategy's verified on-chain record, and three NPC traders with their own wallets buy, sell and reprice.
+> Then sell it: list your strategy on the **Strategy Market**, where license seats are NEP-245 tokens, prices follow each strategy's verified on-chain record, and three NPC traders with their own wallets buy, sell and reprice.
 
-**Live app:** https://bluffalo.up.railway.app · **Network:** NEAR testnet · **Contract:** [`bluffalo-poker-mwd58e1p.testnet`](https://testnet.nearblocks.io/address/bluffalo-poker-mwd58e1p.testnet) (no access keys: its code can't be changed)
+**Live app:** https://bluffalo.up.railway.app · **Network:** NEAR testnet · **Contracts:** [`bluffalo-poker-mwd58e1p.testnet`](https://testnet.nearblocks.io/address/bluffalo-poker-mwd58e1p.testnet) (poker) and [`market.npoker-op-43b602.testnet`](https://testnet.nearblocks.io/address/market.npoker-op-43b602.testnet) (market), both with zero access keys: their code can't be changed
+
+Demo video: <X post link>
 
 ---
 
@@ -14,27 +15,27 @@ No setup, no crypto wallet. Every step below works on the live app.
 
 | # | Do | You should see |
 |---|---|---|
-| 1 | Open https://bluffalo.up.railway.app and click **Continue with Email**. Enter any email and the 6-digit code Privy sends you | The **Lobby** with four tables |
-| 2 | Open **Strategy**, pick **Shark** (or move a slider), then click **Test this agent** | A full-page practice table. Free hands start on their own; each move shows *why* the agent made it |
+| 1 | Open https://bluffalo.up.railway.app and click **Continue with Email**. Enter any email and the 6-digit code Privy sends you | The **Lobby**: a free practice table, three real-money tables, and a side panel with the house bankroll and open tables |
+| 2 | Open **Strategy**, pick **Shark** (or move a slider), then click **Test this agent** (`/strategy/test`) | A full-page practice table. Free hands start on their own; each move shows *why* the agent made it |
 | 3 | After 2–3 hands click **Stop test**, then **See this test session** | The session: result, hands, and every decision of every hand |
 | 4 | Open **Wallet** and click **Fund my wallet with testnet NEAR** | 100 GNEAR arrives in a few seconds (1 testnet NEAR = 1000 GNEAR) |
-| 5 | Back on **Strategy** click **Start playing**, tick **I understand…**, then **Put my agent in play** | Your agent gets its own NEAR account holding a 50 GNEAR buy-in |
+| 5 | Back on **Strategy** click **Play for real money** (goes to the deploy review at *the back room*), tick **I understand…**, then **Put my agent in play** | Your agent gets its own NEAR account holding a 50 GNEAR buy-in |
 | 6 | Click **Watch your agent play** | Live hands against the house AI. While playing, the only control is **Stop agent after this hand** |
 | 7 | Click **Stop agent after this hand**, then **See the result** | **Fair-play verified** (both seeds matched their on-chain commitments) and **TEE attested · N/N decisions** (every AI decision in that hand was signed inside a TEE) |
 | 8 | Open **History** → **Sessions**, or **Profile** → an agent | Every practice and live session, every hand, every decision. Real hands link to their NearBlocks transactions |
 | 9 | **Wallet** → **Withdraw** to any testnet account | Funds leave the app; a public transaction link appears |
 
-**The Strategy Market (Games track: player-owned market, NPCs with wallets, evolving prices, fast-forward)**
+**The Strategy Market** (Games With Real Economies: player-owned market, NPC traders with wallets, evolving prices, fast-forward)
 
 | # | Do | You should see |
 |---|---|---|
-| 10 | Open **Market** | Strategies with price, sparkline and verified record (dashed = Unrated, solid = Rated at 100 verified hands). The **Now** feed shows NPC trades with their reasons, and each NPC's wallet balance |
-| 11 | Click **Watch a week in 60 s** | `/market/sim`: a seeded week of the market fast-forwarded: prices move, brokers buy and sell, a broker can go broke and close. Labelled *Simulation: practice bots, nothing on-chain*. 10×/100×/Skip to end |
-| 12 | Open any strategy and click **Why?** next to its price | Every input of the price (verified ROI and hands, seats listed, recent demand) and a link to the one rules file, [`frontend/src/lib/market/rules.ts`](frontend/src/lib/market/rules.ts) |
-| 13 | In the **Now** feed, open a **Scout** line | Scout is an AI trader: its reasoning comes from NEAR AI and its chat id verifies as TEE-signed (`/api/verify?chats=<id>`) |
-| 14 | **Buy license** (fund your wallet first if asked) | Quote → Submitted → Confirmed, no wallet popup. The seat is an NEP-245 token in your app account |
+| 10 | Open **Market** | Strategies with price, sparkline and verified record (dashed = unrated, solid = rated at 100 verified hands), and a **Leaderboard** tab. The **Now** feed on the side lists recent trades (NPC traders and players) with their reasons |
+| 11 | Click **Watch a week in 60 s** | `/market/sim`: a seeded week of the market fast-forwarded in your browser: prices move, brokers buy and sell, a broker can go broke and close. Marked as a simulation (practice bots, nothing on-chain). 10×/100×/Skip to end |
+| 12 | Open any strategy (try **Ava's Trap**) and click **Why?** next to its price; then **Verify record** | Every input of the price (verified ROI and hands, seats listed, recent demand), computed by one rules file, [`frontend/src/lib/market/rules.ts`](frontend/src/lib/market/rules.ts). **Verify record** rechecks the strategy's real hands against the poker contract |
+| 13 | Find a **Scout** line in the **Now** feed | Scout is an AI trader: its reasoning comes from NEAR AI. Each Scout event in `GET /api/market` carries a `chatId`; `GET /api/verify?chats=<chatId>` checks it is TEE-signed |
+| 14 | Click **Buy** on a listing, then **Buy for N GNEAR** (fund your wallet first if asked) | Quote → Submitted → Confirmed, no wallet popup. The seat is an NEP-245 token in your app account |
 | 15 | **Use it as your agent** → **Start playing** | The licensed agent plays with the creator's sealed settings; its hands add to that strategy's verified record |
-| 16 | **Profile** → a tested agent → **List on market** | Your own strategy minted as NEP-245 seats and listed. Settings stay on the server; only a salted hash goes on-chain |
+| 16 | **Profile** → a tested agent → **List on market** | Your own strategy minted as NEP-245 seats (10, 25 or 100) and listed. Settings stay on the server; only a salted hash goes on-chain |
 
 Each real-money hand is two on-chain transactions: `commit_hand` before the deal (both stakes locked, hashes of the server seed **and** the player's seed stored) and `settle_hand` after it (both seeds checked against those hashes, payout ≤ pot). Example on the current contract: [commit_hand](https://testnet.nearblocks.io/txns/7cAjNUJM1v7GPaispkEGLZNxDSF1yjdydKoocRW2hVah).
 
@@ -44,35 +45,38 @@ Each real-money hand is two on-chain transactions: `commit_hand` before the deal
 | [`npoker-op-43b602.testnet`](https://testnet.nearblocks.io/address/npoker-op-43b602.testnet) | Operator: commits and settles hands, creates agent accounts |
 | `a<id>.npoker-op-43b602.testnet` | One per deployed agent. Its only key is a function-call key for the contract's `withdraw_to`: it can't send NEAR any other way. The receiver is chosen by our server (your wallet, or the account you type when cashing out) |
 | [`npk-63o824.testnet`](https://testnet.nearblocks.io/address/npk-63o824.testnet) | Contract v1 (hands played before the v2 fairness fixes; still verifiable) |
-| [`market.npoker-op-43b602.testnet`](https://testnet.nearblocks.io/address/market.npoker-op-43b602.testnet) | Strategy market (`contracts/market`): NEP-245 multi-token (`mt_*`, events standard `nep245`), listings, atomic `buy` with creator royalty, `use_license` (burns a seat and binds an agent). Never holds NEAR beyond storage |
-| [`scout`](https://testnet.nearblocks.io/address/scout.npoker-op-43b602.testnet) / [`bookie`](https://testnet.nearblocks.io/address/bookie.npoker-op-43b602.testnet) / [`tilt`](https://testnet.nearblocks.io/address/tilt.npoker-op-43b602.testnet)`.npoker-op-43b602.testnet` | The three NPC traders' wallets. Bookie (value broker, lists the house library) and Tilt (momentum broker) follow `rules.ts`; Scout asks NEAR AI |
+| [`market.npoker-op-43b602.testnet`](https://testnet.nearblocks.io/address/market.npoker-op-43b602.testnet) | Strategy market (`contracts/market`): NEP-245 multi-token (`mt_*`, events standard `nep245`), listings, atomic `buy` with creator royalty, `use_license` (burns a seat and binds an agent). Never holds NEAR beyond storage. Its only full-access key was deleted ([tx](https://testnet.nearblocks.io/txns/Hg4y2HHviesHmNn4zpuqQdjdzKKS2KyLrfGdRCbWhXq7)): zero keys. Code hash `6W3dNPswKfcaw2tpVSkrvwnbCsUkivazpxsEhw5PCCEr` = base58 of sha256 `51bb3f9e4d7497010302147226f2d31c6112611df225fc81d84a7978571943c7` |
+| [`scout`](https://testnet.nearblocks.io/address/scout.npoker-op-43b602.testnet) / [`bookie`](https://testnet.nearblocks.io/address/bookie.npoker-op-43b602.testnet) / [`tilt`](https://testnet.nearblocks.io/address/tilt.npoker-op-43b602.testnet)`.npoker-op-43b602.testnet` | The three NPC traders' wallets. Bookie (value broker, lists the house library: House Rock, House Shark, House Maniac) and Tilt (momentum broker) follow `rules.ts`; Scout asks NEAR AI |
+| `ava` / `ben` / `cleo` / `dev` / `eli` `.npoker-op-43b602.testnet` | Demo player accounts **we control**, created by [`frontend/scripts/market-players.mjs`](frontend/scripts/market-players.mjs): each lists its own strategy, they trade with each other, and one resale paid the creator royalty. Ava's Trap has a record from real hands |
 
 **Hackathon notes**
 
 - **Commit history:** the commit timestamps in this repository don't reflect when the code was originally written, so please don't rely on them. The operator and contract accounts' on-chain history on NearBlocks is an independent record of when the app was running.
-- **Tracks:** Games (strategy market: NEP-245 seats, player-owned listings, NPC traders with wallets, prices from one rules file, week fast-forward, email login with no popups) and Agents (agents with their own NEAR accounts and withdraw-only keys, agents buying strategies from other players, TEE-signed reasoning for every decision, an MCP server at `/api/mcp` so outside agents can play).
+- **Demo activity is ours.** The market's house library ([`market-seed.mjs`](frontend/scripts/market-seed.mjs)), the five demo players ([`market-players.mjs`](frontend/scripts/market-players.mjs)) and a few test-account listings were created by us to show a working market. NPC trades after that are made by the app's own traders.
+- **Tracks:** Games With Real Economies (primary: strategy market: NEP-245 seats, player-owned listings, NPC traders with wallets, prices from one rules file, week fast-forward, email login with no popups) and Agent Economy (agents with their own NEAR accounts and withdraw-only keys, agents buying strategies from other players, TEE-signed reasoning for every decision, an MCP server at `/api/mcp` so outside agents can play).
 - **AI tools used:** Claude Code (Anthropic) helped write code, tests, docs and the demo video edit; ElevenLabs generated the video narration. In-game AI runs on NEAR AI Cloud (`Qwen/Qwen3.6-35B-A3B-FP8`, TEE-attested).
 - **Main libraries:** Next.js 15, React 19, Tailwind CSS 4, Framer Motion 12, Privy (`@privy-io/react-auth`, `@privy-io/node`), `near-api-js`, `ethers` (signature recovery for TEE checks), FastAPI, SQLAlchemy 2, Alembic, `near-sdk` 5 (Rust contract), Vitest, pytest.
-- **Tests:** 462 app (vitest) + 55 backend (pytest) + 52 contract (cargo: 34 poker, 18 market) = 569. `make check` runs them all.
+- **Tests:** 473 app (vitest) + 54 backend (pytest) + 52 contract (cargo: 34 poker, 18 market) = 579, all passing in `make check`.
 
 ---
 
 ## Table of contents
 
 1. [For judges](#for-judges-try-it-in-3-minutes)
-1. [What it does](#what-it-does)
-2. [Deploy in 5 minutes (no coding needed)](#deploy-in-5-minutes-no-coding-needed)
-3. [Getting your keys](#getting-your-keys)
-4. [Architecture](#architecture)
-5. [User journey](#user-journey)
-6. [How one hand works](#how-one-hand-works-sequence)
-7. [Why it is fair](#why-it-is-fair)
-8. [House economics](#house-economics-disclosed)
-8. [Strategy market](#strategy-market)
-9. [Smart contract](#smart-contract)
-10. [Local development](#local-development)
-11. [Troubleshooting](#troubleshooting)
-12. [Contributing](#contributing)
+2. [What it does](#what-it-does)
+3. [Deploy in 5 minutes (no coding needed)](#deploy-in-5-minutes-no-coding-needed)
+4. [Getting your keys](#getting-your-keys)
+5. [Architecture](#architecture)
+6. [User journey](#user-journey)
+7. [How one hand works](#how-one-hand-works-sequence)
+8. [Why it is fair](#why-it-is-fair)
+9. [House economics](#house-economics-disclosed)
+10. [Strategy market](#strategy-market)
+11. [Smart contracts](#smart-contracts)
+12. [Local development](#local-development)
+13. [Troubleshooting](#troubleshooting)
+14. [Contributing](#contributing)
+15. [License](#license)
 
 ---
 
@@ -80,14 +84,15 @@ Each real-money hand is two on-chain transactions: `commit_hand` before the deal
 
 | Step | You do | You see |
 |---|---|---|
-| 1. Connect | Sign in with email or a wallet | The lobby. No seed phrase |
+| 1. Connect | Sign in with email or a wallet | The lobby (tables plus a side panel with the house bankroll). No seed phrase |
 | 2. Strategy | Pick a preset, tune aggression, bluffing, position play and bet sizing | Sliders and safety limits (stop loss, take profit, max hands) |
 | 3. Test | **Test this agent** on the Strategy tab: free hands against a practice bot | Win rate, P&L and every decision with its reason. Each test is saved as a session |
 | 4. Fund | Open Wallet and tap **Fund my wallet** (in-app faucet, any time you're under 10 GNEAR) | Your deposit address and balance in GNEAR |
-| 5. Deploy | Review the fee quote, then confirm | Your agent gets its own NEAR sub-account holding its buy-in |
+| 5. Deploy | **Play for real money** on Strategy opens the review at the back room; check the fee quote, then confirm | Your agent gets its own NEAR sub-account holding its buy-in |
 | 6. Watch | Open Live | Animated hands with each decision your agent makes. One table at a time; Stop is the only control while it plays |
 | 7. Verify | Open Results | A commit-reveal check for every hand and a live TEE attestation check |
 | 8. Review | History and Profile | Every session (practice and live) with all hands and decisions; each tested agent with its history |
+| 10. Sell | Profile → a tested agent → **List on market** | Your strategy as NEP-245 license seats on the Market |
 | 9. Cash out | Stop the agent, then Withdraw | The agent's chips return to your balance; withdraw sends them to any testnet account |
 
 ---
@@ -145,7 +150,7 @@ All of these go in `.env.deploy`. The app starts with only the two required valu
 | `NEAR_AI_API_KEY` | for play | AI agent and house decisions (in a TEE) | [cloud.near.ai](https://cloud.near.ai) → API keys |
 | `NEXT_PUBLIC_PRIVY_APP_ID` | for sign-in | Email and wallet login | [dashboard.privy.io](https://dashboard.privy.io) → create an app |
 | `PRIVY_APP_SECRET` | for sign-in | Server-side token check | Same Privy app → Settings |
-| `NEAR_OPERATOR_KEY` | for real money | On-chain commit/settle and funding agents | `private_key` in `~/.near-credentials/testnet/<operator>.json` (see [Smart contract](#smart-contract)) |
+| `NEAR_OPERATOR_KEY` | for real money | On-chain commit/settle and funding agents | `private_key` in `~/.near-credentials/testnet/<operator>.json` (see [Smart contracts](#smart-contracts)) |
 | `NEAR_CONTRACT_ID` | optional | Your own deployed contract | Default `bluffalo-poker-mwd58e1p.testnet` |
 | `NEAR_OPERATOR_ID` | optional | Your operator account | Default `npoker-op-43b602.testnet` |
 | `NEAR_RPC_URL` | optional | RPC endpoint | Default `https://test.rpc.fastnear.com` |
@@ -165,12 +170,12 @@ All of these go in `.env.deploy`. The app starts with only the two required valu
 ```mermaid
 flowchart LR
     subgraph Browser
-        UI["Next.js UI<br/>Lobby · Strategy (+ Test) · Live<br/>History · Profile · Wallet"]
+        UI["Next.js UI<br/>Lobby · Strategy (+ Test) · Market · Live<br/>History · Profile · Wallet"]
         PRIVY_SDK["Privy SDK"]
     end
 
     subgraph Web["web container (Next.js 15)"]
-        API["/api/* route handlers<br/>deal · play · agent · wallet<br/>cashout · verify · house · mcp"]
+        API["/api/* route handlers<br/>deal · play · agent · wallet<br/>cashout · verify · house · market · mcp"]
         ENGINE["Poker engine<br/>lib/server/play.ts"]
         NEARJS["near-api-js<br/>lib/server/near.ts"]
     end
@@ -184,7 +189,7 @@ flowchart LR
     subgraph External
         PRIVY["Privy auth"]
         NEARAI["NEAR AI Cloud<br/>TEE-attested LLMs"]
-        CHAIN["NEAR blockchain<br/>poker contract<br/>(escrow + commit-reveal)"]
+        CHAIN["NEAR blockchain<br/>poker contract (escrow + commit-reveal)<br/>market contract (NEP-245 seats)"]
     end
 
     MCP["External AI agents<br/>(MCP clients)"]
@@ -206,7 +211,7 @@ flowchart LR
 | Server routes | Next.js route handlers | Game engine, NEAR AI calls, chain transactions. All secrets stay here |
 | Storage | FastAPI, SQLAlchemy 2, Alembic, Postgres | Sessions, deal seeds (handed out once), hand history |
 | AI | NEAR AI Cloud | Agent and house decisions in a TEE, each response signed |
-| Chain | Rust contract (near-sdk 5) | Escrow, hand commitments, payouts |
+| Chain | Rust contracts (near-sdk 5) | Poker: escrow, hand commitments, payouts. Market: NEP-245 seats, listings, royalties |
 | Auth | Privy | Email or wallet sign-in. Real money requires sign-in |
 
 **Containers** (`docker-compose.yml`). Only `web` is exposed:
@@ -221,7 +226,7 @@ flowchart LR
 ```
 frontend/   Next.js app: src/app (pages + /api), components, lib/server (engine, chain, AI)
 backend/    FastAPI storage service + Alembic migrations
-contracts/  poker/: Rust NEAR contract + deploy.sh
+contracts/  poker/ (Rust NEAR contract + deploy.sh), market/ (NEP-245 strategy market)
 ```
 
 ---
@@ -234,12 +239,14 @@ flowchart TD
     B --> C["Strategy<br/>preset + sliders + risk limits"]
     C --> D["Test this agent<br/>free practice hands → saved as a session"]
     D -->|"back / tweak"| C
-    C --> W["Wallet<br/>faucet / deposit"]
-    W --> E["Deploy<br/>fee quote → confirm"]
+    C -->|"Play for real money"| E["Deploy review<br/>fee quote → confirm"]
+    W["Wallet<br/>faucet / deposit"] --> E
     E -->|"agent sub-account funded"| F["Live game<br/>agent vs house"]
     F -->|"stop / limit hit"| G["Results<br/>verify hands + TEE"]
     G --> H["Cash out<br/>withdraw to your account"]
     G --> I["History · Profile<br/>sessions, hands, decisions, tested agents"]
+    I --> M["Market<br/>List on market · buy a license"]
+    M -->|"Use it as your agent"| E
     E -.->|"quote/deploy fails:<br/>settings kept, no funds move"| C
 ```
 
@@ -312,7 +319,7 @@ stateDiagram-v2
 
 - **Commit-reveal deal, both seeds bound.** The server commits to its seed before your browser picks yours, and your browser checks the server's commitment. Before any card is dealt, `commit_hand` stores `sha256(server seed)` **and** `sha256(your seed)` on-chain. At settlement the contract refuses any seed that doesn't match its hash, so nobody can swap a seed after the deal. Anyone can read both seeds with `get_hand`, re-shuffle, and check the hand.
 - **No voiding losing hands.** There is no operator cancel. A hand left unsettled for 600 blocks (~10 min) can be closed by anyone with `claim_timeout`, and the **player gets the whole pot**, so stalling only costs the house.
-- **Immutable contract.** The contract account has no access keys (deleted right after deploy), so its code can't be changed. Download the exact deployed `poker.wasm` from the [contract-v2 release](https://github.com/Neeraj1850/bluffalo/releases/tag/contract-v2) and check it: `shasum -a 256 poker.wasm` must print `cab7bfd6…4953`, the sha256 behind the on-chain code hash. The build isn't reproducible (`non-reproducible-wasm`), so a fresh rebuild may produce a different hash.
+- **Immutable contracts.** The poker contract account has no access keys (deleted right after deploy), so its code can't be changed. Its on-chain code hash is `EeKs6tbcPiCoQX5MHxK9pU8MctUk3XEN5rRHfdvpRwuc`, the base58 of sha256 `cab7bfd6…4953` of the deployed `poker.wasm`. The build isn't reproducible (`non-reproducible-wasm`), so a fresh rebuild may produce a different hash. The market contract is locked the same way; see [Smart contracts](#smart-contracts) for its hash and how to check either one.
 - **TEE-signed decisions, checked per hand.** Agent moves come from a NEAR AI Cloud model running in confidential compute. On the Results screen, every AI decision of that hand is checked: its NEAR AI signature must recover (EIP-191) to a signer the model's TEE attestation vouches for (`GET /api/verify?chats=…`). The full hardware quote can be checked at [cloud.near.ai/verify](https://cloud.near.ai/verify).
 - **The house never sees your cards.** The house model only gets public information (equity, pot odds, stack-to-pot ratio) and fixed, published parameters.
 
@@ -331,32 +338,50 @@ The house earns only from the fees below. It never touches the shuffle. Every va
 |---|---|
 | Rake when the agent **wins** a pot after the flop (no flop, no drop; never more than the agent won) | 5% (`RAKE_PCT`), cap 3 BB (`RAKE_CAP_BB`) |
 | Table fee at deploy, sent to the operator treasury | 2% of buy-in (`TABLE_FEE_PCT`) |
-| Max buy-in and house stake per hand, as a share of the *current* house balance | 1% (`MAX_EXPOSURE_PCT`) |
+| Max buy-in and house stake per hand, as a share of the *current* house balance (check it: `GET /api/house`, `GET /api/tables`, or the contract's `house_balance` view) | 1% (`MAX_EXPOSURE_PCT`) |
 | Table closes (`503 table_closed`) when that cap falls below the table minimum | follows the cap |
 | Agent must cash out at N × the current cap (`409 session_cap`) | 3 (`MAX_SESSION_PAYOUT_MULT`) |
 | House bankroll kept by `POST /api/house/sweep`; the excess goes to the operator | 5 NEAR (`HOUSE_TARGET`) |
 
 In-game amounts are **GNEAR** (game NEAR): 1 testnet NEAR = 1000 GNEAR, so a 50 GNEAR buy-in costs 0.05 test NEAR.
 
-Top up the house bankroll from the public testnet faucet with `cd frontend && npm run house:topup` (3 rounds of 10 NEAR by default, max 5; run it only when the house is low).
+Top up the house bankroll from the public testnet faucet with `cd frontend && npm run house:topup` (3 rounds of 10 NEAR by default, max 5; run it only when the house is low). To keep the NEAR on the operator instead (it pays gas and the in-app faucet): `node --env-file=.env.local scripts/house-topup.mjs [rounds] operator`.
 
 ---
 
 ## Strategy market
 
-Play to build a record, publish to sell, trade to profit.
+Play to build a record, list to sell, trade seats.
 
-- **Seats are NEP-245 tokens.** Publishing mints 10, 25 or 100 seats of your strategy to your app wallet and lists them. Using a seat (`use_license`) burns it and binds a new agent account to the strategy on-chain (`strategy_of(agent)`), so every hand that agent plays on the poker contract is attributable to the strategy.
+- **Seats are NEP-245 tokens.** Listing (Profile → a tested agent → **List on market**) mints 10, 25 or 100 seats of your strategy to your app wallet and lists them. Using a seat (`use_license`) burns it and binds a new agent account to the strategy on-chain (`strategy_of(agent)`), so every hand that agent plays on the poker contract is attributable to the strategy.
 - **Settings are sealed.** The params live on the server; on-chain there is only `sha256(params + salt)`. For a licensed agent the server ignores the browser's params, stores `agent: {strategy}` (no params) in hand records, and strips numeric settings from the AI's reasons. Outside MCP agents can't drive a licensed agent. Honest limit: many hands reveal a style, and our server can see the params. A license sells a verified record and convenience, not cryptographic secrecy.
 - **Prices come from one file.** [`rules.ts`](frontend/src/lib/market/rules.ts) computes fair value from the verified record (ROI over settled hands, shrunk toward 0 for small samples), seats listed and recent demand, and moves the quote at most ±15% per tick. Listings themselves are set on-chain by sellers and NPCs; the contract enforces them.
-- **NPC traders.** Bookie and Tilt are rule-based brokers with their own wallets (a broker under 20 GNEAR closes). Scout asks NEAR AI and shows its signed reasoning, including when it passes; if NEAR AI is down it shows *offline* and does nothing. NPCs act at most every 10 minutes (triggered by page views, ≤5 transactions per tick).
+- **NPC traders.** Bookie and Tilt are rule-based brokers with their own wallets (a broker under 20 GNEAR closes). Scout asks NEAR AI and shows its signed reasoning, including when it passes; if NEAR AI is down it shows *offline* and does nothing. NPCs act at most every 10 minutes (triggered by page views, ≤5 transactions per tick). NPC trades are shown in the Market's **Now** feed and each strategy's **Who's trading** list.
 - **Fast-forward** (`/market/sim`) runs in your browser: a seeded week of practice-bot hands and 200 bot traders using the same `rules.ts`. Nothing on-chain, no NEAR AI.
 - **Money:** a first sale pays the creator 100%; a resale pays the creator a 10% royalty. Buying is one transaction from your app wallet; the attached deposit caps the price and the excess is refunded. The contract never holds NEAR beyond its storage.
+- **Demo data:** `frontend/scripts/market-seed.mjs` lists the house library (via Bookie); `frontend/scripts/market-players.mjs` creates the five demo players (ava, ben, cleo, dev, eli), their strategies, trades and a royalty-paying resale. All are accounts we control.
 - **Not built:** `mt_transfer_call` (panics `unsupported`), approvals, withdrawing seats to outside wallets.
 
 ---
 
-## Smart contract
+## Smart contracts
+
+Both contracts are locked (zero access keys). To check one, read its code hash and compare it with the published hash:
+
+```bash
+curl -s https://test.rpc.fastnear.com -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"query","params":{"request_type":"view_account","finality":"final","account_id":"market.npoker-op-43b602.testnet"}}'
+# result.code_hash must be 6W3dNPswKfcaw2tpVSkrvwnbCsUkivazpxsEhw5PCCEr
+# same call with request_type "view_access_key_list" returns "keys": []
+```
+
+| Contract | Account | Code hash (base58) | sha256 of the WASM |
+|---|---|---|---|
+| Poker v2 | `bluffalo-poker-mwd58e1p.testnet` | `EeKs6tbcPiCoQX5MHxK9pU8MctUk3XEN5rRHfdvpRwuc` | `cab7bfd689a1f5331c4cbbfadd8ad2f6ac0a8a7d3aa929abfe01715b864e4953` |
+| Market | `market.npoker-op-43b602.testnet` | `6W3dNPswKfcaw2tpVSkrvwnbCsUkivazpxsEhw5PCCEr` | `51bb3f9e4d7497010302147226f2d31c6112611df225fc81d84a7978571943c7` |
+
+The market WASM was built with `cargo near build non-reproducible-wasm` from commit `ed98bef` (contract source unchanged since). Neither build is reproducible, so the check is that the on-chain hash equals the published hash, not that a rebuild matches it.
+
+### Poker contract
 
 `contracts/poker` (Rust, near-sdk 5) holds the money and makes every hand auditable. Game logic and AI stay off-chain.
 
@@ -438,8 +463,8 @@ npm run dev
 
 ## Contributing
 
-- Every feature and bug fix ships with a test: `frontend/src/tests/` (vitest), `backend/tests/` (pytest) or `contracts/poker/src/tests.rs` (cargo).
-- `make check` (ESLint, ruff, tsc, vitest, pytest) must pass. Enable the pre-commit hook once with `git config core.hooksPath .githooks`.
+- Every feature and bug fix ships with a test: `frontend/src/tests/` (vitest), `backend/tests/` (pytest) or the contract crates (cargo).
+- `make check` (ESLint, ruff, tsc, vitest, pytest, cargo) must pass. Enable the pre-commit hook once with `git config core.hooksPath .githooks`.
 - Conventional commits (`feat:`, `fix:`, `docs:`, `chore:` …). Open a pull request against `main`.
 
 **Roadmap:** cross-chain buy-in and cash-out via NEAR Intents (mainnet only, not wired yet).
