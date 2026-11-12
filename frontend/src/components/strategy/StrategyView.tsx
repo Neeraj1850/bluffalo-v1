@@ -4,7 +4,7 @@ import Link from "next/link";
 import { YourLicenses } from "@/components/market/YourLicenses";
 import { ButtonHint, ButtonLink } from "@/components/ui/Button";
 import { MonoLabel } from "@/components/ui/MonoLabel";
-import { Rise } from "@/components/ui/Rise";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { LIMITS, PARAMS } from "@/lib/data/strategy";
 import { getTable } from "@/lib/data/tables";
 import { useSetup } from "@/lib/store/setup";
@@ -19,24 +19,19 @@ export function StrategyView() {
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-5 pt-6 lg:h-dvh lg:gap-4 lg:overflow-hidden lg:px-10 lg:pb-6 lg:pt-8">
-      <header className="flex flex-col gap-3 lg:gap-1">
-        <div className="flex items-center justify-between font-mono text-[11px] uppercase tracking-[0.2em] text-muted">
-          <Link href="/lobby" className="inline-flex min-h-11 items-center hover:text-fg">
-            {"←"} {table.name}
-          </Link>
-          <span>03 · Tune your agent</span>
-        </div>
-        <Rise
-          as="h1"
-          feel="spring"
-          className="display pb-[0.1em] text-[88px] leading-[0.8] tracking-[-0.07em] lg:text-[72px]"
-        >
-          strategy
-        </Rise>
-        <p className="max-w-md text-[15px] leading-normal text-muted lg:hidden">
-          Pick a personality. Your agent plays every hand with it. You can fine-tune later.
-        </p>
-      </header>
+      <PageHeader
+        eyebrow={
+          <>
+            <Link href="/lobby" className="hover:text-fg">
+              {"←"} {table.name}
+            </Link>
+            <span aria-hidden="true">·</span>
+            <span>Tune your agent</span>
+          </>
+        }
+        title="strategy"
+        description="Pick a personality. Your agent plays every hand with it. You can fine-tune later."
+      />
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:min-h-0 lg:flex-1 lg:grid-cols-3 lg:gap-6">
         <div className="flex flex-col gap-6 lg:min-h-0 lg:overflow-y-auto">

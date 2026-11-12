@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button, ButtonLink } from "@/components/ui/Button";
-import { MonoLabel } from "@/components/ui/MonoLabel";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { ThinkingDots } from "@/components/ui/ThinkingDots";
 import { CashoutSheet } from "@/components/results/CashoutSheet";
 import { agentBalanceState, IN_HAND_COPY } from "@/lib/agentStatus";
@@ -24,34 +24,44 @@ const link = "font-mono text-[11px] uppercase tracking-[0.12em] underline underl
 export function WalletView() {
   const wallet = useWallet();
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-xl flex-col gap-6 px-5 pb-8 pt-5 lg:pt-10">
-      <MonoLabel tracking="wide">Wallet</MonoLabel>
-      <header className="flex flex-col gap-1.5">
-        <MonoLabel>Playing balance · NEAR testnet</MonoLabel>
-        <span className="font-display text-[56px] font-bold leading-none tracking-[-0.05em] tabular">
-          {wallet.wallet ? `${wallet.wallet.balance.toFixed(2)}` : "—"}
-          <span className="ml-2 font-display text-[22px] font-medium">GNEAR</span>
-        </span>
-        {wallet.signedOut && <p className="text-[14px] text-muted">Sign in to see your balance.</p>}
-      </header>
+    <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-5 pb-8 pt-6 lg:h-dvh lg:gap-4 lg:overflow-hidden lg:px-10 lg:pb-6 lg:pt-8">
+      <PageHeader
+        eyebrow="Wallet · NEAR testnet"
+        title="wallet"
+        description="Your playing balance funds every agent. 1 testnet NEAR = 1000 GNEAR."
+      />
 
-      <section aria-labelledby="deposit-h" className={section}>
-        <h2 id="deposit-h" className="font-mono text-[11px] uppercase tracking-[0.16em]">
-          Deposit
-        </h2>
-        <DepositPanel open />
-      </section>
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:min-h-0 lg:flex-1 lg:grid-cols-3 lg:gap-6">
+        <div className="flex flex-col gap-6 lg:min-h-0 lg:overflow-y-auto">
+          <section aria-labelledby="balance-h" className={section}>
+            <h2 id="balance-h" className="font-mono text-[11px] uppercase tracking-[0.16em]">
+              Playing balance
+            </h2>
+            <span className="font-display text-[56px] font-bold leading-none tracking-[-0.05em] tabular">
+              {wallet.wallet ? `${wallet.wallet.balance.toFixed(2)}` : "—"}
+              <span className="ml-2 font-display text-[22px] font-medium">GNEAR</span>
+            </span>
+            {wallet.signedOut && <p className="text-[14px] text-muted">Sign in to see your balance.</p>}
+          </section>
+          <AgentCard />
+        </div>
 
-      {!wallet.signedOut && (
-        <section aria-labelledby="withdraw-h" className={section}>
-          <h2 id="withdraw-h" className="font-mono text-[11px] uppercase tracking-[0.16em]">
-            Withdraw
+        <section aria-labelledby="deposit-h" className={`${section} lg:min-h-0 lg:overflow-y-auto`}>
+          <h2 id="deposit-h" className="font-mono text-[11px] uppercase tracking-[0.16em]">
+            Deposit
           </h2>
-          <WithdrawPanel />
+          <DepositPanel open />
         </section>
-      )}
 
-      <AgentCard />
+        {!wallet.signedOut && (
+          <section aria-labelledby="withdraw-h" className={`${section} lg:min-h-0 lg:overflow-y-auto`}>
+            <h2 id="withdraw-h" className="font-mono text-[11px] uppercase tracking-[0.16em]">
+              Withdraw
+            </h2>
+            <WithdrawPanel />
+          </section>
+        )}
+      </div>
     </main>
   );
 }

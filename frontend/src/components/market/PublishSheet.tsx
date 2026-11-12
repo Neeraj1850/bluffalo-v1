@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Button, ButtonHint, ButtonLink } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
 import { ConfirmationSummary } from "@/components/ui/ConfirmationSummary";
 import { Sheet } from "@/components/ui/Sheet";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -93,9 +93,9 @@ export function PublishSheet({ open, onClose, agent }: { open: boolean; onClose:
                 See the mint ↗
               </a>
             </p>
-            <ButtonLink href="/market/sim" trailing={<ButtonHint>→</ButtonHint>}>
-              Watch the market react
-            </ButtonLink>
+            <Button variant="secondary" onClick={onClose}>
+              Done
+            </Button>
           </div>
         ) : (
           <Button onClick={publish} disabled={!valid} pending={pending} pendingLabel="Publishing…">

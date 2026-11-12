@@ -7,7 +7,8 @@ import { DecisionFeedRow } from "@/components/game/DecisionFeedRow";
 import { LineChart } from "@/components/ui/LineChart";
 import { MonoLabel } from "@/components/ui/MonoLabel";
 import { paginate, Pager } from "@/components/ui/Pager";
-import { Rise } from "@/components/ui/Rise";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { cn } from "@/lib/cn";
 import { signed } from "@/lib/format";
@@ -45,17 +46,11 @@ export function MarketView() {
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-5 pt-6 lg:h-dvh lg:gap-4 lg:overflow-hidden lg:px-10 lg:pb-6 lg:pt-8">
-      <header className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between lg:gap-8">
-        <div className="flex flex-col gap-3 lg:gap-1">
-        <MonoLabel>Strategy market · NEAR testnet</MonoLabel>
-        <Rise as="h1" feel="spring" className="display pb-[0.1em] text-[88px] leading-[0.8] tracking-[-0.07em] lg:text-[72px]">
-          market
-        </Rise>
-        </div>
-        <p className="max-w-md text-[15px] leading-normal text-muted lg:text-right">
-          Buy a license to play someone else&rsquo;s strategy. Settings stay sealed; prices follow real hands.
-        </p>
-      </header>
+      <PageHeader
+        eyebrow="Strategy market · NEAR testnet"
+        title="market"
+        description="Buy a license to play someone else’s strategy. Settings stay sealed; prices follow real hands."
+      />
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-8">
         <div className="flex flex-col gap-4 lg:min-h-0 lg:gap-3 lg:overflow-y-auto">
@@ -100,7 +95,20 @@ export function MarketView() {
           )}
           </div>
 
-          {!data && <p className="text-[14px] text-muted">{error ? "The market isn’t reachable right now. Retrying…" : "Loading the market…"}</p>}
+          {!data && (
+            <>
+              <p role="status" className={error ? "text-[14px] text-muted" : "sr-only"}>
+                {error ? "The market isn’t reachable right now. Retrying…" : "Loading the market…"}
+              </p>
+              <ul aria-hidden="true" className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {Array.from({ length: PAGE }, (_, i) => (
+                  <li key={i}>
+                    <Skeleton className="h-[150px]" />
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
           {data && list.length === 0 && (
             <p className="rounded-card border border-dashed border-border p-5 text-[14px] leading-normal text-muted">
               {filter === "mine" ? "No licenses or strategies of yours yet. Publish one from the Strategy tab." : "Nothing here right now."}
@@ -144,7 +152,17 @@ export function MarketView() {
             <MonoLabel as="h2" id="ticker">
               Now
             </MonoLabel>
-            <EventFeed events={data?.events.slice(0, 20) ?? []} />
+            {data ? (
+              <EventFeed events={data.events.slice(0, 20)} />
+            ) : (
+              <ul aria-hidden="true" className="flex flex-col gap-2 pt-3">
+                {Array.from({ length: 6 }, (_, i) => (
+                  <li key={i}>
+                    <Skeleton className="h-14 rounded-chip" />
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
         </aside>
       </div>

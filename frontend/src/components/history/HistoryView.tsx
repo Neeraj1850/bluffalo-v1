@@ -7,7 +7,7 @@ import { SignOutButton } from "@/components/SignOutButton";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 import { MonoLabel } from "@/components/ui/MonoLabel";
-import { Rise } from "@/components/ui/Rise";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { cn } from "@/lib/cn";
 import { ButtonLink } from "@/components/ui/Button";
 import { getPreset } from "@/lib/data/strategy";
@@ -70,24 +70,20 @@ export function HistoryView({
   const lost = hands.filter((h) => h.net < 0).reduce((a, h) => a + h.net, 0);
 
   return (
-    <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-5 pt-6 lg:grid lg:h-dvh lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)] lg:gap-10 lg:overflow-hidden lg:px-10 lg:py-8">
-      <div className="flex min-w-0 flex-col gap-6 lg:min-h-0 lg:overflow-y-auto">
-      <header className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <MonoLabel tracking="wide">07 · The archive</MonoLabel>
-          <div className="flex items-center gap-1 lg:hidden">
+    <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-5 pt-6 lg:h-dvh lg:gap-4 lg:overflow-hidden lg:px-10 lg:pb-6 lg:pt-8">
+      <PageHeader
+        eyebrow="The archive · every hand"
+        title="history"
+        actions={
+          <>
             <SignOutButton />
             <ThemeToggle />
-          </div>
-        </div>
-        <Rise
-          as="h1"
-          feel="spring"
-          className="display pb-[0.1em] text-[96px] leading-[0.8] tracking-[-0.07em] lg:text-[96px]"
-        >
-          history
-        </Rise>
-      </header>
+          </>
+        }
+      />
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)] lg:gap-10">
+      <div className="flex min-w-0 flex-col gap-6 lg:min-h-0 lg:overflow-y-auto">
+
 
       <div
         role="tablist"
@@ -309,6 +305,7 @@ export function HistoryView({
           <Pager page={shown.page} pages={shown.pages} onChange={setPage} />
         </section>
       )}
+      </div>
       </div>
     </main>
   );

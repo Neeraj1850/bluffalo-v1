@@ -8,6 +8,7 @@ import { ConfirmationSummary } from "@/components/ui/ConfirmationSummary";
 import { Disclosure } from "@/components/ui/Disclosure";
 import { LineChart } from "@/components/ui/LineChart";
 import { MonoLabel } from "@/components/ui/MonoLabel";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { StatBox, StatGroup } from "@/components/ui/StatBox";
 import { cn } from "@/lib/cn";
 import { signed } from "@/lib/format";
@@ -43,8 +44,31 @@ export function ListingView({ id }: { id: string }) {
 
   if (!data) {
     return (
-      <main className="mx-auto w-full max-w-5xl px-5 pt-6 lg:px-10 lg:pt-10">
-        <p className="text-[14px] text-muted">{missing ? "No strategy with that id." : "Loading…"}</p>
+      <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-5 pt-6 lg:px-10 lg:pt-10">
+        <p role="status" className={missing ? "text-[14px] text-muted" : "sr-only"}>
+          {missing ? "No strategy with that id." : "Loading…"}
+        </p>
+        {!missing && (
+          <>
+            <div className="flex flex-col gap-3">
+              <Skeleton className="h-11 w-24 rounded-chip" />
+              <Skeleton className="h-16 w-3/4" />
+              <Skeleton className="h-4 w-48 rounded-chip" />
+            </div>
+            <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-2 lg:gap-10">
+              <div className="flex flex-col gap-4">
+                <Skeleton className="h-24" />
+                <Skeleton className="h-[120px]" />
+                <Skeleton className="h-20" />
+              </div>
+              <div className="flex flex-col gap-2">
+                {Array.from({ length: 5 }, (_, i) => (
+                  <Skeleton key={i} className="h-14 rounded-chip" />
+                ))}
+              </div>
+            </div>
+          </>
+        )}
       </main>
     );
   }
