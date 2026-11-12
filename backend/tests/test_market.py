@@ -50,6 +50,8 @@ def test_stats_aggregate_real_hands_by_strategy(client, session_id):
     assert client.get("/strategies/stats").json() == {
         "stats": [{"strategy_id": "s1a2b3c4d", "hands": 2, "stake": 9.0, "net": 3.0, "wins": 1}]
     }
+    listed = client.get("/strategies/s1a2b3c4d/hands").json()["hands"]
+    assert sorted(h["net"] for h in listed) == [-3.0, 6.0]
 
 
 def test_events_round_trip_newest_first_with_limit_and_since(client, session_id):

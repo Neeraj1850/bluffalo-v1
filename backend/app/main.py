@@ -351,6 +351,19 @@ def strategy_stats(db: Db) -> dict:
     return {"stats": [dict(r._mapping) for r in rows]}
 
 
+@app.get("/strategies/{strategy_id}/hands", dependencies=Auth)
+def strategy_hands(strategy_id: StrategyId, db: Db) -> dict:
+    """The newest 50 real-money hand records played under a strategy (for its verified record)."""
+    sid = Hand.record[("agent", "strategy")].as_string()
+    rows = db.scalars(
+        select(Hand.record)
+        .where(sid == strategy_id, func.coalesce(Hand.record["mode"].as_string(), "real") == "real")
+        .order_by(Hand.created_at.desc())
+        .limit(50)
+    )
+    return {"hands": list(rows)}
+
+
 @app.get("/strategies/{strategy_id}/params", dependencies=Auth)
 def strategy_params(strategy_id: StrategyId, db: Db) -> dict:
     s = db.get(Strategy, strategy_id)
