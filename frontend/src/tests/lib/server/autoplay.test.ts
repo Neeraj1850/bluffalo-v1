@@ -58,6 +58,22 @@ describe("server autoplay", () => {
     expect(ap.isRunning(ME)).toBe(false);
   });
 
+  it("keeps playing hand after hand against a real ledger (stake locked at commit, paid at settle)", async () => {
+    let bal = 49.4;
+    chain.balanceOf.mockImplementation(async () => bal);
+    chain.commitHand.mockImplementation(async (_h: string, _a: string, _d: string, _p: string, stake: number) => {
+      bal = Math.round((bal - stake) * 100) / 100;
+      return "COMMIT_TX";
+    });
+    chain.settleHand.mockImplementation(async (_h: string, _d: string, _p: string, payout: number) => {
+      bal = Math.round((bal + payout) * 100) / 100;
+      return "SETTLE_TX";
+    });
+    const s = await run({ ...cfg, stack: 49.4, limits: { ...cfg.limits, maxHands: 4 } });
+    expect(chain.settleHand).toHaveBeenCalledTimes(4);
+    expect(s.autoplay).toMatchObject({ hands: 4, stopped: expect.stringMatching(/maximum number of hands/) });
+  });
+
   it("counts a sitting already under way toward its limits", async () => {
     await run({ ...cfg, hands: 2 });
     expect(chain.commitHand).not.toHaveBeenCalled();

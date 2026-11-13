@@ -710,12 +710,12 @@ export function GameTable({
                 </Link>
               </p>
             )}
-            {stopped && (
+            {(stopped || returned.status === "done") && (
               <ButtonLink href="/results" size="md" className="col-span-full">
-                See the result
+                See the result →
               </ButtonLink>
             )}
-            {sessionHref && stopped && session.hands > 0 && (
+            {sessionHref && (stopped || returned.status === "done") && session.hands > 0 && (
               <Link
                 href={sessionHref}
                 className="col-span-full font-mono text-[11px] uppercase tracking-[0.12em] underline underline-offset-4"

@@ -3,6 +3,7 @@ import type { HandStep, HistoryHand, ScriptedHand } from "@/lib/data/hands";
 import type { PresetKey, StrategyParams } from "@/lib/data/strategy";
 import type { DealProof } from "./fairness";
 import { replayOf, type Replay } from "./replay";
+import { describeWinner } from "./evaluate";
 import { settle, type HandState, type LogEntry } from "./game";
 
 /** A played hand: what the screens render, plus what anyone needs to verify the deal. */
@@ -125,8 +126,8 @@ export function toRecord(
   if (s.folded === 1) outcome = `The ${opponent} folded. Your agent takes the pot.`;
   else if (s.folded === 0) outcome = "Your agent folded — it only loses what it had already bet.";
   else if (r.winner === "split") outcome = `Both had ${lower(mine!.description)} — the pot is split.`;
-  else if (r.winner === 0) outcome = `${mine!.description} beat the ${opponent}’s ${lower(theirs!.description)}.`;
-  else outcome = `The ${opponent}’s ${lower(theirs!.description)} beat ${lower(mine!.description)}.`;
+  else if (r.winner === 0) outcome = `${describeWinner(mine!, theirs!)} beat the ${opponent}’s ${lower(theirs!.description)}.`;
+  else outcome = `The ${opponent}’s ${lower(describeWinner(theirs!, mine!))} beat ${lower(mine!.description)}.`;
 
   const shown = r.hands ? (r.winner === 1 ? theirs! : mine!) : null;
   const result = r.winner === "split" ? `SPLIT ${r.payouts[0]}` : net >= 0 ? `WON ${r.pot}` : `LOST ${-net}`;

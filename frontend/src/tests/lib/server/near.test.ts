@@ -111,6 +111,8 @@ describe("contract calls", () => {
   it("reads balances in table NEAR", async () => {
     callFunction.mockResolvedValueOnce("53500000000000000000000");
     expect(await near.balanceOf("a1.op.testnet")).toBe(53.5);
+    // Same level our transactions wait for: a "final" read right after a settle still shows the stake locked.
+    expect(callFunction.mock.calls[0][0]).toMatchObject({ blockQuery: { finality: "optimistic" } });
   });
 
   it("turns any chain failure into a ChainError", async () => {

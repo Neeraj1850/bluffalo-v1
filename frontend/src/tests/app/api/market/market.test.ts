@@ -3,7 +3,7 @@ import { POST as publish } from "@/app/api/market/publish/route";
 import { POST as trade } from "@/app/api/market/trade/route";
 import { POST as tick } from "@/app/api/market/tick/route";
 import type { MarketEvent, MarketListing, MarketStrategy, Npc, Why } from "@/lib/market/types";
-import { busyWallets, clearMarketCache } from "@/lib/server/market";
+import { busyWallets, clearMarketCache, priced } from "@/lib/server/market";
 import { ChainError, toYocto } from "@/lib/server/near";
 import { SESSION_COOKIE } from "@/lib/server/sessions";
 import { useFakeBackend } from "@/tests/helpers/backend";
@@ -100,6 +100,11 @@ describe("POST /api/market/trade", () => {
     expect(be.events[0]).toMatchObject({ kind: "sale", account: WALLET, counterparty: SELLER });
   });
 
+  it("re-quotes the strategy right after a sale, without waiting for an NPC tick", async () => {
+    await trade(req(buy));
+    await vi.waitFor(() => expect(be.events.some((e) => e.kind === "price" && e.strategy_id === "s1")).toBe(true));
+  });
+
   it("answers 409 price_moved when the ask is above maxPrice", async () => {
     const res = await trade(req({ ...buy, maxPrice: 11 }));
     expect(res.status).toBe(409);
@@ -145,6 +150,16 @@ describe("POST /api/market/trade", () => {
     expect((await second.json()).code).toBe("busy");
     release("TX");
     expect((await first).status).toBe(200);
+  });
+});
+
+describe("price series", () => {
+  it("ends on the live quote, after the recorded history", async () => {
+    be.events.unshift({ id: 1, strategy_id: "s1", kind: "price", account: "m", price_yocto: toYocto(7).toString(), created_at: new Date().toISOString() });
+    const [row] = await priced();
+    expect(row.spark[0]).toBe(7);
+    expect(row.spark.at(-1)).toBe(row.price);
+    expect(row.spark.length).toBe(2);
   });
 });
 

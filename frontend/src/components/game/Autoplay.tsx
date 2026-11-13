@@ -163,6 +163,11 @@ export function AutoplaySitting({ initial }: { initial: AutoplayStatus }) {
         )
       )}
       {returned && <p className="text-[13px] text-muted">{returned}</p>}
+      {stopped && (a?.hands ?? 0) > 0 && (
+        <Link href="/results" className="flex h-11 items-center justify-center rounded-btn border border-fg bg-fg px-4 text-[15px] text-bg">
+          See the result →
+        </Link>
+      )}
       {runId && (
         <Link href={runHref("real", runId)} className="font-mono text-[11px] uppercase tracking-[0.12em] underline">
           This session in History

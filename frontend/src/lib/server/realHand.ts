@@ -10,6 +10,7 @@ import { payoutFor, rakeFor, sessionPayoutCap, stakeFor, TABLE_CLOSED, tableStat
 import { recordHand } from "./hands";
 import { inFlight } from "./inFlight";
 import { balanceOf, ChainError, commitHand, houseBalance, settleHand } from "./near";
+import { repriceStrategy } from "./market";
 import { playHand, type PlayRequest } from "./play";
 import { sessionAgent, sessionAgentStrategy, sessionUser } from "./sessions";
 import { CLAIM_AFTER_MS, claimExpired, parkUnsettled } from "./timeouts";
@@ -138,6 +139,8 @@ export async function revealReal(sessionId: string, handId: string, playerSeed: 
       hand.rake = rake;
       hand.chain = { contract: process.env.NEAR_CONTRACT_ID!, agent: p.agent, commitTx: p.commitTx, settleTx };
       await recordHand(sessionId, hand);
+      // A licensed strategy's record just changed: move its market price now.
+      if (p.req.strategy) void repriceStrategy(p.req.strategy);
       return hand;
     } catch (e) {
       // Committed but not settled: nobody may void it early, so it pays the player

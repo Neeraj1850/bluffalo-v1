@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { cards } from "@/lib/cards";
-import { bestHand, compareHands } from "@/lib/poker/evaluate";
+import { bestHand, compareHands, describeWinner } from "@/lib/poker/evaluate";
 
 const best = (...codes: string[]) => bestHand(cards(...codes));
 
@@ -52,5 +52,14 @@ describe("bestHand", () => {
 
   it("rejects too few or too many cards", () => {
     expect(() => best("As", "Kd")).toThrow();
+  });
+});
+
+describe("describeWinner", () => {
+  it("names the deciding kicker when both hands read the same", () => {
+    const a = best("Ks", "Kd", "Ac", "9h", "4s", "2c", "7d");
+    const b = best("Ks", "Kd", "Qc", "9h", "4s", "2c", "7d");
+    expect(describeWinner(a, b)).toBe("Pair of kings, ace kicker");
+    expect(describeWinner(a, best("Qs", "Qd", "Ac", "9h", "4s", "2c", "7d"))).toBe("Pair of kings");
   });
 });

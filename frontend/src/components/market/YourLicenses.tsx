@@ -34,7 +34,8 @@ export function YourLicenses() {
               type="button"
               role="radio"
               aria-checked={on}
-              onClick={() => applyAgent("custom", params, on ? null : { id: l.tokenId, name: l.title })}
+              // Idempotent: picking the selected one keeps it; a preset or slider deselects.
+              onClick={() => !on && applyAgent("custom", params, { id: l.tokenId, name: l.title })}
               className={cn(
                 "flex min-h-11 items-center justify-between rounded-card border p-4 text-left transition-colors",
                 on ? "border-sel bg-sel text-onsel" : "border-border hover:border-fg",

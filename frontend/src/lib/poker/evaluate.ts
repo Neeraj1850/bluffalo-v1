@@ -116,6 +116,13 @@ export function compareHands(a: HandValue, b: HandValue): number {
   return 0;
 }
 
+/** The winner's description, plus the deciding kicker when both read the same ("Pair of kings, ace kicker"). */
+export function describeWinner(win: HandValue, lose: HandValue): string {
+  if (win.description !== lose.description) return win.description;
+  const i = win.score.findIndex((v, k) => v !== lose.score[k]);
+  return i > 0 ? `${win.description}, ${one(win.score[i])} kicker` : win.description;
+}
+
 /** Best five-card hand from five to seven cards. */
 export function bestHand(cards: Card[]): HandValue {
   if (cards.length < 5 || cards.length > 7) throw new Error("Need 5 to 7 cards");

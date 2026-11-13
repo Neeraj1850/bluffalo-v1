@@ -13,6 +13,7 @@ import {
   list,
   liveListings,
   recordEvent,
+  repriceStrategy,
   TOKEN_ID,
   underCap,
 } from "@/lib/server/market";
@@ -66,6 +67,7 @@ export async function POST(request: Request) {
       if (cash < need) return insufficient(need);
       const tx = await buy(wallet, tokenId, seller, each);
       await recordEvent({ strategy_id: tokenId, kind: "sale", account: wallet.account, counterparty: seller, price_yocto: l.price_each, amount: 1, tx });
+      void repriceStrategy(tokenId);
       return reply({ tx });
     }
     if (cash < gasReserveYocto(CALL_GAS)) return insufficient(gasReserveYocto(CALL_GAS));
@@ -78,10 +80,12 @@ export async function POST(request: Request) {
       if ((amount as number) > held) return reply({ error: `You hold ${held} seat${held === 1 ? "" : "s"}`, code: "invalid" }, 400);
       const tx = await list(wallet, tokenId, amount as number, price);
       await recordEvent({ strategy_id: tokenId, kind: "list", account: wallet.account, amount: amount as number, price_yocto: toYocto(price).toString(), tx });
+      void repriceStrategy(tokenId);
       return reply({ tx });
     }
     const tx = await delist(wallet, tokenId);
     await recordEvent({ strategy_id: tokenId, kind: "delist", account: wallet.account, tx });
+    void repriceStrategy(tokenId);
     return reply({ tx });
   } catch (e) {
     // Backstop: the chain's own balance check is a funds problem, not an outage.

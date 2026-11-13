@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLiveHands } from "@/components/game/useLiveHands";
 import { getTable, PRACTICE_STACK, PRACTICE_TABLE_ID } from "@/lib/data/tables";
 import { useSetup } from "@/lib/store/setup";
+import { netAfterRake } from "@/services/houseApi";
 
 const TICK_MS = 1400;
 
@@ -72,6 +73,18 @@ export function usePracticeSim(runId?: string) {
     togglePaused: () => setPaused((p) => !p),
     boardShown: hand ? hand.steps[step].boardCount : 0,
     stats: { hands: loop.session.hands, wins, net: loop.session.net },
+    /**
+     * Totals at Stop: the hand on screen is already saved to the session, so it
+     * counts even though its playback hasn't finished — matching the saved session.
+     */
+    finalStats: () =>
+      hand && settled.current !== hand.id
+        ? {
+            hands: loop.session.hands + 1,
+            wins: wins + (hand.net > 0 ? 1 : 0),
+            net: Math.round((loop.session.net + netAfterRake(hand)) * 100) / 100,
+          }
+        : { hands: loop.session.hands, wins, net: loop.session.net },
     stopped,
     error: loop.error,
     retry: next,

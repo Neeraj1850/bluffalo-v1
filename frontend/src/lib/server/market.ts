@@ -206,7 +206,9 @@ export async function priced(events?: BackendEvent[]) {
     };
     const prev = prices[0] ?? 0;
     const fair = fairValue(ms);
-    return { s, stat, ms, prev, fair, price: quote(prev, fair), spark: prices.slice(0, 20).reverse(), asks };
+    const price = quote(prev, fair);
+    // Recorded history, oldest first, ending on the live quote (so a move shows before the next tick records it).
+    return { s, stat, ms, prev, fair, price, spark: [...prices.slice(0, 19).reverse(), price], asks };
   });
 }
 
@@ -217,6 +219,20 @@ export async function recordPrices() {
     rows.map((r) => recordEvent({ strategy_id: r.s.token_id, kind: "price", account: marketId(), price_yocto: toYocto(r.price).toString() })),
   );
   return rows;
+}
+
+/**
+ * Re-quote one strategy right after something moved it (a sale, a listing, a use,
+ * a settled licensed hand) instead of waiting for the next NPC tick. Best effort.
+ */
+export async function repriceStrategy(tokenId: string) {
+  try {
+    clearMarketCache(); // fresh stats, listings and events
+    const r = (await priced()).find((x) => x.s.token_id === tokenId);
+    if (r) await recordEvent({ strategy_id: tokenId, kind: "price", account: marketId(), price_yocto: toYocto(r.price).toString() });
+  } catch (e) {
+    console.error("[market] reprice", tokenId, e);
+  }
 }
 
 // ---- What the routes return ----

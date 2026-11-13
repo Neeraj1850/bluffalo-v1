@@ -32,6 +32,9 @@ const GAS = 30_000_000_000_000n;
 // Wait until the call has executed (we learn success or the panic), not for full
 // finality — that cuts each transaction from ~9s to ~1–2s on testnet.
 const WAIT = "EXECUTED_OPTIMISTIC" as const;
+// Views must read at the same level: with the default "final" they lag ~2 blocks, so a
+// balance read right after a settle still shows the stake locked (≈0 when it staked all).
+const LATEST = { finality: "optimistic" } as const;
 /** What each new agent account gets for its own storage and cash-out gas. */
 const AGENT_FUNDING = 2n * 10n ** 22n; // 0.02 NEAR
 /**
@@ -158,7 +161,7 @@ export function claimTimeout(handId: string) {
 export async function balanceYocto(agent: string): Promise<bigint> {
   const { account, contract } = operator();
   try {
-    const raw = await account.provider.callFunction({ contractId: contract, method: "balance_of", args: { account_id: agent } });
+    const raw = await account.provider.callFunction({ contractId: contract, method: "balance_of", args: { account_id: agent }, blockQuery: LATEST });
     return BigInt(String(raw ?? "0"));
   } catch (e) {
     throw new ChainError(e);
@@ -377,7 +380,7 @@ export async function getHand(handId: string, contractId?: string): Promise<Chai
 export async function houseBalanceYocto(): Promise<bigint> {
   const { account, contract } = operator();
   try {
-    const raw = await account.provider.callFunction({ contractId: contract, method: "house_balance", args: {} });
+    const raw = await account.provider.callFunction({ contractId: contract, method: "house_balance", args: {}, blockQuery: LATEST });
     return BigInt(String(raw ?? "0"));
   } catch (e) {
     throw new ChainError(e);

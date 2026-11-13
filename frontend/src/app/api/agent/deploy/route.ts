@@ -12,7 +12,7 @@ import {
   toYocto,
   walletBalanceYocto,
 } from "@/lib/server/near";
-import { balances, CALL_GAS, gasReserveYocto, recordEvent, TOKEN_ID, applyLicense } from "@/lib/server/market";
+import { balances, CALL_GAS, gasReserveYocto, recordEvent, repriceStrategy, TOKEN_ID, applyLicense } from "@/lib/server/market";
 import { saveState, sessionFrom, sessionUser, sessionWallet, setSessionAgent, withSession } from "@/lib/server/sessions";
 
 /**
@@ -54,6 +54,7 @@ export async function POST(request: Request) {
       const agentId = newAgentId();
       const useTx = await applyLicense(wallet, strategyId, agentId);
       await recordEvent({ strategy_id: strategyId, kind: "use", account: wallet.account, counterparty: agentId, tx: useTx });
+      void repriceStrategy(strategyId);
       created = await createAgentAccount(agentId);
     } else {
       created = await createAgentAccount();

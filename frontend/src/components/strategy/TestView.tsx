@@ -142,7 +142,7 @@ function TestRun({ runId, onStop }: { runId: string; onStop: (s: Stats) => void 
 
         <button
           type="button"
-          onClick={() => onStop(sim.stats)}
+          onClick={() => onStop(sim.finalStats())}
           className="h-14 rounded-btn border border-fg font-display text-[17px] font-medium hover:bg-fg hover:text-bg"
         >
           Stop test

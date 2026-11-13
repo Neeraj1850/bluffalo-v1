@@ -15,6 +15,7 @@ import { signed } from "@/lib/format";
 import type { MarketListing } from "@/lib/market/types";
 import { fetchMarketProof, fetchMarketStrategy, txUrl, type MarketDetail, type MarketProof } from "@/services/agentApi";
 import { BuySheet } from "./BuySheet";
+import { SellSheet } from "./SellSheet";
 import { changeLabel } from "./filters";
 import { EventFeed } from "./MarketView";
 
@@ -24,6 +25,7 @@ export function ListingView({ id }: { id: string }) {
   const [data, setData] = useState<MarketDetail | null>(null);
   const [missing, setMissing] = useState(false);
   const [buying, setBuying] = useState<MarketListing | null>(null);
+  const [selling, setSelling] = useState(false);
   const [proof, setProof] = useState<MarketProof | "checking" | "failed" | null>(null);
 
   const load = useCallback(
@@ -73,6 +75,7 @@ export function ListingView({ id }: { id: string }) {
     );
   }
   const s = data.strategy;
+  const mine = data.listings.find((l) => l.sellerKind === "you");
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-5 pt-6 lg:px-10 lg:pt-10">
@@ -149,6 +152,16 @@ export function ListingView({ id }: { id: string }) {
                 </li>
               ))}
             </ul>
+            {s.owned > 0 && (
+              <div className="flex items-center justify-between gap-3 py-3">
+                <span className="text-[13px] text-muted">
+                  {mine ? `Your listing: ${mine.amount} at ${mine.priceEach.toFixed(1)} GNEAR` : "Resell a seat you hold."}
+                </span>
+                <Button size="sm" variant="secondary" onClick={() => setSelling(true)}>
+                  {mine ? "Edit or delist" : "Sell a seat"}
+                </Button>
+              </div>
+            )}
           </section>
 
           <section aria-labelledby="trading" className="flex flex-col">
@@ -177,7 +190,7 @@ export function ListingView({ id }: { id: string }) {
               {data.hands.map((h) => (
                 <li key={h.handId} className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3 border-b border-hair py-2.5">
                   <span className="flex gap-3 font-mono text-[11px] uppercase tracking-[0.1em] text-muted">
-                    <span>#{h.handId.slice(0, 8)}</span>
+                    <span>#{h.handId.replace(/^#/, "").slice(0, 8)}</span>
                     {h.commitTx && <TxLink tx={h.commitTx} label="commit" />}
                     {h.settleTx && <TxLink tx={h.settleTx} label="settle" />}
                   </span>
@@ -189,6 +202,7 @@ export function ListingView({ id }: { id: string }) {
         </div>
       </div>
 
+      {selling && <SellSheet open strategy={s} mine={mine} onClose={() => setSelling(false)} onDone={load} />}
       {buying && (
         <BuySheet open strategy={s} listing={buying} onClose={() => setBuying(null)} onBought={load} />
       )}
