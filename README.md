@@ -1,7 +1,30 @@
 # Bluffalo
 
-> Design a poker personality, practice it for free, then send your AI agent to play heads-up Texas Hold'em against an AI house for real NEAR testnet stakes. Every hand is committed on-chain before your seed is revealed, the payout is re-checked against the cards in your browser, and every AI decision is signed by a model running inside a hardware TEE, including proof that the house never saw your cards.
-> Then sell it: list your strategy on the **Strategy Market**, where license seats are NEP-245 tokens, prices follow each strategy's verified on-chain record, and three NPC traders with their own wallets buy, sell and reprice.
+> **A player-owned market in poker AIs.** You build a poker strategy, prove it at the table, and sell it as NEP-245 license seats. Players and three NPC traders with their own NEAR wallets buy, resell and reprice those seats. Every hand a licensed agent plays rewrites that strategy's verified on-chain record, and the price moves with it. No dev patch sets a price: the economy runs on table results, supply and demand.
+> Players sign in with email and never see a seed phrase, a wallet popup or a gas prompt. Under the hood, every hand is committed on-chain before the deal, both contracts are immutable (zero access keys), and every AI decision is signed inside a NEAR AI Cloud TEE.
+
+## The game loop (Games With Real Economies)
+
+The table is where value is made; the market is where it's traded. Each loop feeds the next:
+
+| Every… | The player… | What changes in the economy |
+|---|---|---|
+| **30 seconds** | Watches their agent play a hand (or a licensed agent they bought) | Hand settles on-chain → that strategy's verified ROI and hand count update |
+| **5 minutes** | Checks the **Market**: prices, sparklines, the **Now** feed of NPC and player trades; clicks **Why?** on a price | Fair value is recomputed from the record, seats listed and recent demand ([`rules.ts`](frontend/src/lib/market/rules.ts)), moving at most ±15% per tick. NPC traders react |
+| **Session** | Tunes a strategy, tests it free, deploys it for stakes, then lists it (10/25/100 seats), or buys a proven strategy and plays it | New supply enters; a first sale pays the creator 100%, every resale pays them a 10% royalty |
+
+**How the brief maps to the build**
+
+| The brief asks for | Bluffalo | Where to check |
+|---|---|---|
+| NPCs with wallets | Bookie (value broker), Tilt (momentum broker), Scout (AI trader on NEAR AI) each hold their own NEAR account and trade real seats on-chain | [`scout`](https://testnet.nearblocks.io/address/scout.npoker-op-43b602.testnet), [`bookie`](https://testnet.nearblocks.io/address/bookie.npoker-op-43b602.testnet), [`tilt`](https://testnet.nearblocks.io/address/tilt.npoker-op-43b602.testnet); logic in [`npc.ts`](frontend/src/lib/server/npc.ts) |
+| Player-owned markets | Any player can mint their tested strategy as seats, list, buy and resell; the contract enforces listings, atomic buys and royalties | [`contracts/market`](contracts/market) at `market.npoker-op-43b602.testnet` |
+| An economy that evolves without a dev patch | Prices come only from settled hands, supply and demand through one rules file; a broker that drops under 20 GNEAR goes broke and closes | [`rules.ts`](frontend/src/lib/market/rules.ts), **Why?** on any price |
+| Watch it move | **Watch a week in 60 s** fast-forwards a seeded week in your browser: prices swing, brokers trade, one can go broke | `/market/sim` (simulation, marked as such, nothing on-chain) |
+| NEP-245 | License seats are NEP-245 multi-tokens (`mt_*`, `nep245` events); using one burns it and binds an agent on-chain | `strategy_of(agent)` view on the market contract |
+| Players never notice the chain | Email login (Privy), app wallet, quote → submitted → confirmed with no popup, in-app testnet faucet | [buy tx with no popup](https://testnet.nearblocks.io/txns/DAiKrturJLftnpGhEYbHm4K7zSE8m4roz9oPZoQuvV7g) |
+
+Honest gaps: Bookie and Tilt are rule-based (only Scout reasons with an LLM); fast-forward is a browser simulation, not chain history; NEAR Intents isn't wired.
 
 **Live app:** https://bluffalo.up.railway.app · **Network:** NEAR testnet · **Contracts:** [`bluffalo-poker-mwd58e1p.testnet`](https://testnet.nearblocks.io/address/bluffalo-poker-mwd58e1p.testnet) (poker) and [`market.npoker-op-43b602.testnet`](https://testnet.nearblocks.io/address/market.npoker-op-43b602.testnet) (market), both with zero access keys: their code can't be changed
 
@@ -21,7 +44,7 @@
 
 ## For judges: try it in 3 minutes
 
-No setup, no crypto wallet. Every step below works on the live app.
+No setup, no crypto wallet. Every step below works on the live app. **Short on time? Do steps 10–14: they show the market economy in two minutes.**
 
 | # | Do | You should see |
 |---|---|---|
@@ -102,8 +125,8 @@ Each real-money hand is two on-chain transactions: `commit_hand` before the deal
 | 6. Watch | Open Live | Animated hands with each decision your agent makes. One table at a time; Stop is the only control while it plays |
 | 7. Verify | Open Results | A commit-reveal check for every hand and a live TEE attestation check |
 | 8. Review | History and Profile | Every session (practice and live) with all hands and decisions; each tested agent with its history |
-| 10. Sell | Profile → a tested agent → **List on market** | Your strategy as NEP-245 license seats on the Market |
-| 9. Cash out | Stop the agent, then Withdraw | The agent's chips return to your balance; withdraw sends them to any testnet account |
+| 9. Sell | Profile → a tested agent → **List on market** | Your strategy as NEP-245 license seats on the Market |
+| 10. Cash out | Stop the agent, then Withdraw | The agent's chips return to your balance; withdraw sends them to any testnet account |
 
 ---
 
