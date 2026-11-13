@@ -29,7 +29,7 @@ No setup, no crypto wallet. Every step below works on the live app.
 | 1 | Open https://bluffalo.up.railway.app and click **Continue with Email**. Enter any email and the 6-digit code Privy sends you | The **Lobby**: a free practice table, three real-money tables, and a side panel with the house bankroll and open tables |
 | 2 | Open **Strategy**, pick **Shark** (or move a slider), then click **Test this agent** (`/strategy/test`) | A full-page practice table. Free hands start on their own; each move shows *why* the agent made it |
 | 3 | After 2–3 hands click **Stop test**, then **See this test session** | The session: result, hands, and every decision of every hand |
-| 4 | Open **Wallet** and click **Fund my wallet with testnet NEAR** | 100 GNEAR arrives in a few seconds (1 testnet NEAR = 1000 GNEAR) |
+| 4 | Open **Wallet** and click **Fund my wallet with testnet NEAR** (the button appears while you hold under 10 GNEAR) | 100 GNEAR arrives in a few seconds (1 testnet NEAR = 1000 GNEAR) |
 | 5 | Back on **Strategy** click **Play for real money** (goes to the deploy review at *the back room*), tick **I understand…**, then **Put my agent in play** | Your agent gets its own NEAR account holding a 50 GNEAR buy-in |
 | 6 | Click **Watch your agent play** | Live hands against the house AI. While playing, the only control is **Stop agent after this hand** |
 | 7 | Click **Stop agent after this hand**, then **See the result** | **Fair-play verified** (both seeds matched their on-chain commitments) and **TEE attested · N/N decisions** (every AI decision in that hand was signed inside a TEE) |
@@ -97,7 +97,7 @@ Each real-money hand is two on-chain transactions: `commit_hand` before the deal
 | 1. Connect | Sign in with email or a wallet | The lobby (tables plus a side panel with the house bankroll). No seed phrase |
 | 2. Strategy | Pick a preset, tune aggression, bluffing, position play and bet sizing | Sliders and safety limits (stop loss, take profit, max hands) |
 | 3. Test | **Test this agent** on the Strategy tab: free hands against a practice bot | Win rate, P&L and every decision with its reason. Each test is saved as a session |
-| 4. Fund | Open Wallet and tap **Fund my wallet** (in-app faucet, any time you're under 10 GNEAR) | Your deposit address and balance in GNEAR |
+| 4. Fund | Open Wallet and tap **Fund my wallet** (in-app faucet; the button appears only while you hold under 10 GNEAR) | Your deposit address and balance in GNEAR |
 | 5. Deploy | **Play for real money** on Strategy opens the review at the back room; check the fee quote, then confirm | Your agent gets its own NEAR sub-account holding its buy-in |
 | 6. Watch | Open Live | Animated hands with each decision your agent makes. One table at a time; Stop is the only control while it plays |
 | 7. Verify | Open Results | A commit-reveal check for every hand and a live TEE attestation check |
