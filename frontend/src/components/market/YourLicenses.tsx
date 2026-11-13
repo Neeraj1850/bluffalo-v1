@@ -19,6 +19,11 @@ export function YourLicenses() {
     );
   }, []);
 
+  // A remembered license whose seat is gone (used or sold) can't deploy: drop it.
+  useEffect(() => {
+    if (mine && license && !mine.some((l) => l.tokenId === license.id && l.seats > 0)) applyAgent("custom", params);
+  }, [mine, license, params, applyAgent]);
+
   if (!mine?.length) return null;
   return (
     <section aria-labelledby="licenses" className="flex flex-col gap-2">

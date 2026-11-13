@@ -115,6 +115,12 @@ describe("contract calls", () => {
     expect(callFunction.mock.calls[0][0]).toMatchObject({ blockQuery: { finality: "optimistic" } });
   });
 
+  it("reads market views at optimistic finality too, so a just-sent delist is gone", async () => {
+    callFunction.mockResolvedValueOnce([]);
+    await near.view("listings", {}, "market.testnet");
+    expect(callFunction.mock.calls[0][0]).toMatchObject({ blockQuery: { finality: "optimistic" } });
+  });
+
   it("turns any chain failure into a ChainError", async () => {
     callFunctionRaw.mockRejectedValueOnce(new Error("Smart contract panicked: Player balance is too low"));
     await expect(near.commitHand("0123abcd", "a1", "c".repeat(64), "d".repeat(64), 50)).rejects.toBeInstanceOf(near.ChainError);

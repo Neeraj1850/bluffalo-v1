@@ -89,7 +89,7 @@ export async function send(
 export async function view<T>(method: string, args: Record<string, unknown>, contractId: string): Promise<T> {
   const { account } = operator();
   try {
-    return (await account.provider.callFunction({ contractId, method, args })) as T;
+    return (await account.provider.callFunction({ contractId, method, args, blockQuery: LATEST })) as T;
   } catch (e) {
     throw new ChainError(e);
   }
