@@ -5,7 +5,7 @@ import { sessionFrom, sessionUser, withSession } from "@/lib/server/sessions";
 
 const HAND_ID = /^[A-Za-z0-9_-]{1,16}$/;
 /** Hands played before contract v2 live on the first contract. Only our own contracts are read. */
-export const LEGACY_CONTRACTS = ["npk-63o824.testnet"];
+const LEGACY_CONTRACTS = ["npk-63o824.testnet"];
 
 /**
  * Check a hand against the contract's own record: verified once it's settled,
