@@ -3,6 +3,14 @@
 > **A player-owned market in poker AIs.** You build a poker strategy, prove it at the table, and sell it as NEP-245 license seats. Players and three NPC traders with their own NEAR wallets buy, resell and reprice those seats. Every hand a licensed agent plays rewrites that strategy's verified on-chain record, and the price moves with it. No dev patch sets a price: the economy runs on table results, supply and demand.
 > Players sign in with email and never see a seed phrase, a wallet popup or a gas prompt. Under the hood, every hand is committed on-chain before the deal, both contracts are immutable (zero access keys), and every AI decision is signed inside a NEAR AI Cloud TEE.
 
+| The market: NPC traders reprice live, with their reasons | Every price explained: **Why?** shows each input from [`rules.ts`](frontend/src/lib/market/rules.ts) |
+|---|---|
+| ![Strategy market with live NPC trades](docs/screenshots/market.png) | ![Strategy page with the price breakdown](docs/screenshots/strategy.png) |
+| **Watch a week in 60 s**: the economy moves while you watch | **Practice for free**: every agent move comes with its reason |
+| ![Fast-forward market simulation](docs/screenshots/market-sim.png) | ![Free practice table](docs/screenshots/practice.png) |
+| **Sign in with email**, or browse the market with no account | **Every AI decision is TEE-signed**, and you can check it |
+| ![Landing page](docs/screenshots/landing.png) | ![TEE verification page](docs/screenshots/verify.png) |
+
 ## The game loop (Games With Real Economies)
 
 The table is where value is made; the market is where it's traded. Each loop feeds the next:
@@ -44,7 +52,7 @@ Honest gaps: Bookie and Tilt are rule-based (only Scout reasons with an LLM); fa
 
 ## For judges: try it in 3 minutes
 
-No setup, no crypto wallet. Every step below works on the live app. **Short on time? Do steps 10–14: they show the market economy in two minutes.**
+No setup, no crypto wallet. Every step below works on the live app. **Short on time? Open https://bluffalo.up.railway.app/market. It needs no sign-in. Then do steps 10–13: they show the market economy in two minutes.**
 
 | # | Do | You should see |
 |---|---|---|
@@ -89,7 +97,8 @@ Each real-money hand is two on-chain transactions: `commit_hand` before the deal
 - **Tracks:** Games With Real Economies (primary: strategy market: NEP-245 seats, player-owned listings, NPC traders with wallets, prices from one rules file, week fast-forward, email login with no popups) and Agent Economy (agents with their own NEAR accounts and withdraw-only keys, agents buying strategies from other players, TEE-signed reasoning for every decision, an MCP server at `/api/mcp` so outside agents can play: `deal` with `sha256(seed)`, then `reveal` the seed after the commit; *Keep playing when I close the tab* runs the agent on the server).
 - **AI tools used:** Claude Code (Anthropic) helped write code, tests, docs and the demo video edit; ElevenLabs generated the video narration. In-game AI runs on NEAR AI Cloud (`Qwen/Qwen3.6-35B-A3B-FP8`, TEE-attested).
 - **Main libraries:** Next.js 15, React 19, Tailwind CSS 4, Framer Motion 12, Privy (`@privy-io/react-auth`, `@privy-io/node`), `near-api-js`, `ethers` (signature recovery for TEE checks), FastAPI, SQLAlchemy 2, Alembic, `near-sdk` 5 (Rust contract), Vitest, pytest.
-- **Tests:** 473 app (vitest) + 54 backend (pytest) + 52 contract (cargo: 34 poker, 18 market) = 579, all passing in `make check`.
+- **Tests:** 520 app (vitest) + 58 backend (pytest) + 52 contract (cargo: 34 poker, 18 market) = 630, all passing in `make check`.
+- **Reliability:** the server tries backup testnet RPCs (drpc, then rpc.testnet.near.org) when the primary rate-limits, so a public RPC's limits don't take the app down. Contract errors are never retried.
 
 ---
 
