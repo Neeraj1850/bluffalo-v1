@@ -54,11 +54,55 @@ function config() {
   return { rpc: NEAR_RPC_URL, contract: NEAR_CONTRACT_ID, operatorId: NEAR_OPERATOR_ID, key: NEAR_OPERATOR_KEY };
 }
 
+/** Public testnet RPCs tried after NEAR_RPC_URL (comma-separated) when it rate-limits or is down. */
+const FALLBACK_RPCS = ["https://near-testnet.drpc.org", "https://rpc.testnet.near.org"];
+
+/** Rate limits, gateway errors and network failures: worth another RPC. Contract errors are not. */
+export function isRpcOutage(e: unknown): boolean {
+  const err = e as { message?: string; cause?: unknown };
+  return /\b429\b|rate limit|too many requests|\b50[234]\b|fetch failed|ECONNRE|ETIMEDOUT|timed? ?out|socket hang up/i.test(
+    `${err?.message ?? e} ${err?.cause instanceof Error ? err.cause.message : (err?.cause ?? "")}`,
+  );
+}
+
+/**
+ * One provider over several RPCs: each call tries the last good one first and
+ * moves on only for outages, so contract errors (panics, UNKNOWN_ACCOUNT) keep
+ * their real message. near-api-js's FailoverRpcProvider fails over on every
+ * error and replaces it with a generic one, which our error handling can't read.
+ */
+export function failover<T extends object>(providers: T[]): T {
+  let current = 0;
+  return new Proxy(providers[0], {
+    get(_target, prop) {
+      if (typeof (providers[current] as Record<PropertyKey, unknown>)[prop] !== "function") {
+        return (providers[current] as Record<PropertyKey, unknown>)[prop];
+      }
+      return async (...args: unknown[]) => {
+        let last: unknown;
+        for (let i = 0; i < providers.length; i++) {
+          const idx = (current + i) % providers.length;
+          try {
+            const result = await (providers[idx] as Record<PropertyKey, (...a: unknown[]) => unknown>)[prop](...args);
+            current = idx;
+            return result;
+          } catch (e) {
+            if (!isRpcOutage(e)) throw e;
+            last = e;
+          }
+        }
+        throw last;
+      };
+    },
+  });
+}
+
 const g = globalThis as typeof globalThis & { __npOperator?: Account };
 
 function operator() {
   const c = config();
-  g.__npOperator ??= new Account(c.operatorId, new JsonRpcProvider({ url: c.rpc }), c.key as KeyPairString);
+  const urls = [...new Set([...c.rpc.split(",").map((u) => u.trim()).filter(Boolean), ...FALLBACK_RPCS])];
+  g.__npOperator ??= new Account(c.operatorId, failover(urls.map((url) => new JsonRpcProvider({ url }))), c.key as KeyPairString);
   return { account: g.__npOperator, ...c };
 }
 
