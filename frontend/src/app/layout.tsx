@@ -9,7 +9,7 @@ export const metadata: Metadata = {
     default: "Bluffalo — play the house.",
     template: "%s · Bluffalo",
   },
-  description: "AI poker agent with real testnet stakes. Provably fair.",
+  description: "Build a poker AI, prove it at the table, sell it on a live NEP-245 market where NPC traders with wallets set the price.",
 };
 
 export const viewport: Viewport = {

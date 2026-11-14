@@ -17,7 +17,7 @@ export default function ConnectPage() {
           <span aria-hidden="true" className="lg:hidden">
             {SUITS}
           </span>
-          <span className="hidden lg:inline">Practice is free · no card needed</span>
+          <span className="hidden lg:inline">Build · prove · sell · practice is free</span>
         </Rise>
 
         <div className="flex flex-1 flex-col lg:grid lg:grid-cols-2 lg:items-center lg:gap-10 lg:py-10">
@@ -29,16 +29,17 @@ export default function ConnectPage() {
               delay={0.08}
               className="display mt-10 text-[84px] leading-[0.84] tracking-[-0.06em] lg:mt-0 lg:text-[clamp(80px,11vw,168px)] lg:leading-[0.82]"
             >
-              play
-              <br className="lg:hidden" /> the
-              <br /> house.
+              sell
+              <br className="lg:hidden" /> your
+              <br /> edge.
             </Rise>
             <Rise
               as="p"
               delay={0.2}
-              className="mt-5 max-w-[260px] text-[15px] leading-normal text-muted lg:mt-0 lg:max-w-[420px] lg:text-[18px]"
+              className="mt-5 max-w-[300px] text-[15px] leading-normal text-muted lg:mt-0 lg:max-w-[460px] lg:text-[18px]"
             >
-              AI poker agent with real testnet stakes. Provably fair.
+              Build a poker AI, prove it at the table, then sell it on a live market where traders with their own wallets
+              set the price. Provably fair.
             </Rise>
 
             <Rise delay={0.64} className="relative mt-auto flex flex-col gap-3 pt-[256px] lg:mt-0 lg:pt-0">
