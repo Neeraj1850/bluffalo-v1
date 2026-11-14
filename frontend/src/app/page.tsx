@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ConnectActions } from "@/components/connect/ConnectActions";
 import { HeroFan } from "@/components/connect/HeroFan";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -45,7 +46,11 @@ export default function ConnectPage() {
             <Rise delay={0.64} className="relative mt-auto flex flex-col gap-3 pt-[256px] lg:mt-0 lg:pt-0">
               <ConnectActions />
               <p className="mt-1 text-[13px] leading-[1.45] text-muted lg:text-[14px]">
-                New here? Email is all you need. We set up your account behind the scenes.
+                New here? Email is all you need. We set up your account behind the scenes.{" "}
+                <Link href="/market" className="underline">
+                  Browse the market
+                </Link>{" "}
+                without signing in.
               </p>
             </Rise>
           </div>

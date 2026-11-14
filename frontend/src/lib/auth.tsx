@@ -163,6 +163,12 @@ export function useSessionLink() {
 }
 
 /** Auth state for components that must work with or without Privy configured. */
+/**
+ * Practice and browsing the market need no account; real-money screens stay
+ * behind sign-in (and the play and trade APIs check it too).
+ */
+export const isGuestPath = (path: string) => path === "/strategy/test" || path === "/market" || path.startsWith("/market/");
+
 export function useAuth() {
   const { ready, authenticated } = useAuthState();
   return { configured: AUTH_CONFIGURED, ready, authenticated };

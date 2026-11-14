@@ -10,6 +10,7 @@ import { LineChart } from "@/components/ui/LineChart";
 import { MonoLabel } from "@/components/ui/MonoLabel";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { StatBox, StatGroup } from "@/components/ui/StatBox";
+import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/cn";
 import { signed } from "@/lib/format";
 import type { MarketListing } from "@/lib/market/types";
@@ -22,6 +23,7 @@ import { EventFeed } from "./MarketView";
 export const RULES_URL = "https://github.com/Neeraj1850/bluffalo-v1/blob/main/frontend/src/lib/market/rules.ts";
 
 export function ListingView({ id }: { id: string }) {
+  const { authenticated } = useAuth();
   const [data, setData] = useState<MarketDetail | null>(null);
   const [missing, setMissing] = useState(false);
   const [buying, setBuying] = useState<MarketListing | null>(null);
@@ -144,11 +146,16 @@ export function ListingView({ id }: { id: string }) {
                       {l.memo ? ` · ${l.memo}` : ""}
                     </span>
                   </span>
-                  {l.sellerKind !== "you" && (
-                    <Button size="sm" onClick={() => setBuying(l)}>
-                      Buy
-                    </Button>
-                  )}
+                  {l.sellerKind !== "you" &&
+                    (authenticated ? (
+                      <Button size="sm" onClick={() => setBuying(l)}>
+                        Buy
+                      </Button>
+                    ) : (
+                      <Link href="/" className="font-mono text-[11px] uppercase tracking-[0.1em] underline">
+                        Sign in to buy
+                      </Link>
+                    ))}
                 </li>
               ))}
             </ul>
